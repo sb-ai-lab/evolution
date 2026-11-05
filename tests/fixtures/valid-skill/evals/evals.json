@@ -1,0 +1,11 @@
+{
+  "skill_name": "valid-skill",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Run the valid skill test",
+      "expected_output": "Test passed successfully",
+      "assertions": ["Output contains 'passed'"]
+    }
+  ]
+}

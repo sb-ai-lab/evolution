@@ -1,0 +1,211 @@
+# ============================================================================
+# Python Research Project
+# ============================================================================
+docs/
+splits/
+CLAUDE.md
+
+results/*
+plans/
+tasks/
+!AFTER-anonymous/tasks/
+!AFTER-anonymous/tasks/**
+.github/
+uv.lock
+
+# splits/: track only Python scripts; ignore manifests/data
+splits/**/manifests/
+splits/**/*.json
+splits/**/*.md
+splits/**/*.yaml
+!splits/**/*.py
+experiments/*
+!experiments/_shared/
+!experiments/baselines/
+!experiments/iterative_evolution/
+!experiments/AGENTS.md
+
+# Inside each shared/kept dir: ignore all direct children by default.
+experiments/_shared/*
+experiments/baselines/*
+experiments/iterative_evolution/*
+
+# baselines / iterative_evolution: track only root entrypoint scripts (+ ie tests).
+!experiments/baselines/*.py
+!experiments/baselines/*.sh
+!experiments/baselines/subset.json
+!experiments/iterative_evolution/*.py
+!experiments/iterative_evolution/*.sh
+!experiments/iterative_evolution/tests/
+!experiments/iterative_evolution/tests/**
+
+# _shared: keep the full source tree.
+!experiments/_shared/**
+
+# Ignore heavy runtime outputs inside any tracked experiment dir.
+experiments/**/artifacts/
+experiments/**/artifacts_*/
+experiments/**/eval_runs/
+experiments/**/runs/
+experiments/**/results/
+experiments/**/stability/
+experiments/**/__pycache__/
+experiments/**/*.pyc
+experiments/**/*.log
+experiments/**/embedding_cache/
+experiments/**/tasks_flat/
+experiments/**/.evolution/
+*tar.gz
+# --------------------------------------------------------------------------
+# Python
+# --------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+*.manifest
+*.spec
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# Distribution / packaging
+sdist/
+wheels/
+*.whl
+
+# --------------------------------------------------------------------------
+# Jupyter / IPython
+# --------------------------------------------------------------------------
+.ipynb_checkpoints/
+*.ipynb_output/
+profile_default/
+ipython_config.py
+papers/
+
+# --------------------------------------------------------------------------
+# Data & model artifacts (keep structure, ignore large files)
+# --------------------------------------------------------------------------
+data/raw/
+data/processed/
+data/external/
+*.csv
+*.tsv
+*.parquet
+*.feather
+*.h5
+*.hdf5
+*.pkl
+*.pickle
+*.npy
+*.npz
+*.arrow
+
+# Large model files
+models/
+checkpoints/
+*.pt
+*.pth
+*.onnx
+*.safetensors
+*.bin
+
+# Allow small config/sample files if needed
+!data/.gitkeep
+!models/.gitkeep
+
+# --------------------------------------------------------------------------
+# Experiment tracking
+# --------------------------------------------------------------------------
+mlruns/
+wandb/
+lightning_logs/
+runs/
+outputs/
+logs/
+*.log
+
+# --------------------------------------------------------------------------
+# Claude Code / Anthropic
+# --------------------------------------------------------------------------
+.claude/
+
+# --------------------------------------------------------------------------
+# API keys & secrets
+# --------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+secrets/
+*.key
+*.pem
+
+# --------------------------------------------------------------------------
+# IDE / editor
+# --------------------------------------------------------------------------
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.settings/
+
+# --------------------------------------------------------------------------
+# OS files
+# --------------------------------------------------------------------------
+.DS_Store
+Thumbs.db
+desktop.ini
+*.tmp
+
+# --------------------------------------------------------------------------
+# Skill traces (LLM responses, may be large)
+# --------------------------------------------------------------------------
+.traces/
+
+# --------------------------------------------------------------------------
+# Local agent skills/containers and ad-hoc debug scripts (not versioned)
+# --------------------------------------------------------------------------
+.agents/
+debug/
+
+# tasks/ is untracked entirely (see top-level tasks/ rule above).
+# Agent debris patterns kept for local safety.
+tasks/**/_solve.py
+tasks/**/solution.py
+tasks/**/output.*
+tasks/**/_prompt.md
+tasks/**/_response.md
+
+# --------------------------------------------------------------------------
+# Testing / coverage
+# --------------------------------------------------------------------------
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+**/.ruff_cache/
+
+# --------------------------------------------------------------------------
+# Documentation builds
+# --------------------------------------------------------------------------
+docs/_build/
+site/

@@ -1,0 +1,94 @@
+[project]
+name = "evolution"
+version = "0.1.0"
+description = "Trace-driven skill evolution framework for LLM agents"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.10"
+classifiers = [
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "pyyaml>=6.0",
+    "pydantic>=2.0",
+    "typer>=0.12",
+    "rich>=13.0",
+]
+
+[project.optional-dependencies]
+llm = ["litellm>=1.40"]
+gigachat = ["gigachat>=0.1.0"]
+gui = ["streamlit>=1.35", "pandas>=2.0", "plotly>=5.0"]
+paper = [
+    "duckdb>=1.0",
+    "numpy>=1.26",
+    "openpyxl>=3.1",
+    "pandas>=2.0",
+    "pdfplumber>=0.11",
+    "pypdf>=4.0",
+    "python-docx>=1.1",
+    "python-dotenv>=1.0",
+    "python-pptx>=0.6.23",
+    "requests>=2.31",
+]
+adapters = ["openai>=1.0", "python-dotenv>=1.0"]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "ruff>=0.6",
+    "mypy>=1.10",
+]
+research = ["evolution[paper,adapters]"]
+all = ["evolution[llm,gigachat,gui,paper,adapters,dev]"]
+
+[project.scripts]
+evo = "evolution.cli.main:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/evolution"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+markers = [
+    "live: requires API key (deselect with -m 'not live')",
+    "paper: requires the external CRAFT/SB-Bench paper corpus and paper artifacts",
+    "external_repo: requires sibling baseline repositories outside this checkout",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+extend-exclude = ["docs/internal", ".agents", "tasks", "splits"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+ignore = [
+    "E501",  # line-length is enforced by formatter
+    "B008",  # typer pattern: function-call defaults in argument signatures
+    "B904",  # CLI pattern: raise typer.Exit() after catching an unrelated exc
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B011", "B017"]
+"src/evolution/cli/bench.py" = ["UP007", "UP045"]  # Typer compatibility with older local releases
+"src/evolution/cli/main.py" = ["E402", "UP007", "UP045"]  # bench import after app; Typer compatibility
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+no_implicit_optional = true
+files = ["src/evolution"]
+exclude = "src/evolution/adapters/"
