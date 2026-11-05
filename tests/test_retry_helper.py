@@ -6,7 +6,7 @@ import asyncio
 
 import pytest
 
-from evolution.llm._retry import retry_async
+from evolution.llm.retry import retry_async
 
 
 class _Transient(Exception):

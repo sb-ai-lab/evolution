@@ -1,10 +1,13 @@
-"""rev J1: reflection free-text fed to the rewriter is sanitized in oracle
-mode (the reflector may have quoted an expected value), passed through in blind
-mode, and the on-disk/source reflection dict is never mutated."""
+"""Reflection free-text is passed through under the train-oracle policy.
+
+Train traces may quote train verifier details; held-out protection happens at
+the split/provenance gate before reflection, not by scrubbing train evidence
+from the rewriter's in-memory input.
+"""
 
 from __future__ import annotations
 
-from evolution.evolution.reflect import _sanitize_reflections_for_rewriter
+from evolution.evolve.reflect import _sanitize_reflections_for_rewriter
 
 
 def _reflection() -> dict:
@@ -16,11 +19,12 @@ def _reflection() -> dict:
     }
 
 
-def test_oracle_mode_redacts_literals(monkeypatch):
+def test_train_oracle_mode_preserves_train_literals(monkeypatch):
+    monkeypatch.setenv("EVO_OPTIMIZATION_TARGET", "train")
     monkeypatch.delenv("EVO_REFLECT_BLIND", raising=False)
     out = _sanitize_reflections_for_rewriter([_reflection()])
-    assert "DriversLicense" not in out[0]["skill_gap"]
-    assert "123456789" not in out[0]["skill_gap"]
+    assert "DriversLicense" in out[0]["skill_gap"]
+    assert "123456789" in out[0]["skill_gap"]
 
 
 def test_blind_mode_passes_through(monkeypatch):
@@ -35,5 +39,5 @@ def test_source_dict_is_not_mutated(monkeypatch):
     src = _reflection()
     snapshot = dict(src)
     _sanitize_reflections_for_rewriter([src])
-    # The disk-backed reflection stays verbatim; only the in-memory copy is cleaned.
+    # The disk-backed reflection stays verbatim; the in-memory reference is not scrubbed.
     assert src == snapshot

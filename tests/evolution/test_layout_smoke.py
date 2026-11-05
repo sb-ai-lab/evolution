@@ -1,270 +1,230 @@
-"""Phase 4: Regression smoke for the TaskLayout abstraction.
+"""Regression smoke for task-layout detection, staging, and evaluation.
 
-Runs a solve pipeline (setup workspace → place solution → run tests) on four
-reference tasks under both the legacy code path (``EVO_USE_LAYOUTS`` off)
-and the layout code path (``EVO_USE_LAYOUTS=1``) and asserts the observable
-results match.
-
-For evo tasks the layout implementation mirrors the legacy inline code, so
-results must be identical.  For sb-bench tasks the legacy path does not
-properly stage workspaces (it only copies ``inputs/*`` which many sb-bench
-tasks lack), so we only verify the layout path produces valid, reproducible
-results — we compare against a golden snapshot rather than against legacy.
-
-Reference tasks
----------------
-  evo:   econ-detrending-correlation, exceltable-in-ppt
-  sb:    de/sonnet-81cf9bcd8c3e, ds/sonnet-acaed29e54ec
-
-See plans/layout_abstraction.md §Phase 4.
+The fixtures are generated in a temporary directory so this package test does
+not depend on the ignored task corpus or the external SB-Bench checkout.
 """
 
 from __future__ import annotations
 
-import os
-import shutil
 from pathlib import Path
 
 import pytest
 
-EVO_ROOT = Path(__file__).resolve().parent.parent.parent
-TASKS_DIR = EVO_ROOT / "tasks"
+from evolution.eval.layouts import detect_layout
+from evolution.eval.runner import run_task
+from evolution.eval.task import load_task
+from evolution.eval.workspace import setup_workspace
+from evolution.eval.workspace_materializer import WorkspaceMaterializationError
 
-EVO_TASKS = [
-    "econ-detrending-correlation",
-    "exceltable-in-ppt",
-]
+_TEST_SOURCE = """from __future__ import annotations
 
-SB_BENCH_TASKS = [
-    "de/sonnet-81cf9bcd8c3e",
-    "ds/sonnet-acaed29e54ec",
-]
-
-
-def _require_sb_fixture(name: str) -> Path:
-    """Return the fixture task dir, or skip if it isn't checked out.
-
-    The sb-bench fixtures are committed under ``tasks/<role>/<task>/`` but a
-    trimmed checkout may omit them; skip rather than hard-fail so the evo
-    regression tests still gate CI.
-    """
-    task_dir = TASKS_DIR / name
-    if not (task_dir / "task.toml").exists():
-        pytest.skip(f"sb-bench fixture not present: {task_dir}")
-    return task_dir
-
-
-# A minimal stub that creates ``output/`` and a dummy ``answer.txt``.
-# The econ task's test suite will flag the value as incorrect but both
-# paths will report the same pass/fail counts — proving equivalence.
-_STUB_CODE = """
 import os
+from pathlib import Path
 
-os.makedirs("output", exist_ok=True)
-with open("answer.txt", "w") as f:
-    f.write("0.99999")
+
+def test_answer() -> None:
+    workspace = Path(
+        os.environ.get("TASK_WORKSPACE")
+        or os.environ.get("WORKSPACE_DIR")
+        or "."
+    )
+    assert (workspace / "answer.txt").read_text(encoding="utf-8") == "ok"
+"""
+
+_SB_TEST_SOURCE = """from __future__ import annotations
+
+from pathlib import Path
+
+
+def test_answer() -> None:
+    root = Path(__file__).resolve().parents[1]
+    expected = Path(__file__).with_name("expected.txt").read_text(encoding="utf-8")
+    assert (root / "output" / "answer.txt").read_text(encoding="utf-8") == expected
 """
 
 
-# ── helpers ────────────────────────────────────────────────────────────────
+def _write_evo_task(root: Path) -> Path:
+    task = root / "synthetic-evo"
+    (task / "inputs").mkdir(parents=True)
+    (task / "tests").mkdir()
+    (task / "task.toml").write_text(
+        'version = "1.0"\n'
+        "[metadata]\n"
+        'name = "synthetic-evo"\n'
+        'difficulty = "easy"\n'
+        'category = "test"\n'
+        "[skills]\n"
+        "required = []\n"
+        "[evaluation]\n"
+        'test_file = "tests/test_outputs.py"\n',
+        encoding="utf-8",
+    )
+    (task / "instruction.md").write_text("Write answer.txt.", encoding="utf-8")
+    (task / "inputs" / "seed.txt").write_text("evo", encoding="utf-8")
+    (task / "tests" / "test_outputs.py").write_text(_TEST_SOURCE, encoding="utf-8")
+    return task
 
 
-def _write_stub(ws: Path) -> None:
-    """Place a stub solution."""
-    ws.joinpath("_solve.py").write_text(_STUB_CODE, encoding="utf-8")
-    ws.joinpath("solution.py").write_text(_STUB_CODE, encoding="utf-8")
+def _write_sb_bench_task(root: Path) -> Path:
+    task = root / "synthetic-sb"
+    (task / "environment" / "data").mkdir(parents=True)
+    (task / "tests").mkdir()
+    (task / "source_artifacts").mkdir()
+    (task / "task.toml").write_text(
+        "[task]\n"
+        'id = "synthetic-sb"\n'
+        'name = "Synthetic SB task"\n'
+        'difficulty = "easy"\n'
+        'skills = ["model_training"]\n'
+        "[verification]\n"
+        'verifier_entrypoint = "tests/test_outputs.py"\n'
+        "timeout_seconds = 30\n",
+        encoding="utf-8",
+    )
+    (task / "instruction.md").write_text("Write answer.txt.", encoding="utf-8")
+    (task / "environment" / "data" / "seed.txt").write_text("sb", encoding="utf-8")
+    (task / "solve.sh").write_text("python3 solution.py\n", encoding="utf-8")
+    (task / "tests" / "test_outputs.py").write_text(_SB_TEST_SOURCE, encoding="utf-8")
+    (task / "tests" / "expected.txt").write_text("ok", encoding="utf-8")
+    (task / "tests" / ".ground_truth.json").write_text("oracle", encoding="utf-8")
+    (task / "source_artifacts" / "raw.json").write_text("oracle", encoding="utf-8")
+    (task / "data_generator.py").write_text("# setup only\n", encoding="utf-8")
+    (task / "solution.py").write_text("# oracle solution\n", encoding="utf-8")
+    return task
 
 
-def _wipe(ws: Path) -> None:
-    """Remove solution and output artefacts (leaves inputs + tests intact)."""
-    for name in ("_solve.py", "solution.py", "answer.txt"):
-        p = ws / name
-        if p.is_file():
-            p.unlink()
-    out = ws / "output"
-    if out.is_dir():
-        shutil.rmtree(out, ignore_errors=True)
-
-
-# Files that carry runtime noise (timestamps, process ids, etc.) and
-# should not participate in deterministic snapshot comparison.
-_SKIP_SNAPSHOT = frozenset(
-    {
-        ".workspace_guard.jsonl",
-        "_workspace_guard_bin",
-        "_workspace_guard_py",
-        "pytest_output.txt",
+@pytest.fixture
+def layout_tasks(tmp_path: Path) -> dict[str, Path]:
+    return {
+        "evo": _write_evo_task(tmp_path),
+        "sb_bench": _write_sb_bench_task(tmp_path),
     }
-)
 
 
-def _snapshot(ws: Path) -> dict:
-    """Deterministic workspace snapshot, skipping guard/runtime files."""
-    snap: dict = {}
-    for child in sorted(ws.iterdir()):
-        if child.name in _SKIP_SNAPSHOT:
-            continue
-        if child.is_file():
-            snap[child.name] = child.read_bytes()
-        elif child.is_dir():
-            snap[child.name] = {
-                str(p.relative_to(child)): p.read_bytes()
-                for p in sorted(child.rglob("*"))
-                if p.is_file() and p.name not in _SKIP_SNAPSHOT
-            }
-    return snap
+def test_detects_layouts_from_synthetic_formats(layout_tasks: dict[str, Path]) -> None:
+    for expected, task_dir in layout_tasks.items():
+        assert detect_layout(task_dir).name == expected
+        assert load_task(task_dir).resolve_layout().name == expected
 
 
-def _run_one(task_dir: Path, layout_mode: str, ws: Path):
-    """Run the full pipeline under the given layout mode.
-
-    Parameters
-    ----------
-    task_dir:
-        Directory containing ``task.toml``.
-    layout_mode:
-        ``"legacy"`` or ``"layout"`` — controls ``EVO_USE_LAYOUTS``.
-    ws:
-        Workspace path (must exist).
-
-    Returns
-    -------
-    tuple[TaskResult, dict]  — ``(result, snapshot)``.
-    """
-    from evolution.eval.runner import run_task
-    from evolution.eval.task import load_task
-    from evolution.eval.workspace import setup_workspace
-
-    os.environ["EVO_USE_LAYOUTS"] = "1" if layout_mode == "layout" else "0"
-
-    task = load_task(task_dir)
-    setup_workspace(task, ws)
-    _wipe(ws)
-    _write_stub(ws)
-    result = run_task(task, ws)
-
-    return result, _snapshot(ws)
+def test_sb_layout_normalizes_legacy_skill_ids(layout_tasks: dict[str, Path]) -> None:
+    assert load_task(layout_tasks["sb_bench"]).skills_required == ["model-training"]
 
 
-# ── tests ──────────────────────────────────────────────────────────────────
+@pytest.mark.parametrize("layout_name", ["evo", "sb_bench"])
+def test_workspace_staging_preserves_layout_contract(
+    layout_name: str,
+    layout_tasks: dict[str, Path],
+    tmp_path: Path,
+) -> None:
+    task = load_task(layout_tasks[layout_name])
+    workspace = tmp_path / f"workspace-{layout_name}"
+
+    setup_workspace(task, workspace)
+
+    if layout_name == "evo":
+        assert (workspace / "seed.txt").read_text(encoding="utf-8") == "evo"
+        assert not (workspace / "environment").exists()
+    else:
+        assert (workspace / "environment" / "data" / "seed.txt").read_text(encoding="utf-8") == "sb"
+        assert (workspace / "solve.sh").is_file()
+        for hidden in ("tests", "source_artifacts", "data_generator.py", "solution.py"):
+            assert not (workspace / hidden).exists()
 
 
-class TestLayoutDetection:
-    """Basic sanity: detect_layout picks the right layout for each task."""
+@pytest.mark.parametrize("verifier_entrypoint", ["checks/verify.py", "verify.py"])
+def test_sb_workspace_hides_configured_verifier(
+    layout_tasks: dict[str, Path], tmp_path: Path, verifier_entrypoint: str
+) -> None:
+    task_dir = layout_tasks["sb_bench"]
+    task_toml = task_dir / "task.toml"
+    task_toml.write_text(
+        task_toml.read_text(encoding="utf-8").replace("tests/test_outputs.py", verifier_entrypoint),
+        encoding="utf-8",
+    )
+    verifier = task_dir / verifier_entrypoint
+    verifier.parent.mkdir(parents=True, exist_ok=True)
+    verifier.write_text(_SB_TEST_SOURCE, encoding="utf-8")
+    if verifier.parent != task_dir:
+        (verifier.parent / "oracle_helper.py").write_text("SECRET = 42\n", encoding="utf-8")
 
-    def test_evo_tasks(self):
-        from evolution.eval.layouts import detect_layout
+    workspace = tmp_path / "configured-verifier"
+    setup_workspace(load_task(task_dir), workspace)
 
-        for name in EVO_TASKS:
-            layout = detect_layout(TASKS_DIR / name)
-            assert layout.name == "evo", f"{name}: expected 'evo', got '{layout.name}'"
-
-    def test_sb_bench_tasks(self):
-        from evolution.eval.layouts import detect_layout
-
-        for name in SB_BENCH_TASKS:
-            task_dir = _require_sb_fixture(name)
-            layout = detect_layout(task_dir)
-            assert layout.name in ("sb_bench", "sb-bench"), (
-                f"{name}: expected 'sb_bench', got '{layout.name}'"
-            )
+    assert not (workspace / verifier_entrypoint).exists()
+    if verifier.parent != task_dir:
+        assert not (workspace / verifier.parent.relative_to(task_dir)).exists()
 
 
-class TestEvoRegressionSmoke:
-    """Evo tasks: legacy and layout paths must produce identical results."""
+def test_sb_workspace_rejects_symlinked_verifier_tree(
+    layout_tasks: dict[str, Path], tmp_path: Path
+) -> None:
+    task_dir = layout_tasks["sb_bench"]
+    external = tmp_path / "external-tests"
+    external.mkdir()
+    (external / "test_outputs.py").write_text(_SB_TEST_SOURCE, encoding="utf-8")
+    tests_dir = task_dir / "tests"
+    for child in tests_dir.iterdir():
+        child.unlink()
+    tests_dir.rmdir()
+    tests_dir.symlink_to(external, target_is_directory=True)
 
-    @pytest.mark.parametrize("task_name", EVO_TASKS)
-    def test_identical(self, task_name, tmp_path):
-        """For evo tasks the layout path must be byte-identical to legacy."""
-        task_dir = TASKS_DIR / task_name
-        ws = tmp_path / "ws"
-        ws.mkdir()
+    with pytest.raises(WorkspaceMaterializationError, match="symlink"):
+        setup_workspace(load_task(task_dir), tmp_path / "symlinked-verifier")
 
-        # Save original env.
-        old = os.environ.pop("EVO_USE_LAYOUTS", None)
 
-        try:
-            legacy_result, legacy_snap = _run_one(task_dir, "legacy", ws)
-            _wipe(ws)
-            layout_result, layout_snap = _run_one(task_dir, "layout", ws)
-        finally:
-            if old is not None:
-                os.environ["EVO_USE_LAYOUTS"] = old
-
-        # ── compare test results ───────────────────────────────────────────
-        assert legacy_result.task_name == layout_result.task_name
-        assert legacy_result.total_tests == layout_result.total_tests, (
-            f"total_tests: legacy={legacy_result.total_tests} != layout={layout_result.total_tests}"
+@pytest.mark.parametrize("layout_name", ["evo", "sb_bench"])
+def test_layout_evaluation_is_reproducible(
+    layout_name: str,
+    layout_tasks: dict[str, Path],
+    tmp_path: Path,
+) -> None:
+    task = load_task(layout_tasks[layout_name])
+    workspace = tmp_path / f"evaluation-{layout_name}"
+    setup_workspace(task, workspace)
+    if layout_name == "sb_bench":
+        (workspace / "output").mkdir(exist_ok=True)
+        (workspace / "output" / "answer.txt").write_text("ok", encoding="utf-8")
+        (workspace / "tests").mkdir()
+        (workspace / "tests" / "test_outputs.py").write_text(
+            "def test_shadow(): assert False\n", encoding="utf-8"
         )
-        assert legacy_result.passed == layout_result.passed, (
-            f"passed: legacy={legacy_result.passed} != layout={layout_result.passed}"
-        )
-        assert legacy_result.failed == layout_result.failed, (
-            f"failed: legacy={legacy_result.failed} != layout={layout_result.failed}"
-        )
-        assert legacy_result.skipped == layout_result.skipped, (
-            f"skipped: legacy={legacy_result.skipped} != layout={layout_result.skipped}"
-        )
+    else:
+        (workspace / "answer.txt").write_text("ok", encoding="utf-8")
 
-        # ── compare workspace snapshot ─────────────────────────────────────
-        assert legacy_snap == layout_snap, (
-            f"Workspace snapshot differs for {task_name}:\n"
-            f"  legacy keys: {sorted(legacy_snap.keys())}\n"
-            f"  layout keys: {sorted(layout_snap.keys())}"
-        )
+    first = run_task(task, workspace)
+    second = run_task(task, workspace)
+
+    assert first.success is True
+    assert second.success is True
+    assert (
+        first.total_tests,
+        first.passed,
+        first.failed,
+        first.skipped,
+    ) == (
+        second.total_tests,
+        second.passed,
+        second.failed,
+        second.skipped,
+    )
 
 
-class TestSbBenchSmoke:
-    """Sb-bench tasks: layout path must produce valid, reproducible results.
+def test_sb_verifier_replaces_shadow_test_symlink_without_following_it(
+    layout_tasks: dict[str, Path], tmp_path: Path
+) -> None:
+    task = load_task(layout_tasks["sb_bench"])
+    workspace = tmp_path / "evaluation-symlink"
+    setup_workspace(task, workspace)
+    (workspace / "output" / "answer.txt").write_text("ok", encoding="utf-8")
+    victim = tmp_path / "victim"
+    victim.mkdir()
+    marker = victim / "keep.txt"
+    marker.write_text("keep", encoding="utf-8")
+    (workspace / "tests").symlink_to(victim, target_is_directory=True)
 
-    The legacy path doesn't properly handle sb-bench tasks (it only copies
-    ``inputs/*``), so we don't compare against legacy. Instead we run the
-    layout path twice and assert the results are deterministic.
-    """
+    result = run_task(task, workspace)
 
-    @pytest.mark.parametrize("task_name", SB_BENCH_TASKS)
-    def test_layout_runs_and_reproducible(self, task_name, tmp_path):
-        task_dir = _require_sb_fixture(task_name)
-        ws = tmp_path / "ws"
-
-        old = os.environ.pop("EVO_USE_LAYOUTS", None)
-        try:
-            os.environ["EVO_USE_LAYOUTS"] = "1"
-
-            from evolution.eval.runner import run_task
-            from evolution.eval.task import load_task
-            from evolution.eval.workspace import setup_workspace
-
-            # ── run 1 ────────────────────────────────────────────────────────
-            task = load_task(task_dir)
-            assert task.layout is not None
-            assert task.layout.name in ("sb_bench", "sb-bench")
-
-            setup_workspace(task, ws)
-
-            # Workspace must have the full tree (not just inputs/*).
-            assert (ws / "environment").is_dir(), f"sandbox missing environment/ for {task_dir}"
-
-            _wipe(ws)
-            _write_stub(ws)
-            result_1 = run_task(task, ws)
-
-            # ── run 2 (reproducibility check) ────────────────────────────────
-            _wipe(ws)
-            _write_stub(ws)
-            result_2 = run_task(task, ws)
-
-            # Both runs must produce the same test outcome.
-            assert result_1.task_name == result_2.task_name
-            assert result_1.total_tests == result_2.total_tests, (
-                f"total_tests mismatch between runs for {task_dir}: "
-                f"{result_1.total_tests} vs {result_2.total_tests}"
-            )
-            assert result_1.passed == result_2.passed
-            assert result_1.failed == result_2.failed
-            assert result_1.skipped == result_2.skipped
-        finally:
-            if old is not None:
-                os.environ["EVO_USE_LAYOUTS"] = old
-            else:
-                os.environ.pop("EVO_USE_LAYOUTS", None)
+    assert result.success is True
+    assert marker.read_text(encoding="utf-8") == "keep"
+    assert not (workspace / "tests").is_symlink()

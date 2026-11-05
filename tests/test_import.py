@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -86,6 +87,15 @@ class TestImportSkill:
         assert store.has("renamed")
         assert not store.has("original")
 
+    def test_name_override_normalizes_legacy_frontmatter(self, tmp_path: Path):
+        src = _make_source_skill(tmp_path, name="model_training")
+        store = SkillStore(project_dir=tmp_path / "project")
+
+        skill = store.import_skill(src, name="model-training")
+
+        assert skill.name == "model-training"
+        assert store.has("model-training")
+
     def test_import_with_metadata(self, tmp_path: Path):
         src = _make_source_skill(tmp_path)
         store = SkillStore(project_dir=tmp_path / "project")
@@ -128,6 +138,54 @@ class TestImportSkill:
         entries = store.list()
         names = [e.name for e in entries]
         assert "test-import" in names
+
+    def test_import_rejects_nested_symlink_without_copying_external_content(self, tmp_path: Path):
+        src = _make_source_skill(tmp_path)
+        external = tmp_path / "secret.txt"
+        external.write_text("outside", encoding="utf-8")
+        scripts = src / "scripts"
+        scripts.mkdir()
+        (scripts / "secret.txt").symlink_to(external)
+        project = tmp_path / "project"
+        store = SkillStore(project_dir=project)
+
+        with pytest.raises(ValueError, match="symlink"):
+            store.import_skill(src)
+
+        assert not (project / ".agents" / "skills" / "test-import").exists()
+
+    def test_import_rejects_special_managed_file(self, tmp_path: Path):
+        src = _make_source_skill(tmp_path)
+        scripts = src / "scripts"
+        scripts.mkdir()
+        os.mkfifo(scripts / "input.pipe")
+        project = tmp_path / "project"
+        store = SkillStore(project_dir=project)
+
+        with pytest.raises(ValueError, match="regular file"):
+            store.import_skill(src)
+
+        assert not (project / ".agents" / "skills" / "test-import").exists()
+
+    def test_import_copy_failure_leaves_no_partial_skill(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        src = _make_source_skill(tmp_path)
+        (src / "scripts").mkdir()
+        (src / "scripts" / "run.py").write_text("pass\n", encoding="utf-8")
+        project = tmp_path / "project"
+        store = SkillStore(project_dir=project)
+
+        def fail_copy(*_args, **_kwargs):
+            raise OSError("copy failed")
+
+        monkeypatch.setattr("evolution.core.store.shutil.copytree", fail_copy)
+        with pytest.raises(OSError, match="copy failed"):
+            store.import_skill(src)
+
+        skills_root = project / ".agents" / "skills"
+        assert not (skills_root / "test-import").exists()
+        assert not list(skills_root.glob(".test-import-*"))
 
 
 class TestImportFromFile:

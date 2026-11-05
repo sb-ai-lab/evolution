@@ -18,26 +18,26 @@ def runner() -> CliRunner:
 
 
 def test_split_list_default_all(runner: CliRunner):
-    result = runner.invoke(app, ["split-list", str(FIXTURE)])
+    result = runner.invoke(app, ["split", "list", str(FIXTURE)])
     assert result.exit_code == 0, result.stdout
     ids = [line for line in result.stdout.strip().splitlines() if line]
     assert ids == ["task-test-D", "task-train-A", "task-train-B", "task-val-C"]
 
 
 def test_split_list_skill_evolution_scope(runner: CliRunner):
-    result = runner.invoke(app, ["split-list", str(FIXTURE), "-s", "skill_evolution"])
+    result = runner.invoke(app, ["split", "list", str(FIXTURE), "-s", "skill_evolution"])
     assert result.exit_code == 0, result.stdout
     ids = [line for line in result.stdout.strip().splitlines() if line]
     assert ids == ["task-train-A", "task-train-B"]
 
 
 def test_split_list_unknown_scope_fails(runner: CliRunner):
-    result = runner.invoke(app, ["split-list", str(FIXTURE), "-s", "bogus"])
+    result = runner.invoke(app, ["split", "list", str(FIXTURE), "-s", "bogus"])
     assert result.exit_code == 1
 
 
 def test_split_list_missing_file_fails(runner: CliRunner):
-    result = runner.invoke(app, ["split-list", "/no/such/file.json"])
+    result = runner.invoke(app, ["split", "list", "/no/such/file.json"])
     assert result.exit_code == 1
 
 
@@ -45,7 +45,8 @@ def test_split_check_clean(runner: CliRunner):
     result = runner.invoke(
         app,
         [
-            "split-check",
+            "split",
+            "check",
             str(FIXTURE),
             "--evolution-tasks",
             "task-train-A,task-train-B",
@@ -61,7 +62,8 @@ def test_split_check_detects_leakage(runner: CliRunner):
     result = runner.invoke(
         app,
         [
-            "split-check",
+            "split",
+            "check",
             str(FIXTURE),
             "--evolution-tasks",
             "task-train-A,task-test-D",
@@ -73,6 +75,6 @@ def test_split_check_detects_leakage(runner: CliRunner):
 
 
 def test_split_check_no_lists_warns(runner: CliRunner):
-    result = runner.invoke(app, ["split-check", str(FIXTURE)])
+    result = runner.invoke(app, ["split", "check", str(FIXTURE)])
     assert result.exit_code == 0
     assert "No task lists supplied" in result.stdout

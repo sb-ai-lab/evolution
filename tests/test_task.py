@@ -9,7 +9,13 @@ import pytest
 from evolution.eval.task import TaskResult, discover_tasks, load_task
 
 
-def _make_task(tmp_path: Path, name: str = "test-task", difficulty: str = "easy") -> Path:
+def _make_task(
+    tmp_path: Path,
+    name: str = "test-task",
+    difficulty: str = "easy",
+    *,
+    skill: str = "xlsx",
+) -> Path:
     """Create a minimal task directory."""
     task_dir = tmp_path / name
     task_dir.mkdir(parents=True)
@@ -27,7 +33,7 @@ def _make_task(tmp_path: Path, name: str = "test-task", difficulty: str = "easy"
         f'origin = "manual"\n'
         f'task_id = "{name}"\n\n'
         f"[skills]\n"
-        f'required = ["xlsx"]\n\n'
+        f'required = ["{skill}"]\n\n'
         f"[evaluation]\n"
         f'timeout_sec = "300"\n'
         f'test_file = "tests/test_outputs.py"\n'
@@ -56,6 +62,27 @@ class TestLoadTask:
         task = load_task(task_dir)
 
         assert "Do the thing" in task.instruction
+
+    def test_loads_after_style_task_table(self, tmp_path: Path):
+        task_dir = tmp_path / "after-task"
+        task_dir.mkdir()
+        (task_dir / "task.toml").write_text(
+            '[benchmark]\nname = "AFTER"\n\n'
+            '[task]\nid = "after-task"\nname = "After task"\n'
+            'difficulty = "hard"\nrole = "pm"\nskills = ["pptx"]\ntags = ["slides"]\n',
+            encoding="utf-8",
+        )
+        (task_dir / "instruction.md").write_text("Make slides.", encoding="utf-8")
+
+        task = load_task(task_dir)
+
+        assert task.name == "After task"
+        assert task.difficulty == "hard"
+        assert task.category == "pm"
+        assert task.role == "pm"
+        assert task.skills_required == ["pptx"]
+        assert task.tags == ["slides"]
+        assert task.source_task == "after-task"
 
     def test_load_path_set(self, tmp_path: Path):
         task_dir = _make_task(tmp_path)
@@ -163,18 +190,30 @@ class TestTaskResult:
         assert r.success is False
 
 
-class TestDiscoverRealTasks:
-    """Test discovery against the actual tasks/ directory."""
+def _make_representative_corpus(root: Path) -> None:
+    """Create representative task metadata without relying on ignored corpora."""
+    specs = [
+        ("powerlifting-coef-calc", "easy", "xlsx"),
+        ("offer-letter-generator", "easy", "docx"),
+        ("court-form-filling", "easy", "pdf"),
+        ("xlsx-recover-data", "medium", "xlsx"),
+        ("econ-detrending-correlation", "medium", "timeseries-detrending"),
+        ("pptx-reference-formatting", "medium", "pptx"),
+    ]
+    for name, difficulty, skill in specs:
+        _make_task(root, name, difficulty, skill=skill)
 
-    def test_discovers_adopted_tasks(self):
-        tasks_dir = Path(__file__).parent.parent / "tasks"
-        if not tasks_dir.exists():
-            pytest.skip("tasks/ directory not found")
 
-        tasks = discover_tasks(tasks_dir)
+class TestDiscoverRepresentativeCorpus:
+    """Discovery and metadata mapping over a fully synthetic task corpus."""
+
+    def test_discovers_representative_tasks(self, tmp_path: Path):
+        _make_representative_corpus(tmp_path)
+
+        tasks = discover_tasks(tmp_path)
         names = [t.name for t in tasks]
 
-        assert len(tasks) >= 6
+        assert len(tasks) == 6
         assert "powerlifting-coef-calc" in names
         assert "offer-letter-generator" in names
         assert "court-form-filling" in names
@@ -182,12 +221,10 @@ class TestDiscoverRealTasks:
         assert "econ-detrending-correlation" in names
         assert "pptx-reference-formatting" in names
 
-    def test_skills_mapping(self):
-        tasks_dir = Path(__file__).parent.parent / "tasks"
-        if not tasks_dir.exists():
-            pytest.skip("tasks/ directory not found")
+    def test_skills_mapping(self, tmp_path: Path):
+        _make_representative_corpus(tmp_path)
 
-        tasks = discover_tasks(tasks_dir)
+        tasks = discover_tasks(tmp_path)
         by_name = {t.name: t for t in tasks}
 
         assert by_name["powerlifting-coef-calc"].skills_required == ["xlsx"]
@@ -196,12 +233,10 @@ class TestDiscoverRealTasks:
         assert by_name["econ-detrending-correlation"].skills_required == ["timeseries-detrending"]
         assert by_name["pptx-reference-formatting"].skills_required == ["pptx"]
 
-    def test_difficulty_levels(self):
-        tasks_dir = Path(__file__).parent.parent / "tasks"
-        if not tasks_dir.exists():
-            pytest.skip("tasks/ directory not found")
+    def test_difficulty_levels(self, tmp_path: Path):
+        _make_representative_corpus(tmp_path)
 
-        tasks = discover_tasks(tasks_dir)
+        tasks = discover_tasks(tmp_path)
         by_name = {t.name: t for t in tasks}
 
         assert by_name["powerlifting-coef-calc"].difficulty == "easy"

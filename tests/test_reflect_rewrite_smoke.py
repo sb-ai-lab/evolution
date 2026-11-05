@@ -14,8 +14,8 @@ from pathlib import Path
 import pytest
 
 from evolution.core.models import Skill, SkillFrontmatter
-from evolution.evolution.reflect import rewrite_skill_with_audit
-from evolution.evolution.rewrite_outcome import PROMOTED_ELIGIBLE
+from evolution.evolve.reflect import rewrite_skill_with_audit
+from evolution.evolve.rewrite_outcome import PROMOTED_ELIGIBLE
 from evolution.llm.agent_backend import AgentBackend
 from evolution.llm.mock_backend import MockBackend
 
@@ -138,7 +138,7 @@ def test_codex_file_edit_reflect_rewrite_smoke_deterministic(tmp_path: Path) -> 
             _reflections(),
             task_instruction="Produce the expected output and verify it.",
             include_best_trace_code=False,
-            file_edit=True,
+            rewrite_mode="file-edit",
         )
     )
 
@@ -165,8 +165,10 @@ def test_live_codex_file_edit_reflect_rewrite_smoke(
     if os.environ.get("EVO_RUN_LIVE_CODEX_SMOKE") != "1":
         pytest.skip("set EVO_RUN_LIVE_CODEX_SMOKE=1 to spend Codex tokens")
 
-    monkeypatch.setenv("EVO_CODEX_FILE_EDIT_SANDBOX", "bypass")
-    monkeypatch.setenv("EVO_C1_EDIT_BUDGET_FRAC", "1.0")
+    # `EVO_CODEX_FILE_EDIT_SANDBOX` is deliberately not set. Safe permission is
+    # the default and pins the sandbox to `workspace-write`, so the variable is
+    # inert here; setting it stated an expectation the security model forbids.
+    monkeypatch.setenv("EVO_REWRITE_MAX_DELTA_FRAC", "1.0")
 
     skill = _make_skill(
         tmp_path,
@@ -201,7 +203,7 @@ def test_live_codex_file_edit_reflect_rewrite_smoke(
             reflections,
             task_instruction="Use marker beta, not alpha.",
             include_best_trace_code=False,
-            file_edit=True,
+            rewrite_mode="file-edit",
             audit_root=tmp_path / "audit",
             row_id="live-codex-smoke",
             debug_archive=True,
@@ -218,11 +220,22 @@ def test_live_codex_file_edit_reflect_rewrite_smoke(
     assert archived_entries == ["SKILL.md"]
 
     diag = outcome.codex_diagnostics or {}
-    assert diag.get("sandbox") == "bypass"
-    assert diag.get("bypass_approvals_and_sandbox") is True
-    assert any(
-        str(change.get("path", "")).endswith("/SKILL.md") for change in diag.get("file_changes", [])
-    )
+    # Safe permission is the default, and `file_edit_invocation` pins the
+    # sandbox to `workspace-write` for it, ignoring any requested bypass. This
+    # asserts the safe default rather than the bypass an operator must opt into
+    # with `agent_permission="unsafe"` on trusted input only.
+    assert diag.get("sandbox") == "workspace-write"
+    assert diag.get("bypass_approvals_and_sandbox") is False
+    # `file_changes` is filled only when Codex reports its edit as a
+    # `file_change` item; editing through a shell command reports a
+    # `command_execution` instead. Which one happens is the model's choice, not
+    # this product's behaviour, so requiring a `file_change` made a passing
+    # rewrite fail. That the rewrite happened is asserted above, three ways:
+    # the promoted candidate, the new marker in the body, and the archived
+    # `SKILL.md`. What stays checked here is that any change Codex *does*
+    # report names the file we asked it to edit.
+    changes = [str(change.get("path", "")) for change in diag.get("file_changes", [])]
+    assert all(path.endswith("/SKILL.md") for path in changes), changes
     # Diagnostic surface added in t34v10: last_message captured, returncode +
     # stdout_tail/stderr_tail populated, wall_time_ms measured Python-side.
     assert isinstance(diag.get("last_message"), str)

@@ -9,15 +9,31 @@ from pathlib import Path
 
 import pytest
 
+from evolution.cli.main import app
 from evolution.core.models import Skill, SkillFrontmatter, SkillTrace
-from evolution.evolution.reflect import (
+from evolution.evolve.reflect import (
     reflect_failing_traces,
     reflect_trace,
     rewrite_skill,
+    rewrite_skill_with_audit,
 )
+from evolution.evolve.reflection import save_reflection
 from evolution.lineage.traces import TraceStore
 from evolution.llm.mock_backend import MockBackend
 from evolution.splits import SplitManifest
+
+
+def test_save_reflection_rejects_symlink_without_overwriting_target(tmp_path: Path) -> None:
+    trace_dir = tmp_path / "trace"
+    trace_dir.mkdir()
+    target = tmp_path / "outside.json"
+    target.write_text('{"keep": true}', encoding="utf-8")
+    (trace_dir / "reflection.json").symlink_to(target)
+
+    with pytest.raises(ValueError, match="symlink"):
+        save_reflection(trace_dir, {"unsafe": True})
+
+    assert target.read_text(encoding="utf-8") == '{"keep": true}'
 
 
 def _reflection_json() -> str:
@@ -48,12 +64,42 @@ def _make_skill(tmp_path: Path) -> Skill:
     )
 
 
+def _make_skill_with_body(tmp_path: Path, body: str) -> Skill:
+    skill_dir = tmp_path / ".agents" / "skills" / "test-skill"
+    skill_dir.mkdir(parents=True, exist_ok=True)
+    skill_md = skill_dir / "SKILL.md"
+    skill_md.write_text(
+        f"---\nname: test-skill\ndescription: A test skill\n---\n\n{body}\n", encoding="utf-8"
+    )
+    return Skill(
+        frontmatter=SkillFrontmatter(name="test-skill", description="A test skill"),
+        body=body,
+        path=skill_dir,
+        skill_md_path=skill_md,
+    )
+
+
+_FAILURE_REFLECTION = {
+    "root_cause": "wrong output",
+    "skill_gap": "missing validation",
+    "suggested_fix": "validate output files",
+    "pattern": "logic_error",
+    "pass_rate": 0.0,
+    "model": "solver",
+}
+
+
+def _seed_body(n_lines: int = 12) -> str:
+    return "\n".join(f"Validate inputs and outputs carefully on step {i}." for i in range(n_lines))
+
+
 def _write_split_manifest(tmp_path: Path, *, task_id: str = "task-name") -> SplitManifest:
     path = tmp_path / "split_manifest.json"
     path.write_text(
         json.dumps(
             {
                 "name": "unit-split",
+                "counts": {"train": 1, "val": 0, "test": 0},
                 "tasks": [{"id": task_id, "split": "train"}],
             }
         ),
@@ -172,115 +218,58 @@ def test_reflect_failing_traces_strict_rejects_parse_error(tmp_path: Path):
     assert not (trace_dir / "reflection.json").exists()
 
 
-def test_rewrite_skill_compacts_oversized_output(monkeypatch, tmp_path: Path):
-    skill = _make_skill(tmp_path)
-    monkeypatch.setenv("EVO_REWRITE_MIN_CHARS", "100")
-    monkeypatch.setenv("EVO_REWRITE_MAX_CHARS", "10000")
-    monkeypatch.setenv("EVO_REWRITE_MAX_GROWTH", "1")
-    monkeypatch.setenv("EVO_REWRITE_MIN_LINES", "3")
-    monkeypatch.setenv("EVO_REWRITE_MAX_LINES", "3")
+def test_rewrite_rejects_absolute_oversize_without_a_second_editor_call(
+    monkeypatch, tmp_path: Path
+):
+    """Absolute size failures keep the parent and never request compaction."""
+    monkeypatch.setenv("EVO_REWRITE_MAX_DELTA_FRAC", "1")
+    monkeypatch.setenv("EVO_REWRITE_MAX_CHARS", "100")
+    monkeypatch.setenv("EVO_REWRITE_MAX_LINES", "1000")
+    seed = _seed_body(12)
+    skill = _make_skill_with_body(tmp_path, seed)
 
-    oversized = "\n".join(f"Operational line {i}" for i in range(10))
-    compact = "Use Python carefully.\nValidate outputs.\nAvoid speculative steps."
-    backend = MockBackend(responses=[oversized, compact])
+    oversized = "\n".join(
+        f"Add a verbose detailed explanation number {i} for padding." for i in range(80)
+    )
+    backend = MockBackend(responses=[oversized])
 
-    body = asyncio.run(
-        rewrite_skill(
+    outcome = asyncio.run(
+        rewrite_skill_with_audit(
             backend,
             skill,
-            [
-                {
-                    "root_cause": "wrong output",
-                    "skill_gap": "missing validation",
-                    "suggested_fix": "validate output files",
-                    "pattern": "logic_error",
-                    "pass_rate": 0.0,
-                    "model": "solver",
-                }
-            ],
+            [_FAILURE_REFLECTION],
             task_instruction="task",
             task_filter="task-name",
         )
     )
 
-    assert body == compact
-    assert len(backend.calls) == 2
+    assert outcome.body == seed
+    assert outcome.candidate_status == "size_violation"
+    assert len(backend.calls) == 1
 
 
-def test_rewrite_accepts_compacted_body_over_soft_cap_under_absolute(monkeypatch, tmp_path: Path):
-    """A post-compaction body slightly over the derived cap but within the
-    absolute ceiling must be ACCEPTED, not raise (regression: a 3% near-miss
-    aborted the sql Tables-3/4 pilot)."""
-    skill = _make_skill(tmp_path)
-    monkeypatch.setenv("EVO_REWRITE_MIN_CHARS", "10")
-    monkeypatch.setenv("EVO_REWRITE_MAX_CHARS", "100000")
-    monkeypatch.setenv("EVO_REWRITE_MAX_GROWTH", "1")
-    monkeypatch.setenv("EVO_REWRITE_MIN_LINES", "3")
-    monkeypatch.setenv("EVO_REWRITE_MAX_LINES", "50")  # absolute ceiling
+def test_rewrite_accepts_change_when_the_brake_is_disabled(monkeypatch, tmp_path: Path):
+    """A finalized candidate is accepted when it meets absolute limits and base one."""
+    monkeypatch.setenv("EVO_REWRITE_MAX_DELTA_FRAC", "1")
+    seed = _seed_body(12)
+    skill = _make_skill_with_body(tmp_path, seed)
 
-    oversized = "\n".join(f"Operational line {i}" for i in range(40))
-    # 8 non-empty lines: over the derived soft cap (3) but well under the
-    # absolute ceiling (50) — must be accepted.
-    compact = "\n".join(f"Concise rule {i}" for i in range(8))
-    backend = MockBackend(responses=[oversized, compact])
+    edited = "\n".join(f"Validate inputs and outputs and schema on step {i}." for i in range(12))
+    backend = MockBackend(responses=[edited])
 
     body = asyncio.run(
         rewrite_skill(
             backend,
             skill,
-            [
-                {
-                    "root_cause": "wrong output",
-                    "skill_gap": "missing validation",
-                    "suggested_fix": "validate output files",
-                    "pattern": "logic_error",
-                    "pass_rate": 0.0,
-                    "model": "solver",
-                }
-            ],
+            [_FAILURE_REFLECTION],
             task_instruction="task",
             task_filter="task-name",
         )
     )
 
-    assert body == compact
-    assert len(backend.calls) == 2
-
-
-def test_rewrite_raises_when_compacted_body_breaches_absolute_ceiling(monkeypatch, tmp_path: Path):
-    """Genuine runaway bloat (post-compaction body over the ABSOLUTE ceiling)
-    must still hard-fail."""
-    skill = _make_skill(tmp_path)
-    monkeypatch.setenv("EVO_REWRITE_MIN_CHARS", "10")
-    monkeypatch.setenv("EVO_REWRITE_MAX_CHARS", "100000")
-    monkeypatch.setenv("EVO_REWRITE_MAX_GROWTH", "1")
-    monkeypatch.setenv("EVO_REWRITE_MIN_LINES", "3")
-    monkeypatch.setenv("EVO_REWRITE_MAX_LINES", "10")  # absolute ceiling
-
-    oversized = "\n".join(f"Operational line {i}" for i in range(40))
-    # 25 non-empty lines: over the absolute ceiling (10) even after compaction.
-    still_huge = "\n".join(f"Still verbose line {i}" for i in range(25))
-    backend = MockBackend(responses=[oversized, still_huge])
-
-    with pytest.raises(ValueError, match="absolute size ceiling"):
-        asyncio.run(
-            rewrite_skill(
-                backend,
-                skill,
-                [
-                    {
-                        "root_cause": "wrong output",
-                        "skill_gap": "missing validation",
-                        "suggested_fix": "validate output files",
-                        "pattern": "logic_error",
-                        "pass_rate": 0.0,
-                        "model": "solver",
-                    }
-                ],
-                task_instruction="task",
-                task_filter="task-name",
-            )
-        )
+    assert body == edited
+    assert body != seed
+    assert len(backend.calls) == 1
 
 
 def _save_evidence(trace_dir: Path, evidence: dict) -> None:
@@ -288,7 +277,7 @@ def _save_evidence(trace_dir: Path, evidence: dict) -> None:
 
 
 def test_reflect_prompt_and_system_have_observable_directives():
-    from evolution.evolution.reflect import REFLECT_PROMPT, REFLECT_SYSTEM
+    from evolution.evolve.reflect import REFLECT_PROMPT, REFLECT_SYSTEM
 
     # v3 metadata-only blocks
     assert "## Agent Solve Diagnostics" in REFLECT_PROMPT
@@ -467,8 +456,7 @@ def test_reflect_trace_does_not_read_task_oracle_files(tmp_path: Path):
 
 
 def test_rewrite_prompt_is_transfer_safe_with_size_budget():
-    from evolution.evolution.reflect import (
-        COMPACT_PROMPT,
+    from evolution.evolve.reflect import (
         REWRITE_PROMPT,
         REWRITE_SYSTEM,
     )
@@ -482,8 +470,7 @@ def test_rewrite_prompt_is_transfer_safe_with_size_budget():
     # old overfitting framing removed
     assert 'Add a "Do NOT" section listing the specific wrong approaches' not in REWRITE_PROMPT
     assert "Include complete, working code patterns — not pseudocode" not in REWRITE_PROMPT
-    # compaction also strips leakage
-    assert "Strip any embedded test/verifier/assertion text" in COMPACT_PROMPT
+    assert "shared edit brake" in REWRITE_PROMPT
 
 
 def test_rewrite_prompt_size_budget_is_populated(monkeypatch, tmp_path: Path):
@@ -566,12 +553,18 @@ def test_rewrite_best_trace_code_is_optional(tmp_path: Path):
 def test_rewrite_cli_manifest_defaults_no_best_trace_code(monkeypatch, tmp_path: Path):
     from typer.testing import CliRunner
 
-    from evolution.cli import main as cli
+    from evolution.cli.commands import evolve as cli
 
     skill = _make_skill(tmp_path)
     manifest_path = tmp_path / "split_manifest.json"
     manifest_path.write_text(
-        json.dumps({"name": "unit-split", "tasks": [{"id": "task-name", "split": "train"}]}),
+        json.dumps(
+            {
+                "name": "unit-split",
+                "counts": {"train": 1, "val": 0, "test": 0},
+                "tasks": [{"id": "task-name", "split": "train"}],
+            }
+        ),
         encoding="utf-8",
     )
     captured: list[bool] = []
@@ -583,7 +576,7 @@ def test_rewrite_cli_manifest_defaults_no_best_trace_code(monkeypatch, tmp_path:
         def get(self, name: str) -> Skill:
             return skill
 
-    from evolution.evolution.rewrite_outcome import NO_OP_TEXT, RewriteOutcome
+    from evolution.evolve.rewrite_outcome import NO_OP_TEXT, RewriteOutcome
 
     async def fake_rewrite_with_audit(*args, **kwargs):
         captured.append(kwargs["include_best_trace_code"])
@@ -605,10 +598,10 @@ def test_rewrite_cli_manifest_defaults_no_best_trace_code(monkeypatch, tmp_path:
     monkeypatch.setattr(cli, "rewrite_skill_with_audit", fake_rewrite_with_audit)
 
     runner = CliRunner()
-    no_manifest = runner.invoke(cli.app, ["rewrite", skill.name])
+    no_manifest = runner.invoke(app, ["evolve", "rewrite", skill.name])
     assert no_manifest.exit_code == 0, no_manifest.output
     with_manifest = runner.invoke(
-        cli.app, ["rewrite", skill.name, "--manifest", str(manifest_path)]
+        app, ["evolve", "rewrite", skill.name, "--manifest", str(manifest_path)]
     )
     assert with_manifest.exit_code == 0, with_manifest.output
 
@@ -616,7 +609,7 @@ def test_rewrite_cli_manifest_defaults_no_best_trace_code(monkeypatch, tmp_path:
 
 
 def test_scan_leakage_is_provenance_aware(monkeypatch):
-    from evolution.evolution.rewrite_guards import scan_leakage as _scan_leakage
+    from evolution.evolve.rewrite_guards import scan_leakage as _scan_leakage
 
     monkeypatch.setenv("EVO_LEAK_HARNESS_NAMES", "assert_real_optimization")
     corpus = (
@@ -632,8 +625,8 @@ def test_scan_leakage_is_provenance_aware(monkeypatch):
     )
     f = _scan_leakage(leaked, corpus)
     assert any("known train-harness identifier" in x for x in f)
-    # the expected constant 123456789 has trace provenance and is reproduced
-    assert any("123456789" in x for x in f)
+    # the reproduced column literal has trace provenance (bare-number rule dropped)
+    assert any("daily_total" in x for x in f)
 
     # Same-length generic guidance with NO evidence provenance → NOT flagged
     clean = (
@@ -654,7 +647,7 @@ def test_scan_leakage_allows_legitimate_api_names_in_rewrite():
     catch-all) is removed; rules 1-4 still catch verifier names, expected
     constants, harness names, and verbatim-span leaks.
     """
-    from evolution.evolution.rewrite_guards import scan_leakage
+    from evolution.evolve.rewrite_guards import scan_leakage
 
     corpus = (
         "TypeError: search_for() got unexpected keyword argument 'hit_max'\n"
@@ -669,9 +662,53 @@ def test_scan_leakage_allows_legitimate_api_names_in_rewrite():
     assert scan_leakage(rewritten, corpus) == []
 
 
+def test_scan_leakage_allows_generic_lowercase_stderr_words():
+    from evolution.evolve.rewrite_guards import scan_leakage
+
+    corpus = "KeyError: 'produce'\n"
+    rewritten = "Inspect source schemas, then produce the required output artifacts.\n"
+
+    assert scan_leakage(rewritten, corpus) == []
+
+
+def test_scan_leakage_allows_generic_verbs_colliding_with_oracle_literals():
+    from evolution.evolve.rewrite_guards import scan_leakage
+
+    corpus = "'produce'\n" * 4
+
+    assert scan_leakage("Then produce the required output files.", corpus) == []
+    assert scan_leakage("Keep the category produce in the output.", corpus)
+
+
+def test_scan_leakage_still_flags_lowercase_oracle_literals():
+    from evolution.evolve.rewrite_guards import scan_leakage
+
+    corpus = "assert payload['status'] == 'approved'\n"
+
+    assert scan_leakage("Always emit status approved.", corpus)
+
+
+@pytest.mark.parametrize(
+    ("corpus", "rewritten"),
+    [
+        ("KeyError: 'customerid'", "Write the customerid output file."),
+        ("KeyError: 'status'", "Create a status report file."),
+        (
+            "KeyError: 'approved'\nassert payload['status'] == 'approved'",
+            "Emit the approved result file.",
+        ),
+        ("KeyError: 'produce'\n'produce'", "Keep the produce category in the output."),
+    ],
+)
+def test_scan_leakage_still_flags_lowercase_keyerror_identifiers(corpus: str, rewritten: str):
+    from evolution.evolve.rewrite_guards import scan_leakage
+
+    assert scan_leakage(rewritten, corpus)
+
+
 def test_scan_leakage_still_flags_quoted_expected_constants():
     """Rule 4 (quoted-literal) catches actual expected-value leaks."""
-    from evolution.evolution.rewrite_guards import scan_leakage
+    from evolution.evolve.rewrite_guards import scan_leakage
 
     corpus = "Expected 'DriversLicense' field, got 'CANDIDATE_NAME'\n"
     rewritten = "Always handle the DriversLicense field on the form.\n"
@@ -681,6 +718,7 @@ def test_scan_leakage_still_flags_quoted_expected_constants():
 
 def test_rewrite_keeps_parent_on_leak_without_cleanup_retry(monkeypatch, tmp_path: Path):
     """A leaked rewrite is rejected without sending leaked text back to a model."""
+    monkeypatch.delenv("EVO_OPTIMIZATION_TARGET", raising=False)
     skill = _make_skill(tmp_path)
     _save_failed_trace(skill)
     monkeypatch.setenv("EVO_LEAK_HARNESS_NAMES", "assert_real_optimization")
@@ -716,6 +754,42 @@ def test_rewrite_keeps_parent_on_leak_without_cleanup_retry(monkeypatch, tmp_pat
     assert body == skill.body
     assert "assert_real_optimization" not in body
     assert len(backend.calls) == 1
+
+
+def test_rewrite_train_literal_findings_are_report_only_in_train_mode(monkeypatch, tmp_path: Path):
+    """Train-oracle literals are report-only in explicit train optimization."""
+    monkeypatch.setenv("EVO_OPTIMIZATION_TARGET", "train")
+    monkeypatch.setenv("EVO_REWRITE_MAX_DELTA_FRAC", "1")
+    skill = _make_skill(tmp_path)
+    _save_failed_trace(skill)
+    monkeypatch.setenv("EVO_LEAK_HARNESS_NAMES", "assert_real_optimization")
+    train_specific_draft = (
+        "General intro line that is sufficiently long to be a real body.\n"
+        "Call assert_real_optimization(conn, original, candidate) here.\n"
+        "More train-optimized guidance that is also sufficiently long here.\n"
+    )
+    backend = MockBackend(responses=[train_specific_draft])
+
+    body = asyncio.run(
+        rewrite_skill(
+            backend,
+            skill,
+            [
+                {
+                    "root_cause": "wrong output",
+                    "skill_gap": "missing validation",
+                    "suggested_fix": "use the train verifier signal",
+                    "pattern": "logic_error",
+                    "pass_rate": 0.0,
+                    "model": "solver-model",
+                }
+            ],
+            task_instruction="task",
+            task_filter="task-name",
+        )
+    )
+
+    assert body.strip() == train_specific_draft.strip()
 
 
 def test_reflect_failing_traces_provenance_gate_rejects_non_v3_trace(tmp_path: Path):
@@ -890,7 +964,7 @@ def _success_reflection_json() -> str:
 
 
 def test_meta_skill_blob_distills_prior_rounds(tmp_path: Path):
-    from evolution.evolution.meta_skill import build_meta_skill, write_round_record
+    from evolution.evolve.meta_skill import build_meta_skill, write_round_record
 
     skill = _make_skill(tmp_path)
     write_round_record(
@@ -934,7 +1008,7 @@ def test_meta_skill_blob_distills_prior_rounds(tmp_path: Path):
 
 
 def test_extract_workspace_view_strips_instruction_prefix(tmp_path: Path):
-    from evolution.evolution.reflection import extract_workspace_view
+    from evolution.evolve.reflection import extract_workspace_view
 
     skill = _make_skill(tmp_path)
     trace_dir = _save_failed_trace(skill)
@@ -948,7 +1022,7 @@ def test_extract_workspace_view_strips_instruction_prefix(tmp_path: Path):
 
 
 def test_actionable_reflections_partitions_by_kind():
-    from evolution.evolution.rewrite_guards import (
+    from evolution.evolve.rewrite_guards import (
         actionable_reflections,
         actionable_success_reflections,
     )
@@ -981,12 +1055,12 @@ def test_actionable_reflections_partitions_by_kind():
 
 
 def test_reflect_trace_renders_new_sections(tmp_path: Path):
-    from evolution.evolution.reflection import reflect_trace
+    from evolution.evolve.reflection import reflect_trace
 
     skill = _make_skill(tmp_path)
     trace_dir = _save_failed_trace(skill)
     backend = MockBackend(responses=[_reflection_json()])
-    siblings = {"other-trace": "task=other pass=0/1 verifier=produced_but_failed_verification"}
+    siblings = {"other-trace": "pass=0/1 verifier=produced_but_failed_verification"}
 
     asyncio.run(
         reflect_trace(
@@ -995,24 +1069,133 @@ def test_reflect_trace_renders_new_sections(tmp_path: Path):
             skill,
             "task",
             siblings=siblings,
-            meta_skill_blob="R1: rolled_back v1->v2 (Δ=-0.050)",
             workspace_view="Available inputs:\n- inputs/foo.csv",
         )
     )
     prompt_text = backend.calls[-1]["messages"][0]["content"]
-    assert "## Cross-Round Learning" in prompt_text
-    assert "R1: rolled_back" in prompt_text
+    assert "## Cross-Round Learning" not in prompt_text
+    assert "## Rejected-Edit Buffer" not in prompt_text
     assert "## Other Train Traces This Round" in prompt_text
-    assert "task=other" in prompt_text
+    assert "pass=0/1" in prompt_text
+    assert "task=other" not in prompt_text
     assert "## Agent Workspace View" in prompt_text
     assert "inputs/foo.csv" in prompt_text
+
+
+def test_sibling_digest_omits_train_task_identifier():
+    from evolution.evolve.reflection import build_sibling_digests
+
+    digests = build_sibling_digests(
+        [{"id": "trace-1", "task": "train-task-sentinel", "passed": 0, "total": 1}],
+        {
+            "trace-1": {
+                "failure_evidence": {
+                    "verifier_result": {
+                        "verification_category": "produced_but_failed_verification"
+                    },
+                    "failure_categories": ["logic_error"],
+                },
+                "produced_artifacts": [{"path": "output.csv"}],
+            }
+        },
+    )
+
+    assert "train-task-sentinel" not in digests["trace-1"]
+    assert "pass=0/1" in digests["trace-1"]
+
+
+def test_strict_train_reflection_renders_only_normalized_packet(tmp_path: Path):
+    skill = _make_skill(tmp_path)
+    trace_dir = _save_failed_trace(skill)
+    evidence_path = trace_dir / "evidence.json"
+    evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+    evidence["failure_evidence"]["train_evidence"] = {
+        "schema": "train-evidence-v1",
+        "scope": "train",
+        "records": [
+            {
+                "scope": "collect",
+                "task_id": "train-task-sentinel",
+                "nested": {"gate_reason": "gate-sentinel", "verifier_output": "allowed"},
+            }
+        ],
+    }
+    evidence["failure_evidence"]["oracle_evidence"] = {
+        "tests_source": "validation-oracle-sentinel",
+        "failed_tests": [],
+        "pytest_traceback": "",
+        "source_artifacts": [],
+    }
+    evidence_path.write_text(json.dumps(evidence), encoding="utf-8")
+    backend = MockBackend(responses=[_reflection_json()])
+
+    asyncio.run(reflect_trace(backend, trace_dir, skill, "task"))
+
+    prompt_text = backend.calls[-1]["messages"][0]["content"]
+    assert "verifier_output" in prompt_text
+    assert "train-task-sentinel" not in prompt_text
+    assert "gate-sentinel" not in prompt_text
+    assert "validation-oracle-sentinel" not in prompt_text
+    assert "## Agent Solve Diagnostics" not in prompt_text
+    assert "Other Train Traces This Round" not in prompt_text
+
+
+def test_reflection_identity_binds_exact_request_and_non_secret_backend_settings(
+    tmp_path: Path,
+):
+    skill = _make_skill(tmp_path)
+    trace_dir = _save_failed_trace(skill)
+    backend = MockBackend(responses=[_reflection_json()])
+    backend.model_label = "reflector/model"  # type: ignore[attr-defined]
+    backend.temperature = 1.0  # type: ignore[attr-defined]
+    backend.api_key = "secret-sentinel"  # type: ignore[attr-defined]
+
+    reflection = asyncio.run(reflect_trace(backend, trace_dir, skill, "task"))
+
+    call = backend.calls[0]
+    identity = reflection["reflection_input"]
+    import hashlib
+
+    assert (
+        identity["user_prompt_sha256"]
+        == hashlib.sha256(call["messages"][0]["content"].encode()).hexdigest()
+    )
+    assert identity["system_prompt_sha256"] == hashlib.sha256(call["system"].encode()).hexdigest()
+    assert identity["kind"] == "failure"
+    assert identity["reflector_settings"]["temperature"] == 1.0
+    assert "secret-sentinel" not in json.dumps(identity)
+
+
+def test_reflection_cache_reuses_only_the_exact_semantic_request(tmp_path: Path):
+    skill = _make_skill(tmp_path)
+    trace_dir = _save_failed_trace(skill)
+    evidence_path = trace_dir / "evidence.json"
+    evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+    evidence["failure_evidence"]["train_evidence"] = {
+        "schema": "train-evidence-v1",
+        "scope": "train",
+        "records": [{"scope": "collect", "verifier_output": "failed"}],
+    }
+    evidence["trace_context"]["phase"] = "collect"
+    evidence_path.write_text(json.dumps(evidence), encoding="utf-8")
+    backend = MockBackend(default_response=_reflection_json())
+
+    first = reflect_failing_traces(backend, skill, "task", trace_ids={"trace-1"}, strict=True)
+    cached = reflect_failing_traces(backend, skill, "task", trace_ids={"trace-1"}, strict=True)
+    (trace_dir / "solve.py").write_text("print('changed')", encoding="utf-8")
+    changed = reflect_failing_traces(backend, skill, "task", trace_ids={"trace-1"}, strict=True)
+
+    assert len(first) == 1
+    assert cached == []
+    assert len(changed) == 1
+    assert len(backend.calls) == 2
 
 
 def test_reflect_failing_traces_branches_on_success(tmp_path: Path, monkeypatch):
     monkeypatch.setenv("EVO_REFLECT_SUCCESS_K", "3")
     import importlib
 
-    from evolution.evolution import reflection as _reflection
+    from evolution.evolve import reflection as _reflection
 
     importlib.reload(_reflection)
 
@@ -1041,8 +1224,91 @@ def test_reflect_failing_traces_branches_on_success(tmp_path: Path, monkeypatch)
     assert "## Execution Evidence" in succ_prompt
 
 
+def test_reflect_explicit_ids_only_calls_model_for_selected_collect_trace(
+    tmp_path: Path,
+) -> None:
+    skill = _make_skill(tmp_path)
+    old_dir = _save_outcome_trace(skill, trace_id="old-collect", task="task-name", success=False)
+    current_dir = _save_outcome_trace(
+        skill, trace_id="current-collect", task="task-name", success=False
+    )
+    validation_dir = _save_outcome_trace(
+        skill, trace_id="current-validation", task="task-name", success=False
+    )
+    for trace_dir, phase in (
+        (old_dir, "collect"),
+        (current_dir, "collect"),
+        (validation_dir, "candidate_train_diagnostic"),
+    ):
+        evidence_path = trace_dir / "evidence.json"
+        evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+        evidence["trace_context"]["phase"] = phase
+        evidence_path.write_text(json.dumps(evidence), encoding="utf-8")
+    backend = MockBackend(responses=[_reflection_json()])
+
+    reflections = reflect_failing_traces(
+        backend,
+        skill,
+        "task",
+        task_filter="task-name",
+        trace_ids={"current-collect", "current-validation"},
+        strict=True,
+    )
+
+    assert len(backend.calls) == 1
+    assert [item["trace_id"] for item in reflections] == ["current-collect"]
+    assert (current_dir / "reflection.json").is_file()
+    assert not (old_dir / "reflection.json").exists()
+    assert not (validation_dir / "reflection.json").exists()
+
+
+def _save_outcome_trace(skill: Skill, *, trace_id: str, task: str, success: bool) -> Path:
+    trace = SkillTrace(
+        id=trace_id,
+        skill_name=skill.name,
+        skill_version="v1",
+        model="solver-model",
+        task=task,
+        timestamp=datetime(2026, 5, 15, 12, 0, 0),
+        passed=1 if success else 0,
+        total=1,
+        pass_rate=1.0 if success else 0.0,
+        success=success,
+        errors=[] if success else ["failed"],
+    )
+    return TraceStore(skill).save(
+        trace, prompt="p", response="r", code="print('x')", evidence=_v3_evidence()
+    )
+
+
+def test_reflect_drop_mixed_flag_off_keeps_all_failing(tmp_path: Path):
+    skill = _make_skill(tmp_path / "off")
+    _save_outcome_trace(skill, trace_id="A-pass", task="task-A", success=True)
+    _save_outcome_trace(skill, trace_id="A-fail", task="task-A", success=False)
+    _save_outcome_trace(skill, trace_id="B-fail", task="task-B", success=False)
+    backend = MockBackend(
+        responses=[_reflection_json(), _reflection_json(), _success_reflection_json()]
+    )
+    out = reflect_failing_traces(backend, skill, "task")
+    assert sum(1 for r in out if r.get("kind") == "failure") == 2
+
+
+def test_reflect_drop_mixed_flag_on_demotes_failing_with_passing_sibling(
+    tmp_path: Path, monkeypatch
+):
+    monkeypatch.setenv("EVO_REFLECT_DROP_MIXED", "1")
+    skill = _make_skill(tmp_path / "on")
+    _save_outcome_trace(skill, trace_id="A-pass", task="task-A", success=True)
+    _save_outcome_trace(skill, trace_id="A-fail", task="task-A", success=False)
+    _save_outcome_trace(skill, trace_id="B-fail", task="task-B", success=False)
+    backend = MockBackend(responses=[_reflection_json(), _success_reflection_json()])
+    out = reflect_failing_traces(backend, skill, "task")
+    failures = [r for r in out if r.get("kind") == "failure"]
+    assert len(failures) == 1
+
+
 def test_summarize_reflection_audit_counts_by_kind():
-    from evolution.evolution.meta_skill import summarize_reflection_audit
+    from evolution.evolve.meta_skill import summarize_reflection_audit
 
     audit = [
         {"kind": "failure", "pattern": "wrong_api"},
@@ -1059,7 +1325,7 @@ def test_summarize_reflection_audit_counts_by_kind():
 
 
 def test_reflect_prompt_includes_success_preserve_placeholder():
-    from evolution.evolution.reflect import (
+    from evolution.evolve.reflect import (
         CODEX_FILE_EDIT_PROMPT,
         REFLECT_SUCCESS_PROMPT,
         REWRITE_PROMPT,
@@ -1074,50 +1340,85 @@ def test_reflect_prompt_includes_success_preserve_placeholder():
 def test_reflect_system_selects_blind_or_oracle(monkeypatch):
     """The reflector system prompt flips with EVO_REFLECT_BLIND: oracle-visible
     is the new default; blind is the publication opt-out."""
-    from evolution.evolution.reflection import (
+    from evolution.evolve.reflection import (
         REFLECT_SYSTEM_BLIND,
         REFLECT_SYSTEM_ORACLE,
         _reflect_system,
     )
 
     monkeypatch.setenv("EVO_REFLECT_BLIND", "1")
-    assert _reflect_system() is REFLECT_SYSTEM_BLIND
+    blind_system = _reflect_system()
+    assert blind_system != REFLECT_SYSTEM_BLIND
+    assert "BLIND mode" in blind_system
     assert "NEVER given verifier source" in REFLECT_SYSTEM_BLIND
 
     monkeypatch.setenv("EVO_REFLECT_BLIND", "0")
-    assert _reflect_system() is REFLECT_SYSTEM_ORACLE
+    oracle_system = _reflect_system()
+    assert oracle_system != REFLECT_SYSTEM_ORACLE
+    assert "TRAIN_EVIDENCE" in oracle_system
+    assert "held-out validation/test" in oracle_system
+    assert "leak scanner" not in oracle_system
     assert "full diagnostic evidence" in REFLECT_SYSTEM_ORACLE
-    assert "leak scanner" in REFLECT_SYSTEM_ORACLE
 
 
-def test_reflect_trace_renders_rejected_edit_buffer(tmp_path: Path):
+def test_reflect_trace_omits_editor_control_sections(tmp_path: Path):
     skill = _make_skill(tmp_path)
     trace_dir = _save_failed_trace(skill)
     backend = MockBackend(responses=[_reflection_json()])
 
-    asyncio.run(
-        reflect_trace(
-            backend,
-            trace_dir,
+    asyncio.run(reflect_trace(backend, trace_dir, skill, "task"))
+
+    prompt = backend.calls[0]["messages"][0]["content"]
+    assert "## Rejected-Edit Buffer" not in prompt
+    assert "## Cross-Round Learning" not in prompt
+
+
+def test_rewrite_checkpoint_retains_all_finalized_attempts_and_resumes(tmp_path: Path):
+    parent = "one\ntwo\nthree\nfour"
+    skill = _make_skill_with_body(tmp_path, parent)
+    reflections = [_FAILURE_REFLECTION]
+    audit_root = tmp_path / "audit"
+    candidates = ["a\nb\nc\nd", "e\nf\ng\nh", "i\nj\nk\nl"]
+
+    first_backend = MockBackend(responses=candidates)
+    first = asyncio.run(
+        rewrite_skill_with_audit(
+            first_backend,
             skill,
-            "task",
-            rejected_edits_blob=(
-                "Prior-round rewrite rejections (most recent last):\n"
-                "- R1: status=leak_rejected; churn=0.40; new_headings=[(none)]; "
-                "counts(actionable=2, low_conf=0, leak=1)"
-            ),
+            reflections,
+            audit_root=audit_root,
+            max_rewrite_attempts=3,
+            promotion_count=0,
+            base_budget=0.1,
+        )
+    )
+    saved = json.loads((audit_root / "rewrite_attempts.json").read_text(encoding="utf-8"))
+    resumed_backend = MockBackend(responses=["must not be used"])
+    resumed = asyncio.run(
+        rewrite_skill_with_audit(
+            resumed_backend,
+            skill,
+            reflections,
+            audit_root=audit_root,
+            max_rewrite_attempts=3,
+            promotion_count=0,
+            base_budget=0.1,
         )
     )
 
-    prompt = backend.calls[0]["messages"][0]["content"]
-    assert "## Rejected-Edit Buffer" in prompt
-    assert "leak_rejected" in prompt
+    assert first.candidate_status == "candidate_edit_budget_exceeded"
+    assert [record["attempt"] for record in saved] == [1, 2, 3]
+    assert [record["candidate_body"] for record in saved] == candidates
+    assert all(record["outcome_body"] == parent for record in saved)
+    assert all(record["raw_output_sha256"] for record in saved)
+    assert resumed.body == parent
+    assert len(resumed.rewrite_attempts or []) == 3
+    assert resumed_backend.calls == []
 
 
 def test_session_has_progress_detects_salvageable_output(tmp_path: Path):
-    from types import SimpleNamespace
-
-    from evolution.evolution.reflect import _session_has_progress
+    from evolution.evolve.reflect import _session_has_progress
+    from evolution.evolve.session_workspace import SessionWorkspace
 
     parent_body = "Use Python carefully."
     session_dir = tmp_path / "session"
@@ -1127,7 +1428,14 @@ def test_session_has_progress_detects_salvageable_output(tmp_path: Path):
         f"---\nname: test-skill\ndescription: A test skill\n---\n\n{parent_body}\n",
         encoding="utf-8",
     )
-    ws = SimpleNamespace(session_dir=session_dir, skill_path=skill_md)
+    ws = SessionWorkspace(
+        root=tmp_path,
+        session_dir=session_dir,
+        verifier_dir=tmp_path / "verifier",
+        skill_path=skill_md,
+        measure_sh=session_dir / "measure.sh",
+        solve_sh=session_dir / "solve.sh",
+    )
 
     # Unedited body, no DIAGNOSIS.json -> nothing to salvage.
     assert _session_has_progress(ws, parent_body) is False

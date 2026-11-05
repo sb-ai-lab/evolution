@@ -10,8 +10,9 @@ from typing import Any
 
 import pytest
 
+from evolution.cli.main import app
 from evolution.core.models import Skill, SkillFrontmatter
-from evolution.evolution.preservation import (
+from evolution.evolve.preservation import (
     frontmatter_semantic_equality,
     heading_retention,
     score_preservation,
@@ -20,15 +21,15 @@ from evolution.evolution.preservation import (
     structure_drift,
     whole_body_seqmatch_ratio,
 )
-from evolution.evolution.reflect import (
+from evolution.evolve.reflect import (
     _non_empty_line_churn,
     rewrite_skill_with_audit,
 )
-from evolution.evolution.rewrite_guards import (
+from evolution.evolve.rewrite_guards import (
     _ALLOWED_HIDDEN_NAMES,
     validate_candidate_isolation,
 )
-from evolution.evolution.rewrite_outcome import (
+from evolution.evolve.rewrite_outcome import (
     CANDIDATE_EDIT_BUDGET_EXCEEDED,
     CANDIDATE_INVALID_EXTRA_FILES,
     CANDIDATE_INVALID_HIDDEN_FILE,
@@ -239,7 +240,7 @@ def test_edit_budget_partial_change() -> None:
 
 
 def test_dispatch_text_return_default(tmp_path: Path) -> None:
-    """file_edit=False (default) must run the text-return path."""
+    """rewrite_mode="text-return" (default) must run the text-return path."""
     skill = _make_skill(tmp_path)
     backend = MockBackend(responses=["Improved body for the skill.\n"])
     outcome = asyncio.run(
@@ -266,7 +267,7 @@ def test_dispatch_failfast_when_file_edit_with_non_codex_backend(tmp_path: Path)
                 skill,
                 [_reflection(), _reflection()],
                 include_best_trace_code=False,
-                file_edit=True,
+                rewrite_mode="file-edit",
             )
         )
 
@@ -346,7 +347,7 @@ def test_file_edit_no_op_when_codex_writes_identical_body(tmp_path: Path) -> Non
             skill,
             [_reflection(), _reflection()],
             include_best_trace_code=False,
-            file_edit=True,
+            rewrite_mode="file-edit",
         )
     )
     assert outcome.candidate_status == NO_OP_FILE_EDIT
@@ -383,7 +384,7 @@ def test_file_edit_happy_path_marks_promoted_eligible(tmp_path: Path) -> None:
             skill,
             [_reflection(), _reflection()],
             include_best_trace_code=False,
-            file_edit=True,
+            rewrite_mode="file-edit",
         )
     )
     assert outcome.candidate_status == PROMOTED_ELIGIBLE, outcome.reason
@@ -407,7 +408,7 @@ def test_file_edit_codex_error_records_rewrite_error_codex(tmp_path: Path) -> No
             skill,
             [_reflection(), _reflection()],
             include_best_trace_code=False,
-            file_edit=True,
+            rewrite_mode="file-edit",
         )
     )
     assert outcome.candidate_status == REWRITE_ERROR_CODEX
@@ -426,7 +427,7 @@ def test_file_edit_extra_file_rejected_as_isolation_violation(tmp_path: Path) ->
             skill,
             [_reflection(), _reflection()],
             include_best_trace_code=False,
-            file_edit=True,
+            rewrite_mode="file-edit",
         )
     )
     assert outcome.candidate_status == CANDIDATE_INVALID_EXTRA_FILES
@@ -436,7 +437,7 @@ def test_file_edit_extra_file_rejected_as_isolation_violation(tmp_path: Path) ->
 def test_file_edit_budget_enforcement_rejects_above_threshold(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setenv("EVO_C1_EDIT_BUDGET_FRAC", "0.1")
+    monkeypatch.setenv("EVO_REWRITE_MAX_DELTA_FRAC", "0.1")
     skill = _make_skill(tmp_path, body="A\nB\nC\nD\n")
     # Replace all four lines → churn=1.0 > 0.1 budget.
     backend = _FakeCodexBackend(write_body="W\nX\nY\nZ\n")
@@ -446,16 +447,16 @@ def test_file_edit_budget_enforcement_rejects_above_threshold(
             skill,
             [_reflection(), _reflection()],
             include_best_trace_code=False,
-            file_edit=True,
+            rewrite_mode="file-edit",
         )
     )
     assert outcome.candidate_status == CANDIDATE_EDIT_BUDGET_EXCEEDED
 
 
-def test_file_edit_budget_unset_means_no_enforcement(
+def test_file_edit_base_one_disables_churn_rejection(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.delenv("EVO_C1_EDIT_BUDGET_FRAC", raising=False)
+    monkeypatch.setenv("EVO_REWRITE_MAX_DELTA_FRAC", "1")
     skill = _make_skill(tmp_path, body="A\nB\nC\nD\n")
     backend = _FakeCodexBackend(write_body="W\nX\nY\nZ\n")
     outcome = asyncio.run(
@@ -464,7 +465,7 @@ def test_file_edit_budget_unset_means_no_enforcement(
             skill,
             [_reflection(), _reflection()],
             include_best_trace_code=False,
-            file_edit=True,
+            rewrite_mode="file-edit",
         )
     )
     assert outcome.candidate_status == PROMOTED_ELIGIBLE
@@ -485,7 +486,7 @@ def test_file_edit_debug_archive_moves_candidate_dir(
             skill,
             [_reflection(), _reflection()],
             include_best_trace_code=False,
-            file_edit=True,
+            rewrite_mode="file-edit",
             audit_root=audit_root,
             row_id="row3__pm.pdf",
             debug_archive=True,
@@ -555,47 +556,6 @@ def test_evidence_walker_excludes_c1_candidates_subtree(tmp_path: Path) -> None:
     paths = [m.get("path") for m in manifest if isinstance(m, dict) and "path" in m]
     assert "result.txt" in paths
     assert all("c1_candidates" not in p for p in paths)
-
-
-def test_classifier_promoted_eligible_falls_through_to_gate_status() -> None:
-    """Review fix #1: ``promoted_eligible`` is not a terminal status — the
-    δ-gate decides PROMOTE vs ROLLBACK after the candidate is committed.
-    """
-    import sys
-
-    sys.path.insert(
-        0,
-        str(Path(__file__).resolve().parents[1] / "experiments" / "table3-4-minimal-sbbench-v2"),
-    )
-    from build_report_md import _classify_gate_reason, _gate_outcome_from_record
-
-    rec_prom = {"candidate_status": "promoted_eligible", "gate_status": "promoted"}
-    rec_roll = {"candidate_status": "promoted_eligible", "gate_status": "rolled_back"}
-    assert _classify_gate_reason(rec_prom) == "promoted"
-    assert _classify_gate_reason(rec_roll) == "rolled_back"
-    assert _gate_outcome_from_record(rec_prom) == "promote"
-    assert _gate_outcome_from_record(rec_roll) == "rollback"
-
-
-def test_classifier_terminal_c1_statuses_short_circuit() -> None:
-    """Terminal C1 statuses must not consult the δ-gate."""
-    import sys
-
-    sys.path.insert(
-        0,
-        str(Path(__file__).resolve().parents[1] / "experiments" / "table3-4-minimal-sbbench-v2"),
-    )
-    from build_report_md import _classify_gate_reason
-
-    # Even with a stray gate_status, terminal statuses win.
-    assert (
-        _classify_gate_reason({"candidate_status": "no_op_file_edit", "gate_status": "promoted"})
-        == "no_op_file_edit"
-    )
-    assert (
-        _classify_gate_reason({"candidate_status": "leak_rejected", "gate_status": "promoted"})
-        == "leak-rejected"
-    )
 
 
 def test_text_return_outcome_carries_preservation_when_bodies_differ(
@@ -677,12 +637,18 @@ def test_cli_rewrite_always_writes_audit_json_even_on_exception(
     """
     from typer.testing import CliRunner
 
-    from evolution.cli import main as cli
+    from evolution.cli.commands import evolve as cli
 
     skill = _make_skill(tmp_path)
     manifest_path = tmp_path / "split_manifest.json"
     manifest_path.write_text(
-        json.dumps({"name": "unit-split", "tasks": [{"id": "task-name", "split": "train"}]}),
+        json.dumps(
+            {
+                "name": "unit-split",
+                "counts": {"train": 1, "val": 0, "test": 0},
+                "tasks": [{"id": "task-name", "split": "train"}],
+            }
+        ),
         encoding="utf-8",
     )
 
@@ -704,8 +670,9 @@ def test_cli_rewrite_always_writes_audit_json_even_on_exception(
     audit_path = tmp_path / "audit_out.json"
     runner = CliRunner()
     result = runner.invoke(
-        cli.app,
+        app,
         [
+            "evolve",
             "rewrite",
             skill.name,
             "--rewrite-audit-out",
@@ -730,7 +697,7 @@ def test_cli_rewrite_invalid_mode_records_internal_error(
     """Unknown --rewrite-mode value triggers rc!=0 + audit with internal error."""
     from typer.testing import CliRunner
 
-    from evolution.cli import main as cli
+    from evolution.cli.commands import evolve as cli
 
     skill = _make_skill(tmp_path)
 
@@ -748,8 +715,9 @@ def test_cli_rewrite_invalid_mode_records_internal_error(
     audit_path = tmp_path / "audit_out.json"
     runner = CliRunner()
     result = runner.invoke(
-        cli.app,
+        app,
         [
+            "evolve",
             "rewrite",
             skill.name,
             "--rewrite-audit-out",
@@ -771,7 +739,7 @@ def test_cli_rewrite_text_return_writes_audit_with_null_codex_fields(
     """Text-return mode produces the same schema, with null codex_usage."""
     from typer.testing import CliRunner
 
-    from evolution.cli import main as cli
+    from evolution.cli.commands import evolve as cli
 
     skill = _make_skill(tmp_path)
 
@@ -803,8 +771,9 @@ def test_cli_rewrite_text_return_writes_audit_with_null_codex_fields(
     audit_path = tmp_path / "audit_out.json"
     runner = CliRunner()
     result = runner.invoke(
-        cli.app,
+        app,
         [
+            "evolve",
             "rewrite",
             skill.name,
             "--rewrite-audit-out",
@@ -912,7 +881,7 @@ def test_rewrite_classifies_sandbox_failure_unchanged_as_rewrite_error_codex(
             skill,
             [_reflection(), _reflection()],
             include_best_trace_code=False,
-            file_edit=True,
+            rewrite_mode="file-edit",
         )
     )
     assert outcome.candidate_status == REWRITE_ERROR_CODEX, outcome.reason
@@ -935,7 +904,7 @@ def test_rewrite_classifies_clean_unchanged_as_no_op_file_edit(tmp_path: Path) -
             skill,
             [_reflection(), _reflection()],
             include_best_trace_code=False,
-            file_edit=True,
+            rewrite_mode="file-edit",
         )
     )
     assert outcome.candidate_status == NO_OP_FILE_EDIT, outcome.reason
@@ -969,7 +938,7 @@ def test_audit_json_contains_codex_diagnostics_field(
     """End-to-end: CLI writes audit JSON with codex_diagnostics field populated."""
     from typer.testing import CliRunner
 
-    from evolution.cli import main as cli
+    from evolution.cli.commands import evolve as cli
 
     skill = _make_skill(tmp_path)
     fake_diag = {"sandbox": "workspace-write", "sandbox_errors": ["bwrap: ..."]}
@@ -1003,8 +972,9 @@ def test_audit_json_contains_codex_diagnostics_field(
     audit_path = tmp_path / "audit_out.json"
     runner = CliRunner()
     result = runner.invoke(
-        cli.app,
+        app,
         [
+            "evolve",
             "rewrite",
             skill.name,
             "--rewrite-mode",
@@ -1031,14 +1001,16 @@ def test_complete_file_edit_populates_diagnostics_even_on_nonzero_rc(
         def __init__(self) -> None:
             self.returncode = 2
             self.pid = 0
-
-        async def communicate(self, _input: bytes | None) -> tuple[bytes, bytes]:
-            stdout = (
+            self.stdin = None
+            self.stdout = asyncio.StreamReader()
+            self.stderr = asyncio.StreamReader()
+            self.stdout.feed_data(
                 b'{"type":"thread.started","thread_id":"x"}\n'
                 b'{"type":"error","message":"bwrap: Failed to make / slave: Permission denied"}\n'
                 b'{"type":"turn.completed","usage":{"input_tokens":11,"output_tokens":2}}\n'
             )
-            return (stdout, b"")
+            self.stdout.feed_eof()
+            self.stderr.feed_eof()
 
         async def wait(self) -> int:
             return self.returncode
@@ -1066,11 +1038,12 @@ def test_complete_file_edit_populates_diagnostics_even_on_nonzero_rc(
     assert any("bwrap:" in s for s in (diag.get("sandbox_errors") or []))
     assert diag.get("prompt_tokens") == 11
     assert diag.get("completion_tokens") == 2
-    # Default flipped to bypass after the workspace-write bwrap regression.
-    assert diag.get("sandbox") == "bypass"
-    assert diag.get("bypass_approvals_and_sandbox") is True
-    assert "--dangerously-bypass-approvals-and-sandbox" in (diag.get("command") or [])
-    assert "-s" not in (diag.get("command") or [])
+    # Agent permission defaults to the real Codex workspace sandbox.
+    assert diag.get("sandbox") == "workspace-write"
+    assert diag.get("bypass_approvals_and_sandbox") is False
+    assert "--dangerously-bypass-approvals-and-sandbox" not in (diag.get("command") or [])
+    command = diag.get("command") or []
+    assert command[command.index("-s") + 1] == "workspace-write"
     assert "--json" in captured["args"]
     assert "-o" in captured["args"]
     assert diag.get("returncode") == 2
@@ -1102,7 +1075,7 @@ def _refl(pattern: str, severity: str, suggested_fix: str = "fix-X") -> dict:
 
 
 def test_consensus_reflection_picks_most_common_pattern_over_singleton_critical() -> None:
-    from evolution.evolution.reflect import _consensus_reflection
+    from evolution.evolve.reflect import _consensus_reflection
 
     reflections = [
         _refl(pattern="missing_step", severity="major", suggested_fix="ms-fix-1"),
@@ -1114,7 +1087,7 @@ def test_consensus_reflection_picks_most_common_pattern_over_singleton_critical(
 
 
 def test_consensus_reflection_severity_tiebreaks_when_frequencies_equal() -> None:
-    from evolution.evolution.reflect import _consensus_reflection
+    from evolution.evolve.reflect import _consensus_reflection
 
     reflections = [
         _refl(pattern="missing_step", severity="minor"),
@@ -1125,7 +1098,7 @@ def test_consensus_reflection_severity_tiebreaks_when_frequencies_equal() -> Non
 
 
 def test_consensus_reflection_order_tiebreaks_when_freq_and_sev_equal() -> None:
-    from evolution.evolution.reflect import _consensus_reflection
+    from evolution.evolve.reflect import _consensus_reflection
 
     reflections = [
         _refl(pattern="A", severity="major", suggested_fix="first"),
@@ -1136,7 +1109,7 @@ def test_consensus_reflection_order_tiebreaks_when_freq_and_sev_equal() -> None:
 
 
 def test_consensus_summary_three_of_three_phrasing() -> None:
-    from evolution.evolution.reflect import _consensus_summary
+    from evolution.evolve.reflect import _consensus_summary
 
     reflections = [_refl("missing_step", "major")] * 3
     summary = _consensus_summary(reflections)
@@ -1145,13 +1118,13 @@ def test_consensus_summary_three_of_three_phrasing() -> None:
 
 
 def test_consensus_summary_handles_empty() -> None:
-    from evolution.evolution.reflect import _consensus_summary
+    from evolution.evolve.reflect import _consensus_summary
 
     assert "no actionable" in _consensus_summary([])
 
 
 def test_parent_top_headings_extracts_h2_h3() -> None:
-    from evolution.evolution.reflect import _parent_top_headings
+    from evolution.evolve.reflect import _parent_top_headings
 
     body = "Prelude.\n\n## Section A\nline\n\n## Section B\nline\n\n### Subsection\nx\n"
     headings = _parent_top_headings(body)
@@ -1160,7 +1133,7 @@ def test_parent_top_headings_extracts_h2_h3() -> None:
 
 
 def test_candidate_added_new_heading_detects_new_h2() -> None:
-    from evolution.evolution.reflect import _candidate_added_new_heading
+    from evolution.evolve.reflect import _candidate_added_new_heading
 
     parent = "## Step One\ndo x\n\n## Step Two\ndo y\n"
     candidate = "## Step One\ndo x\n\n## Step Two\ndo y\n\n## Step Three\nNEW SECTION\n"
@@ -1171,7 +1144,7 @@ def test_candidate_added_new_heading_detects_new_h2() -> None:
 
 def test_candidate_added_new_heading_allows_fuzzy_match() -> None:
     """Minor wording rephrase of an existing heading should not count as 'new'."""
-    from evolution.evolution.reflect import _candidate_added_new_heading
+    from evolution.evolve.reflect import _candidate_added_new_heading
 
     parent = "## Validation Checklist\ndo x\n"
     candidate = "## Validation Checklist:\ndo x\n"  # added colon
@@ -1180,7 +1153,7 @@ def test_candidate_added_new_heading_allows_fuzzy_match() -> None:
 
 
 def test_candidate_added_new_heading_returns_false_when_parent_has_no_headings() -> None:
-    from evolution.evolution.reflect import _candidate_added_new_heading
+    from evolution.evolve.reflect import _candidate_added_new_heading
 
     parent = "Just a body, no headings.\n"
     candidate = "Just a body, no headings.\n\n## New\nx\n"
@@ -1188,10 +1161,8 @@ def test_candidate_added_new_heading_returns_false_when_parent_has_no_headings()
     assert added is False  # by design — parent has none, can't enforce
 
 
-def test_rewrite_rejects_candidate_with_new_h2_section(tmp_path: Path) -> None:
-    """Codex adds a new top-level section; harness rejects pre-gate."""
-    from evolution.evolution.rewrite_outcome import CANDIDATE_INVALID_NEW_HEADING
-
+def test_rewrite_allows_candidate_with_new_h2_section(tmp_path: Path) -> None:
+    """New headings are advisory provenance, not a private admission gate."""
     parent_body = "## Step One\ndo x\n\n## Step Two\ndo y\n"
     candidate_body = parent_body + "\n## Step Three\nNEW SECTION CODEX ADDED\n"
     skill = _make_skill(tmp_path, body=parent_body)
@@ -1202,19 +1173,20 @@ def test_rewrite_rejects_candidate_with_new_h2_section(tmp_path: Path) -> None:
             skill,
             [_reflection(), _reflection()],
             include_best_trace_code=False,
-            file_edit=True,
+            rewrite_mode="file-edit",
+            base_budget=1,
         )
     )
-    assert outcome.candidate_status == CANDIDATE_INVALID_NEW_HEADING, outcome.reason
-    assert "Step Three" in outcome.reason
-    assert outcome.body == skill.body  # parent kept
+    assert outcome.candidate_status == PROMOTED_ELIGIBLE, outcome.reason
+    assert outcome.body == candidate_body.strip()
+    assert "Step Three" in (outcome.new_headings or [])
 
 
 def test_git_init_candidate_creates_git_repo(tmp_path: Path) -> None:
     """The harness's git-init shim sets up baseline so codex's `git diff` works."""
     import shutil as _shutil
 
-    from evolution.evolution.reflect import _git_init_candidate
+    from evolution.evolve.reflect import _git_init_candidate
 
     if not _shutil.which("git"):
         pytest.skip("git not available in env")
@@ -1257,28 +1229,29 @@ def test_file_edit_prompt_includes_parent_headings_and_consensus(
             skill,
             [_refl("missing_step", "major"), _refl("missing_step", "major")],
             include_best_trace_code=False,
-            file_edit=True,
+            rewrite_mode="file-edit",
         )
     )
     prompt = captured["prompt"]
-    assert "Preserve these workflows" in prompt
+    assert "## Existing workflows" in prompt
     assert "- Step One" in prompt
     assert "- Step Two" in prompt
     assert "## Consensus failure" in prompt
-    assert "## All actionable reflections (2)" in prompt
-    # System message also calls out the no-new-heading rule:
-    assert (
-        "do NOT add new top-level" in captured["system"].lower()
-        or "do not add new top-level" in captured["system"].lower()
-    )
+    # Three, not two: `rewrite_file_edit` passes `len(reflections) + 1`, because
+    # the count includes the synthesized consensus context alongside the raw
+    # reflections. The code and this assertion disagreed for a while -- the test
+    # was red at the merge base -- and the disagreement is settled in favour of
+    # the prompt contract rather than of the arithmetic.
+    assert "## All actionable reflections (3)" in prompt
+    assert "shared edit brake" in captured["system"].lower()
 
 
-def test_audit_provenance_fields_populated_on_promoted_eligible(tmp_path: Path) -> None:
+def test_audit_provenance_fields_populated_on_promoted_eligible(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Promoted-eligible outcome carries parent_skill_path, sha256s, churn,
-    new_headings list (empty), edit_budget_frac (None if unset)."""
-    import os
-
-    os.environ.pop("EVO_C1_EDIT_BUDGET_FRAC", None)
+    new_headings list (empty), and the effective edit budget."""
+    monkeypatch.delenv("EVO_REWRITE_MAX_DELTA_FRAC", raising=False)
     skill = _make_skill(tmp_path, body=_PARENT_BODY_RICH)
     backend = _FakeCodexBackend(write_body=_CANDIDATE_BODY_RICH)
     outcome = asyncio.run(
@@ -1287,7 +1260,7 @@ def test_audit_provenance_fields_populated_on_promoted_eligible(tmp_path: Path) 
             skill,
             [_reflection(), _reflection()],
             include_best_trace_code=False,
-            file_edit=True,
+            rewrite_mode="file-edit",
         )
     )
     assert outcome.candidate_status == PROMOTED_ELIGIBLE, outcome.reason
@@ -1297,14 +1270,11 @@ def test_audit_provenance_fields_populated_on_promoted_eligible(tmp_path: Path) 
     assert outcome.parent_body_sha256 != outcome.candidate_body_sha256
     assert outcome.computed_churn is not None and outcome.computed_churn > 0
     assert outcome.new_headings == []  # candidate kept parent's headings
-    assert outcome.edit_budget_frac is None  # env not set
+    assert outcome.edit_budget_frac == 0.4
 
 
-def test_audit_provenance_carries_new_headings_on_rejection(tmp_path: Path) -> None:
-    """When new-heading guard rejects, the audit captures the actual new
-    heading list so postmortem analysis sees what codex added."""
-    from evolution.evolution.rewrite_outcome import CANDIDATE_INVALID_NEW_HEADING
-
+def test_audit_provenance_carries_new_headings_without_rejection(tmp_path: Path) -> None:
+    """New-heading provenance remains available without a private rejection."""
     parent_body = "## Step One\ndo x\n\n## Step Two\ndo y\n"
     candidate_body = parent_body + "\n## Step Three\nNEW\n\n#### Sub-step\nx\n"
     skill = _make_skill(tmp_path, body=parent_body)
@@ -1315,10 +1285,11 @@ def test_audit_provenance_carries_new_headings_on_rejection(tmp_path: Path) -> N
             skill,
             [_reflection(), _reflection()],
             include_best_trace_code=False,
-            file_edit=True,
+            rewrite_mode="file-edit",
+            base_budget=1,
         )
     )
-    assert outcome.candidate_status == CANDIDATE_INVALID_NEW_HEADING, outcome.reason
+    assert outcome.candidate_status == PROMOTED_ELIGIBLE, outcome.reason
     assert outcome.new_headings is not None
     assert "Step Three" in outcome.new_headings
     assert "Sub-step" in outcome.new_headings  # H4 also counts
@@ -1332,8 +1303,8 @@ def test_audit_provenance_carries_new_headings_on_rejection(tmp_path: Path) -> N
 def test_audit_provenance_edit_budget_frac_recorded(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """When EVO_C1_EDIT_BUDGET_FRAC is set, the audit carries the parsed value."""
-    monkeypatch.setenv("EVO_C1_EDIT_BUDGET_FRAC", "0.15")
+    """The shared budget is recorded in the audit evidence."""
+    monkeypatch.setenv("EVO_REWRITE_MAX_DELTA_FRAC", "0.15")
     skill = _make_skill(tmp_path, body=_PARENT_BODY_RICH)
     backend = _FakeCodexBackend(write_body=_CANDIDATE_BODY_RICH)
     outcome = asyncio.run(
@@ -1342,7 +1313,7 @@ def test_audit_provenance_edit_budget_frac_recorded(
             skill,
             [_reflection(), _reflection()],
             include_best_trace_code=False,
-            file_edit=True,
+            rewrite_mode="file-edit",
         )
     )
     assert outcome.edit_budget_frac == 0.15
@@ -1355,7 +1326,7 @@ def test_audit_json_includes_provenance_keys(
     rewriter exits via the text-return path (keys are None)."""
     from typer.testing import CliRunner
 
-    from evolution.cli import main as cli
+    from evolution.cli.commands import evolve as cli
 
     skill = _make_skill(tmp_path)
 
@@ -1387,8 +1358,8 @@ def test_audit_json_includes_provenance_keys(
     audit_path = tmp_path / "audit_out.json"
     runner = CliRunner()
     result = runner.invoke(
-        cli.app,
-        ["rewrite", skill.name, "--rewrite-audit-out", str(audit_path)],
+        app,
+        ["evolve", "rewrite", skill.name, "--rewrite-audit-out", str(audit_path)],
     )
     assert result.exit_code == 0, result.output
     payload = json.loads(audit_path.read_text(encoding="utf-8"))
@@ -1409,7 +1380,7 @@ def test_audit_json_includes_provenance_keys(
 
 
 def test_extract_fenced_candidate_returns_largest_block() -> None:
-    from evolution.evolution.reflect import _extract_fenced_candidate
+    from evolution.evolve.reflect import _extract_fenced_candidate
 
     msg = (
         "Here is a small example:\n"
@@ -1425,7 +1396,7 @@ def test_extract_fenced_candidate_returns_largest_block() -> None:
 
 
 def test_extract_fenced_candidate_strips_frontmatter() -> None:
-    from evolution.evolution.reflect import _extract_fenced_candidate
+    from evolution.evolve.reflect import _extract_fenced_candidate
 
     msg = "```markdown\n---\nname: x\ndescription: y\n---\n\n## Body\nthe body.\n```"
     out = _extract_fenced_candidate(msg, parent_body="")
@@ -1435,14 +1406,14 @@ def test_extract_fenced_candidate_strips_frontmatter() -> None:
 
 
 def test_extract_fenced_candidate_no_block_returns_none() -> None:
-    from evolution.evolution.reflect import _extract_fenced_candidate
+    from evolution.evolve.reflect import _extract_fenced_candidate
 
     out = _extract_fenced_candidate("Just chat, no fenced block.", parent_body="x")
     assert out is None
 
 
 def test_extract_fenced_candidate_equal_to_parent_returns_none() -> None:
-    from evolution.evolution.reflect import _extract_fenced_candidate
+    from evolution.evolve.reflect import _extract_fenced_candidate
 
     parent = "## Overview\nthe body.\n"
     msg = f"```markdown\n{parent}```"
@@ -1472,7 +1443,7 @@ def test_file_edit_promotes_via_fenced_fallback_when_codex_responds_in_chat(
             skill,
             [_reflection(), _reflection()],
             include_best_trace_code=False,
-            file_edit=True,
+            rewrite_mode="file-edit",
         )
     )
     assert outcome.candidate_status == PROMOTED_ELIGIBLE, outcome.reason
@@ -1497,7 +1468,7 @@ def test_file_edit_fenced_fallback_skipped_when_sandbox_failed(tmp_path: Path) -
             skill,
             [_reflection(), _reflection()],
             include_best_trace_code=False,
-            file_edit=True,
+            rewrite_mode="file-edit",
         )
     )
     assert outcome.candidate_status == REWRITE_ERROR_CODEX
@@ -1515,7 +1486,7 @@ def test_cli_writes_last_message_sidecar_when_codex_returned_chat_text(
 ) -> None:
     from typer.testing import CliRunner
 
-    from evolution.cli import main as cli
+    from evolution.cli.commands import evolve as cli
 
     skill = _make_skill(tmp_path)
     msg = "I declined to edit. Here is what I'd write:\n```markdown\n## X\nbody\n```"
@@ -1550,8 +1521,9 @@ def test_cli_writes_last_message_sidecar_when_codex_returned_chat_text(
     audit_path = tmp_path / "row3__pm.pdf_rewrite_audit.json"
     runner = CliRunner()
     result = runner.invoke(
-        cli.app,
+        app,
         [
+            "evolve",
             "rewrite",
             skill.name,
             "--rewrite-mode",
@@ -1571,7 +1543,7 @@ def test_cli_writes_diff_patch_sidecar_on_promotion(
 ) -> None:
     from typer.testing import CliRunner
 
-    from evolution.cli import main as cli
+    from evolution.cli.commands import evolve as cli
 
     skill = _make_skill(tmp_path, body="Parent line one.\nParent line two.\n")
     new_body = "Parent line one.\nNew middle line.\nParent line two.\n"
@@ -1605,8 +1577,9 @@ def test_cli_writes_diff_patch_sidecar_on_promotion(
     audit_path = tmp_path / "row3_audit.json"
     runner = CliRunner()
     result = runner.invoke(
-        cli.app,
+        app,
         [
+            "evolve",
             "rewrite",
             skill.name,
             "--rewrite-mode",
@@ -1630,7 +1603,7 @@ def test_cli_skips_diff_sidecar_when_body_unchanged(
     """Empty diff → no diff.patch file (avoid churn from rejection rows)."""
     from typer.testing import CliRunner
 
-    from evolution.cli import main as cli
+    from evolution.cli.commands import evolve as cli
 
     skill = _make_skill(tmp_path)
 
@@ -1663,8 +1636,9 @@ def test_cli_skips_diff_sidecar_when_body_unchanged(
     audit_path = tmp_path / "row5_audit.json"
     runner = CliRunner()
     result = runner.invoke(
-        cli.app,
+        app,
         [
+            "evolve",
             "rewrite",
             skill.name,
             "--rewrite-mode",

@@ -5,7 +5,7 @@ body with ``python3`` rewritten to the role interpreter, cwd=workspace) and wins
 over ``_solve.py``; otherwise ``python_exe _solve.py`` runs. A missing
 ``_solve.py`` with no ``solve.sh`` is a loud failure, not a silent no-run. This
 contract crosses the layout abstraction boundary, so it gets its own test rather
-than riding on the equivalence smoke (review item #3; plans/layout_abstraction.md).
+than riding on the equivalence smoke.
 """
 
 from __future__ import annotations

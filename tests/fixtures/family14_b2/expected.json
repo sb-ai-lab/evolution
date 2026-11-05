@@ -1,0 +1,114 @@
+{
+  "base_brief_digests": [
+    "6ee471979e1e24ca6c99b099e3b1008ed0573eeac537a23272d4ec92e0f723f8",
+    "cd3d622ee6e9dcfe9a950166412e46eaad8f2616c411c33ac4ed3d0b85b28afa"
+  ],
+  "brief_version": "edit_brief/4",
+  "common_input_digests": {
+    "r01-a01": "7ee90259ede70dea63bd33eeffdca0dc43c19587c437d28537165069417df477",
+    "r01-a02": "7ee90259ede70dea63bd33eeffdca0dc43c19587c437d28537165069417df477",
+    "r02-a01": "1cb3d4a2b8004908b8369a261fa0f6cfb27f52e32bae2e3798c0e94f0a6d1ee0",
+    "r02-a02": "1cb3d4a2b8004908b8369a261fa0f6cfb27f52e32bae2e3798c0e94f0a6d1ee0"
+  },
+  "editor_brief_digests": {
+    "r01-a01": "42882489248649af8480e913c799d0cf752e2649f16378cfe09922b506d23a72",
+    "r01-a02": "d5b77a7abcf1dff85aaa3779b370c50b724f49db890c6b655db858b630e00b0f",
+    "r02-a01": "ee7c8d50c2d29e5e293a9ced08764e7c83e1548ebcc92bb46d33536f6da46005",
+    "r02-a02": "743d6eb158ee0bec87b129ff7fea736b80b4163f9741fbc50a404f3b0771c42f"
+  },
+  "editor_failed_reasons": {
+    "r01-a01": "actor_violation"
+  },
+  "editor_history_digests": [
+    "a31f08b4db18d10872585d59e89196ed21a0f11e71472cf367c829c0b8611c45",
+    "71aba60418efc9fef4ce3083a42b035e5bf69ccd2633b803e244aa937a7501a3"
+  ],
+  "effective_feedback": {
+    "r01-a01": [
+      "editor_failed",
+      null
+    ],
+    "r01-a02": [
+      "critical_failure",
+      46
+    ],
+    "r02-a01": [
+      "critical_failure",
+      83
+    ],
+    "r02-a02": [
+      "critical_failure",
+      110
+    ]
+  },
+  "effective_reasons": {
+    "r01-a01": "editor_failed",
+    "r01-a02": "critical_failure",
+    "r02-a01": "critical_failure",
+    "r02-a02": "critical_failure"
+  },
+  "frozen_feedback_rows": {
+    "r01-a01": [],
+    "r01-a02": [
+      "5d5b503e8cb789cbbcad3b9a98b2d5e77d09072e355e1db5a821b5b0c4ab6eff"
+    ],
+    "r02-a01": [],
+    "r02-a02": [
+      "2adc0e985dec242bcfa8bfe8f6cf80d5afca1a009e3754dcddfa9c07e63d5c0d"
+    ]
+  },
+  "identity_digest": "8d74c463717cfde1c4b7fb8aaae0153f2a73b077dd1ea58fa2a2dffc77d2c65c",
+  "identity_keys": [
+    "artifact_store",
+    "capabilities",
+    "corpus_cases",
+    "corpus_digest",
+    "editor",
+    "environment",
+    "evaluation_set_id",
+    "linked_from",
+    "materialization_strategy",
+    "metric_contract",
+    "metric_plan_digest",
+    "policy",
+    "policy_digest",
+    "profile",
+    "reflector",
+    "role_visibility",
+    "scorer",
+    "target"
+  ],
+  "producing_version": "2.0.0b1",
+  "reflection_input_digests": {
+    "r01-x01": "9c6def3e9ceadcb510341784f236a35290c3a4cc6e911f25771743e3c80ee666",
+    "r02-x01": "3c3446999e186ded9f839cfbf4c0c7e6bc28cf7c869fb09feea17a556a679af6"
+  },
+  "reflector_history_digests": [
+    "a31f08b4db18d10872585d59e89196ed21a0f11e71472cf367c829c0b8611c45",
+    "93019002ab7bf48fc1641740918806e222a1e3a262eaf88d3ab6fbf560834e38"
+  ],
+  "reflector_payload_digests": [
+    "ff42ebd184eb10169d1df4cde51fe5aa088061186a95fcd73eb103e7e4f7168b",
+    "349a925d2b53bbdec052e952b2ad3af4e727ef21865aede23c4da1ab94ce1ed4"
+  ],
+  "reproducible": [
+    "base_brief_digests",
+    "common_input_digests",
+    "editor_brief_digests",
+    "editor_failed_reasons",
+    "editor_history_digests",
+    "effective_feedback",
+    "effective_reasons",
+    "frozen_feedback_rows",
+    "identity_keys",
+    "reflector_history_digests"
+  ],
+  "role_visibility": {
+    "readable_paths": [],
+    "version": "role_visibility/1"
+  },
+  "round_two_history": {
+    "editor_history": "71aba60418efc9fef4ce3083a42b035e5bf69ccd2633b803e244aa937a7501a3",
+    "reflector_history": "93019002ab7bf48fc1641740918806e222a1e3a262eaf88d3ab6fbf560834e38"
+  }
+}

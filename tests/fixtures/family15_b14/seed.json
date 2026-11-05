@@ -1,0 +1,966 @@
+[
+  {
+    "event": "campaign_created",
+    "operation_id": null,
+    "payload": {
+      "adaptation": {
+        "digest": "06f70adfaf0aafb102e433a36bf8f89e732769cc9ce2c415872398cdc4b08bf8",
+        "version": "campaign_adaptation/7"
+      },
+      "adaptation_payload": {
+        "attempt_feedback": "sequential",
+        "corpus_partition": {
+          "assignments": [
+            [
+              "c1",
+              "train"
+            ],
+            [
+              "c2",
+              "train"
+            ]
+          ],
+          "corpus_digest": "4fe9c3bfc31a26f68cc9f5f58b0ea954ec74cb7845a7c9893a8493b846f9f681",
+          "metadata_digest": "fec419536822682580ab157ca7797adcdb62d9d0452a14a1656650fa5149fbdf",
+          "mode": "implicit_train",
+          "profile": "corpus_partition/1",
+          "test_digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "train_digest": "4fe9c3bfc31a26f68cc9f5f58b0ea954ec74cb7845a7c9893a8493b846f9f681"
+        },
+        "environment_docs_digest": null,
+        "families": {
+          "kind": "none"
+        },
+        "grouping": {
+          "features": [
+            {
+              "description": "Failed criteria.",
+              "name": "failed_criteria",
+              "path": "/failed_criteria",
+              "source": "observation"
+            },
+            {
+              "description": "Terminal observation status.",
+              "name": "terminal",
+              "path": "/terminal",
+              "source": "observation"
+            }
+          ],
+          "kind": "fields"
+        },
+        "profile": "campaign_adaptation/7",
+        "reader_protocol": "reflection_reader/1",
+        "reflection": {
+          "max_consecutive_failures": 2
+        },
+        "reflection_metadata_digest": "a8d0991da0d1b307b9edf9a1143b942c5428f28b7c7c67822f7d57f4f67383de",
+        "selection": {
+          "context_page_size": 32,
+          "focus_cases": 16,
+          "representatives_per_case": 2
+        }
+      },
+      "alpha_attempt": null,
+      "family_version": 14,
+      "identity": {
+        "artifact_store": {
+          "policy": {
+            "dependency_paths": [],
+            "excludes": [],
+            "version": 1,
+            "writable_paths": [
+              "skills/**"
+            ]
+          },
+          "policy_digest": "c0de0f8e5dec5afc2df6b89f5b83914c7f5c9c01ea272bf2003cd1839ed4003e",
+          "profile": "artifact_store",
+          "seed_candidate_digest": "66df64e998f8602c4c129c2901192a3331322f55bf4ddc65ac758a38141ce7a0",
+          "seed_dependency_digest": "5d50a0a63c7d38ed3c50fac556a264b42ea82029fa6d410644f7ede0e3d24855"
+        },
+        "capabilities": {
+          "max_concurrent_sessions": 2,
+          "max_instances": 4
+        },
+        "corpus_cases": [
+          {
+            "case_id": "c1",
+            "group_id": "g1",
+            "stratum": "s1"
+          },
+          {
+            "case_id": "c2",
+            "group_id": "g1",
+            "stratum": "s1"
+          }
+        ],
+        "corpus_digest": "4fe9c3bfc31a26f68cc9f5f58b0ea954ec74cb7845a7c9893a8493b846f9f681",
+        "editor": {
+          "digest": "e8d7e57946b0f324fadf163f8f87b15d86d1c53283917bfc3c2710a201b84ebc",
+          "kind": "subprocess"
+        },
+        "environment": {
+          "digest": "82ed5e59f516b4a6bc91f3c9cba2fcfd7c57770e231c57cb8a8e85ae82679b80",
+          "kind": "static"
+        },
+        "evaluation_set_id": "corpus-4fe9c3bfc31a26f6",
+        "linked_from": null,
+        "materialization_strategy": "artifact_root_injection",
+        "metric_contract": "fd7cd4fd1ed21ae0f758ca170e8dd021a1c6da94407d058d648c961c495e9573",
+        "metric_plan_digest": "5cca399450779602380aaee50f793698987242bf2b97dfd05e2cdd0a61d6a34e",
+        "policy": {
+          "attempt_feedback": "sequential",
+          "attempts_per_round": 1,
+          "baseline_refresh_after_rounds": 0,
+          "budget": {
+            "max_failed_turns": 3,
+            "max_turns": 2,
+            "timeout_seconds": 30.0
+          },
+          "call_retries": {
+            "max_attempts": 4,
+            "turn_max_attempts": 1
+          },
+          "editor_context": null,
+          "editor_timeout_seconds": 60.0,
+          "evaluation": {
+            "repeats_per_question": 1
+          },
+          "gate": {
+            "causal": {
+              "tolerance": "measured_noise"
+            },
+            "focus": {
+              "margin": 0.0
+            },
+            "fresh_parent": true,
+            "global": "off",
+            "mode": "observe",
+            "provenance": {
+              "kind": "reported"
+            },
+            "stability": "unstable"
+          },
+          "indeterminate": {
+            "environment": {
+              "max_count": 2,
+              "max_rate": "0.500000000000"
+            },
+            "rollout": {
+              "max_count": 2,
+              "max_rate": "0.500000000000"
+            },
+            "scorer": {
+              "max_count": 2,
+              "max_rate": "0.500000000000"
+            },
+            "target": {
+              "max_count": 2,
+              "max_rate": "0.500000000000"
+            }
+          },
+          "max_concurrency": 2,
+          "max_scorer_concurrency": 2,
+          "metric": {
+            "primary": "score"
+          },
+          "parallel_attempts": 1,
+          "random_seed": 7,
+          "reflection_timeout_seconds": 60.0,
+          "round_stop": "all_attempts",
+          "rounds": 1,
+          "sample_retries": 1
+        },
+        "policy_digest": "60b0fd5af9222a0b680346dff1aadcb9cb768eaec36686aed23da43f0b349b06",
+        "profile": "campaign",
+        "reflector": {
+          "digest": "5822dcd2930c792bad627ef5174fe96868bfe9eccc61a9395b229a4d48ec13a8",
+          "environment_docs_digest": null,
+          "kind": "subprocess",
+          "probe": null
+        },
+        "role_visibility": "469d95d6024d18bbcbbcf2a947751835df56c6f737cd2be41d7a927b9849f1d8",
+        "scorer": {
+          "digest": "55ec64cf0b32ef2c105e34167e439135136c72950ef01f711e0bdbe3644a0b66",
+          "kind": "subprocess",
+          "recovery": "deterministic"
+        },
+        "target": {
+          "contract_digest": "contract-v1",
+          "dependency_digest": "5d50a0a63c7d38ed3c50fac556a264b42ea82029fa6d410644f7ede0e3d24855",
+          "protocol_version": "2",
+          "runtime_ref_digest": "runtime-v1",
+          "seed_mode": "exact",
+          "settings_hash": "settings-v1"
+        }
+      },
+      "identity_digest": "7973874754c3d1f3a602c2c5c5dd92743ba415cb1c73810585b7a0f35f8b1a65",
+      "producing_version": "2.0.0b14"
+    },
+    "run_id": "c-run",
+    "schema_version": 1,
+    "sequence": 1,
+    "timestamp": "2026-10-28T19:36:23.161848Z"
+  },
+  {
+    "event": "baseline_bound",
+    "operation_id": "a23a293b408349e79c5623b64c84a4b8",
+    "payload": {
+      "candidate_digest": "66df64e998f8602c4c129c2901192a3331322f55bf4ddc65ac758a38141ce7a0",
+      "champion_version": "v0",
+      "measurement_id": "m-r00-champion",
+      "round": 1
+    },
+    "run_id": "c-run",
+    "schema_version": 1,
+    "sequence": 2,
+    "timestamp": "2026-10-28T19:36:23.172814Z"
+  },
+  {
+    "event": "measurement_bound",
+    "operation_id": "28c3c4beef5e4997898bc3422da25cb0",
+    "payload": {
+      "attempt_id": "champion",
+      "candidate_digest": "66df64e998f8602c4c129c2901192a3331322f55bf4ddc65ac758a38141ce7a0",
+      "identity_digest": "076e503ef97b6f33f4ea5ac75b39a5f6b0ef8713cf8f2f2cc3bd5ac947aecb96",
+      "measurement_id": "m-r00-champion",
+      "round": 1
+    },
+    "run_id": "c-run",
+    "schema_version": 1,
+    "sequence": 3,
+    "timestamp": "2026-10-28T19:36:23.173540Z"
+  },
+  {
+    "event": "connection_preflight_started",
+    "operation_id": "1f7a1b9f4e41492abf95bff92d465e41",
+    "payload": {
+      "binding_digest": "e7a7d02076f7e28012ae68fdc118048a878bfb5923548a1a97c311cf9c3417ef",
+      "candidate_digest": "66df64e998f8602c4c129c2901192a3331322f55bf4ddc65ac758a38141ce7a0",
+      "case_id": "c1",
+      "case_index": 0,
+      "dependency_digest": "5d50a0a63c7d38ed3c50fac556a264b42ea82029fa6d410644f7ede0e3d24855",
+      "environment": "7e877bce3be7ba416b12d48d7f80bb99bf0d9cb7bb4617c557511e3aa9a02303",
+      "epoch": 0,
+      "invocation_id": "11fdcbc465914485bb336c60c7acf92c",
+      "metric_contract": "fd7cd4fd1ed21ae0f758ca170e8dd021a1c6da94407d058d648c961c495e9573",
+      "operation_id": "1f7a1b9f4e41492abf95bff92d465e41",
+      "primary_metric": "score",
+      "probe_seed": 2001846588,
+      "scorer": "1fad713cf68bf459452b13f4986e8bb2db4e9f144406d5bec7507fb7c45d0d5a",
+      "target": "45fb0ecb6ac5dad31976515e15f26571e0d31401ae276494c688b7c014b39e7d"
+    },
+    "run_id": "c-run",
+    "schema_version": 1,
+    "sequence": 4,
+    "timestamp": "2026-10-28T19:36:23.177298Z"
+  },
+  {
+    "event": "connection_preflight_finished",
+    "operation_id": "1f7a1b9f4e41492abf95bff92d465e41",
+    "payload": {
+      "cleanup": "released",
+      "evidence": [
+        {
+          "content_digest": "58387401e3eb4b908e5cf73e728727b2e568f6d8b637664c0e4e4083d027b506",
+          "kind": "journal_prefix",
+          "locator": "connection/1f7a1b9f4e41492abf95bff92d465e41/events.jsonl#bytes=0:11336",
+          "run_id": "1f7a1b9f4e41492abf95bff92d465e41",
+          "version": 1
+        }
+      ],
+      "status": "compatible",
+      "trace_digest": "cdf9efc76a1158b639b968b8fd8c0d45dd6c608f131e61a38c162453f926f013"
+    },
+    "run_id": "c-run",
+    "schema_version": 1,
+    "sequence": 5,
+    "timestamp": "2026-10-28T19:36:23.214354Z"
+  },
+  {
+    "event": "stage_opened",
+    "operation_id": "93249a2e68ef48068972501a3d78f4b4",
+    "payload": {
+      "look": 1,
+      "measurement_id": "m-r00-champion",
+      "sample_count": 2,
+      "stage": 1
+    },
+    "run_id": "c-run",
+    "schema_version": 1,
+    "sequence": 6,
+    "timestamp": "2026-10-28T19:36:23.215506Z"
+  },
+  {
+    "event": "instance_attested",
+    "operation_id": "ccda03620f214471b9a5367f4ec58eee",
+    "payload": {
+      "boot_id": "boot-1",
+      "dependency_digest": "5d50a0a63c7d38ed3c50fac556a264b42ea82029fa6d410644f7ede0e3d24855",
+      "evidence": [
+        {
+          "content_digest": "2a5c1a3e84c8ea6b39d2aacbbb021012a3dc25a8c4510fee30df28682bc256b0",
+          "kind": "journal_prefix",
+          "locator": "measurements/m-r00-champion/events.jsonl#bytes=0:19360",
+          "run_id": "m-r00-champion",
+          "version": 1
+        }
+      ],
+      "identity": {
+        "attested": [
+          "dependency_digest",
+          "loaded_candidate_digest"
+        ],
+        "instance": {
+          "boot_id": "boot-1",
+          "loaded_candidate_digest": "66df64e998f8602c4c129c2901192a3331322f55bf4ddc65ac758a38141ce7a0"
+        },
+        "semantic": {
+          "contract_digest": "contract-v1",
+          "dependency_digest": "5d50a0a63c7d38ed3c50fac556a264b42ea82029fa6d410644f7ede0e3d24855",
+          "protocol_version": "2",
+          "runtime_ref_digest": "runtime-v1",
+          "seed_mode": "exact",
+          "settings_hash": "settings-v1"
+        }
+      },
+      "instance_id": "c-run-8ef4f178ac1c4726aec3c92d3fca0c3f",
+      "loaded_candidate_digest": "66df64e998f8602c4c129c2901192a3331322f55bf4ddc65ac758a38141ce7a0",
+      "measurement_id": "m-r00-champion"
+    },
+    "run_id": "c-run",
+    "schema_version": 1,
+    "sequence": 7,
+    "timestamp": "2026-10-28T19:36:23.253306Z"
+  },
+  {
+    "event": "baseline_complete",
+    "operation_id": "9a99e3efa15a4458ba835aeef0c523d9",
+    "payload": {
+      "evidence": [
+        {
+          "content_digest": "2a5c1a3e84c8ea6b39d2aacbbb021012a3dc25a8c4510fee30df28682bc256b0",
+          "kind": "journal_prefix",
+          "locator": "measurements/m-r00-champion/events.jsonl#bytes=0:19360",
+          "run_id": "m-r00-champion",
+          "version": 1
+        }
+      ],
+      "measurement_id": "m-r00-champion",
+      "round": 1
+    },
+    "run_id": "c-run",
+    "schema_version": 1,
+    "sequence": 8,
+    "timestamp": "2026-10-28T19:36:23.255039Z"
+  },
+  {
+    "event": "grouping_started",
+    "operation_id": "5e50e55e23f946a5b8c8e94ea32d52e7",
+    "payload": {
+      "baseline_binding": "2a5c1a3e84c8ea6b39d2aacbbb021012a3dc25a8c4510fee30df28682bc256b0",
+      "grouper_kind": "fields",
+      "grouping_id": "r01-g-5e50e55e23f946a5b8c8e94ea32d52e7",
+      "policy_digest": "ee0210e95c981ae7272e0efb8cda93993fe3f24f8c88d18b56b6c63462558dc7",
+      "registry_digest": "e14d0c7782f045dbd43529c503bf5eec46ce4222b7e7eb9b3897842fed82bf42",
+      "round": 1
+    },
+    "run_id": "c-run",
+    "schema_version": 1,
+    "sequence": 9,
+    "timestamp": "2026-10-28T19:36:23.262578Z"
+  },
+  {
+    "event": "grouping_finished",
+    "operation_id": "5e50e55e23f946a5b8c8e94ea32d52e7",
+    "payload": {
+      "calls": null,
+      "fallback": null,
+      "grouping_id": "r01-g-5e50e55e23f946a5b8c8e94ea32d52e7",
+      "reads": {
+        "entries": [],
+        "omitted_errors": 0,
+        "omitted_reads": 0
+      },
+      "result": {
+        "assignments": [
+          0,
+          null
+        ],
+        "descriptions": {},
+        "registry_digest": "e14d0c7782f045dbd43529c503bf5eec46ce4222b7e7eb9b3897842fed82bf42",
+        "variants": {},
+        "version": "reflect_grouping_result/1"
+      },
+      "result_digest": "8b4fc36121d14c5b5c11c1ed20e9fce96da10cd26b0aaf65ce206a70c92bf3b1",
+      "round": 1
+    },
+    "run_id": "c-run",
+    "schema_version": 1,
+    "sequence": 10,
+    "timestamp": "2026-10-28T19:36:23.264656Z"
+  },
+  {
+    "event": "focus_portion_selected",
+    "operation_id": "93b89ccaf0d44cf888b83ca964b15c7b",
+    "payload": {
+      "available": 2,
+      "baseline_binding": "2a5c1a3e84c8ea6b39d2aacbbb021012a3dc25a8c4510fee30df28682bc256b0",
+      "baseline_prefix_digest": "2a5c1a3e84c8ea6b39d2aacbbb021012a3dc25a8c4510fee30df28682bc256b0",
+      "case_ids": [
+        "c1"
+      ],
+      "cohort_ids": [
+        "a470e9ec5c7ba050fbe266bb5db346fb09e2c76866cb161967ad6b9e4754a366"
+      ],
+      "cycle": 1,
+      "evidence": [
+        {
+          "content_digest": "2a5c1a3e84c8ea6b39d2aacbbb021012a3dc25a8c4510fee30df28682bc256b0",
+          "kind": "journal_prefix",
+          "locator": "measurements/m-r00-champion/events.jsonl#bytes=0:19360",
+          "run_id": "m-r00-champion",
+          "version": 1
+        }
+      ],
+      "failing": 1,
+      "grouping_digest": "8b4fc36121d14c5b5c11c1ed20e9fce96da10cd26b0aaf65ce206a70c92bf3b1",
+      "neighborhood_id": "9c12a0eea053aba73c79224c36b1280f622d8814d8a3b01323ee3f055f244ddb",
+      "policy_digest": "ee0210e95c981ae7272e0efb8cda93993fe3f24f8c88d18b56b6c63462558dc7",
+      "reason": "selected",
+      "registry_digest": "e14d0c7782f045dbd43529c503bf5eec46ce4222b7e7eb9b3897842fed82bf42",
+      "round": 1,
+      "unavailable": 0
+    },
+    "run_id": "c-run",
+    "schema_version": 1,
+    "sequence": 11,
+    "timestamp": "2026-10-28T19:36:23.267193Z"
+  },
+  {
+    "event": "reflection_started",
+    "operation_id": "2ef9e583659f4c42b5314b81f26f4e22",
+    "payload": {
+      "input_digest": "e89eb21e3e81060a829b8444bad8514cfda7c480af9d934528b3054d17ef4baa",
+      "operation_id": "2ef9e583659f4c42b5314b81f26f4e22",
+      "reflection_id": "r01-x01",
+      "round": 1
+    },
+    "run_id": "c-run",
+    "schema_version": 1,
+    "sequence": 12,
+    "timestamp": "2026-10-28T19:36:23.272508Z"
+  },
+  {
+    "event": "reflection_finished",
+    "operation_id": "2ef9e583659f4c42b5314b81f26f4e22",
+    "payload": {
+      "groups": [
+        {
+          "affected_cases": [
+            "c1"
+          ],
+          "counterevidence": "c",
+          "evidence_ids": [
+            "obs:c1:1"
+          ],
+          "probe_refs": [],
+          "regression_risks": "r",
+          "root_cause": "r",
+          "suggested_fix": "f",
+          "target_paths": [
+            "skills/SKILL.md"
+          ],
+          "why_this_layer": "w"
+        }
+      ],
+      "note_digest": "46a3ae93aa7a8b988080d6c9a03adc15d0518284b1fc2e498db412676d201d5a",
+      "operation_id": "2ef9e583659f4c42b5314b81f26f4e22",
+      "out_of_scope_paths": [],
+      "probes_used": 0,
+      "reads": {
+        "entries": [],
+        "omitted_errors": 0,
+        "omitted_reads": 0
+      },
+      "reflection_id": "r01-x01",
+      "round": 1,
+      "status": "reflected"
+    },
+    "run_id": "c-run",
+    "schema_version": 1,
+    "sequence": 13,
+    "timestamp": "2026-10-28T19:36:23.776143Z"
+  },
+  {
+    "event": "gate_scope_selected",
+    "operation_id": "f1f0b678fdc044899b69557429d7d33b",
+    "payload": {
+      "cases": [
+        "c1"
+      ],
+      "claimed_cases": [
+        "c1"
+      ],
+      "evidence": [
+        {
+          "content_digest": "5a1021890db20626f9a0d74cf3a89f352b465caebfe568899a7c5c8255e55ea3",
+          "kind": "journal_record",
+          "locator": "campaign.jsonl#bytes=11126:11819",
+          "run_id": "c-run",
+          "version": 1
+        }
+      ],
+      "round": 1,
+      "selected_cases": [
+        "c1"
+      ],
+      "source": "single-case",
+      "unevaluable_cases": []
+    },
+    "run_id": "c-run",
+    "schema_version": 1,
+    "sequence": 14,
+    "timestamp": "2026-10-28T19:36:23.778150Z"
+  },
+  {
+    "event": "attempt_opened",
+    "operation_id": "c36c5fcee6f94ec68fa947aa660bca62",
+    "payload": {
+      "attempt_id": "r01-a01",
+      "attempt_index": 1,
+      "parent_digest": "66df64e998f8602c4c129c2901192a3331322f55bf4ddc65ac758a38141ce7a0",
+      "parent_version": "v0",
+      "round": 1
+    },
+    "run_id": "c-run",
+    "schema_version": 1,
+    "sequence": 15,
+    "timestamp": "2026-10-28T19:36:23.780466Z"
+  },
+  {
+    "event": "attempt_input_frozen",
+    "operation_id": "d1f1d46b61164443879afac953229677",
+    "payload": {
+      "attempt_id": "r01-a01",
+      "common_input_digest": "ca3e18b568385abb0796ea595cb8e512c6c06ed7f646c7a81f814a9ad1c7bf2c",
+      "feedback": {
+        "attempts": [],
+        "omitted_attempts": 0
+      },
+      "feedback_mode": "sequential",
+      "input_digest": "65e9e08ac76687fc2e9cc05cc0510a896bafb1efa72911e651dfb1c17153a031",
+      "round": 1,
+      "source_refs": []
+    },
+    "run_id": "c-run",
+    "schema_version": 1,
+    "sequence": 16,
+    "timestamp": "2026-10-28T19:36:23.784260Z"
+  },
+  {
+    "event": "editor_started",
+    "operation_id": "a7637314438d40349231abcd388f567e",
+    "payload": {
+      "attempt_id": "r01-a01",
+      "brief_digest": "395e4d05a0f5cc1b5e5030456701b5184efe2024b0db2ef8214b1447cd8c206b",
+      "common_input_digest": "ca3e18b568385abb0796ea595cb8e512c6c06ed7f646c7a81f814a9ad1c7bf2c",
+      "input_digest": "65e9e08ac76687fc2e9cc05cc0510a896bafb1efa72911e651dfb1c17153a031",
+      "operation_id": "a7637314438d40349231abcd388f567e"
+    },
+    "run_id": "c-run",
+    "schema_version": 1,
+    "sequence": 17,
+    "timestamp": "2026-10-28T19:36:23.785879Z"
+  },
+  {
+    "event": "editor_finished",
+    "operation_id": "a7637314438d40349231abcd388f567e",
+    "payload": {
+      "attempt_id": "r01-a01",
+      "continued": false,
+      "note_digest": "504cdaf9a56f8980f08a2b9207315406b83cffd9d0390c8218eb3ea5dfba0778",
+      "operation_id": "a7637314438d40349231abcd388f567e",
+      "status": "edited"
+    },
+    "run_id": "c-run",
+    "schema_version": 1,
+    "sequence": 18,
+    "timestamp": "2026-10-28T19:36:23.810486Z"
+  },
+  {
+    "event": "attempt_sealed",
+    "operation_id": "a0f07be99da845a6a1265bd9cdec5df9",
+    "payload": {
+      "artifact_locator": "artifacts/candidates/r01-a01",
+      "attempt_id": "r01-a01",
+      "candidate_digest": "77de7ef08042ebc0864d7c56f4a6e74d9a84d4cd260f85cd517b9a9f1112a35c",
+      "dependency_digest": "5d50a0a63c7d38ed3c50fac556a264b42ea82029fa6d410644f7ede0e3d24855",
+      "evidence": [
+        {
+          "content_digest": "050d21aceed9ec5611e51046bb9cab50828659dc7c9a2f5d8a646d310016c5e3",
+          "kind": "ledger_record",
+          "locator": "artifacts.jsonl#bytes=2363:2593",
+          "run_id": "14c79b5b20d74cf987cdd592364490c0",
+          "version": 1
+        }
+      ]
+    },
+    "run_id": "c-run",
+    "schema_version": 1,
+    "sequence": 19,
+    "timestamp": "2026-10-28T19:36:23.813614Z"
+  },
+  {
+    "event": "affected_cases_selected",
+    "operation_id": "2035a0d7f4534542a248aacee30e1f67",
+    "payload": {
+      "attempt": "r01-a01",
+      "cases": [
+        0,
+        1
+      ],
+      "changed": [
+        "skills/SKILL.md"
+      ],
+      "fallback_reason": null,
+      "mode": "path",
+      "round": 1,
+      "source": "reported",
+      "unknown_cases": []
+    },
+    "run_id": "c-run",
+    "schema_version": 1,
+    "sequence": 20,
+    "timestamp": "2026-10-28T19:36:23.818888Z"
+  },
+  {
+    "event": "measurement_bound",
+    "operation_id": "5085a21a52444bb9bb0d201d1ab884f3",
+    "payload": {
+      "attempt_id": "r01-a01",
+      "candidate_digest": "77de7ef08042ebc0864d7c56f4a6e74d9a84d4cd260f85cd517b9a9f1112a35c",
+      "identity_digest": "76fc14414c73200d1fd4a80431d6fde2bdc40bf03000036dc08a0004eb11d8df",
+      "measurement_id": "m-r01-a01",
+      "round": 1
+    },
+    "run_id": "c-run",
+    "schema_version": 1,
+    "sequence": 21,
+    "timestamp": "2026-10-28T19:36:23.820620Z"
+  },
+  {
+    "event": "parent_measurement_bound",
+    "operation_id": "6617e53b69144920ba2b4cb8302e0b28",
+    "payload": {
+      "attempt_id": "r01-a01",
+      "candidate_digest": "66df64e998f8602c4c129c2901192a3331322f55bf4ddc65ac758a38141ce7a0",
+      "identity_digest": "faf2baa1fc9bda31e0d81dba143bfed57fdb8c6147a05483d99f2d26031abb37",
+      "measurement_id": "m-r01-a01-parent",
+      "round": 1
+    },
+    "run_id": "c-run",
+    "schema_version": 1,
+    "sequence": 22,
+    "timestamp": "2026-10-28T19:36:23.823397Z"
+  },
+  {
+    "event": "comparison_bound",
+    "operation_id": "235936db526a4024acde9e12a6a74a9f",
+    "payload": {
+      "attempt_id": "r01-a01",
+      "baseline_measurement_id": "m-r00-champion",
+      "candidate_measurement_id": "m-r01-a01",
+      "causal": [
+        1
+      ],
+      "confidence": null,
+      "epoch": 0,
+      "evidence": [
+        {
+          "content_digest": "46dd5ed96c88895453b25964ce4e53be6c09382bc6dd336e471279bd84758b72",
+          "kind": "journal_record",
+          "locator": "campaign.jsonl#bytes=14670:15010",
+          "run_id": "c-run",
+          "version": 1
+        }
+      ],
+      "exclusions": null,
+      "focus": [
+        0
+      ],
+      "looks": [
+        1
+      ],
+      "margin": 0.0,
+      "method": {
+        "draws": 20000,
+        "noise_level": 0.995,
+        "quantile": "linear",
+        "version": "f13-bootstrap/1"
+      },
+      "mode": "observe",
+      "parent_measurement_id": "m-r01-a01-parent",
+      "parent_source": "fresh_parent",
+      "repeats": 1,
+      "retained": {
+        "causal": [
+          1
+        ],
+        "focus": [
+          0
+        ]
+      },
+      "round": 1,
+      "supersedes": null,
+      "tolerance": {
+        "kind": "measured_noise"
+      }
+    },
+    "run_id": "c-run",
+    "schema_version": 1,
+    "sequence": 23,
+    "timestamp": "2026-10-28T19:36:23.826730Z"
+  },
+  {
+    "event": "noise_calibration_bound",
+    "operation_id": "80af83cdcee54c38b7845a438f2cb715",
+    "payload": {
+      "attempt_id": "r01-a01",
+      "comparison": 23,
+      "method": {
+        "draws": 20000,
+        "noise_level": 0.995,
+        "quantile": "linear",
+        "version": "f13-bootstrap/1"
+      },
+      "prefix": null,
+      "round": 1,
+      "sizes": {
+        "first": 1,
+        "second": 1
+      },
+      "source": "fresh_parent",
+      "source_measurement_id": "m-r01-a01-parent",
+      "supersedes": null
+    },
+    "run_id": "c-run",
+    "schema_version": 1,
+    "sequence": 24,
+    "timestamp": "2026-10-28T19:36:23.827237Z"
+  },
+  {
+    "event": "stage_opened",
+    "operation_id": "6e815cdb784847f290645311231b22bd",
+    "payload": {
+      "look": 1,
+      "measurement_id": "m-r01-a01",
+      "sample_count": 2,
+      "stage": 1
+    },
+    "run_id": "c-run",
+    "schema_version": 1,
+    "sequence": 25,
+    "timestamp": "2026-10-28T19:36:23.829747Z"
+  },
+  {
+    "event": "stage_opened",
+    "operation_id": "1ec7347b304f4a26b499705ba603ba17",
+    "payload": {
+      "look": 1,
+      "measurement_id": "m-r01-a01-parent",
+      "sample_count": 3,
+      "stage": 1
+    },
+    "run_id": "c-run",
+    "schema_version": 1,
+    "sequence": 26,
+    "timestamp": "2026-10-28T19:36:23.830293Z"
+  },
+  {
+    "event": "instance_attested",
+    "operation_id": "3a139d1788f84cd7acd1a01298335a39",
+    "payload": {
+      "boot_id": "boot-2",
+      "dependency_digest": "5d50a0a63c7d38ed3c50fac556a264b42ea82029fa6d410644f7ede0e3d24855",
+      "evidence": [
+        {
+          "content_digest": "82a90a431fd8f1e4935774e4a16b6059d25307329eab311a92ed41a4de8e9c76",
+          "kind": "journal_prefix",
+          "locator": "measurements/m-r01-a01/events.jsonl#bytes=0:19046",
+          "run_id": "m-r01-a01",
+          "version": 1
+        }
+      ],
+      "identity": {
+        "attested": [
+          "dependency_digest",
+          "loaded_candidate_digest"
+        ],
+        "instance": {
+          "boot_id": "boot-2",
+          "loaded_candidate_digest": "77de7ef08042ebc0864d7c56f4a6e74d9a84d4cd260f85cd517b9a9f1112a35c"
+        },
+        "semantic": {
+          "contract_digest": "contract-v1",
+          "dependency_digest": "5d50a0a63c7d38ed3c50fac556a264b42ea82029fa6d410644f7ede0e3d24855",
+          "protocol_version": "2",
+          "runtime_ref_digest": "runtime-v1",
+          "seed_mode": "exact",
+          "settings_hash": "settings-v1"
+        }
+      },
+      "instance_id": "c-run-d3476811637c4ea5a6a3c1ea24328eea",
+      "loaded_candidate_digest": "77de7ef08042ebc0864d7c56f4a6e74d9a84d4cd260f85cd517b9a9f1112a35c",
+      "measurement_id": "m-r01-a01"
+    },
+    "run_id": "c-run",
+    "schema_version": 1,
+    "sequence": 27,
+    "timestamp": "2026-10-28T19:36:23.917013Z"
+  },
+  {
+    "event": "instance_attested",
+    "operation_id": "553b69b2f6be431f893ab881ef8bd2dc",
+    "payload": {
+      "boot_id": "boot-3",
+      "dependency_digest": "5d50a0a63c7d38ed3c50fac556a264b42ea82029fa6d410644f7ede0e3d24855",
+      "evidence": [
+        {
+          "content_digest": "60480dc67e0abde2def7c6ef0892f28cb55fa685ee10bd604afe33f5f20ff6cb",
+          "kind": "journal_prefix",
+          "locator": "measurements/m-r01-a01-parent/events.jsonl#bytes=0:27539",
+          "run_id": "m-r01-a01-parent",
+          "version": 1
+        }
+      ],
+      "identity": {
+        "attested": [
+          "dependency_digest",
+          "loaded_candidate_digest"
+        ],
+        "instance": {
+          "boot_id": "boot-3",
+          "loaded_candidate_digest": "66df64e998f8602c4c129c2901192a3331322f55bf4ddc65ac758a38141ce7a0"
+        },
+        "semantic": {
+          "contract_digest": "contract-v1",
+          "dependency_digest": "5d50a0a63c7d38ed3c50fac556a264b42ea82029fa6d410644f7ede0e3d24855",
+          "protocol_version": "2",
+          "runtime_ref_digest": "runtime-v1",
+          "seed_mode": "exact",
+          "settings_hash": "settings-v1"
+        }
+      },
+      "instance_id": "c-run-9b73cfedb4f741baae2aebfa994af3e2",
+      "loaded_candidate_digest": "66df64e998f8602c4c129c2901192a3331322f55bf4ddc65ac758a38141ce7a0",
+      "measurement_id": "m-r01-a01-parent"
+    },
+    "run_id": "c-run",
+    "schema_version": 1,
+    "sequence": 28,
+    "timestamp": "2026-10-28T19:36:23.917882Z"
+  },
+  {
+    "event": "noise_calibration_completed",
+    "operation_id": "0e91fb0f1c7f45be866af4edaa181819",
+    "payload": {
+      "allowance": 0.0,
+      "attempt_id": "r01-a01",
+      "binding": 24,
+      "degenerate": true,
+      "prefix": "measurements/m-r01-a01-parent/events.jsonl#bytes=0:27539",
+      "result_digest": "7bc688b4561572ea8ceecc0e74d165970c37f4ba42db457028c3d570340bedf0",
+      "round": 1,
+      "unavailable": null
+    },
+    "run_id": "c-run",
+    "schema_version": 1,
+    "sequence": 29,
+    "timestamp": "2026-10-28T19:36:23.956996Z"
+  },
+  {
+    "event": "comparison_look_evaluated",
+    "operation_id": "910cb70b7d944656af3ddd9916d2d92f",
+    "payload": {
+      "attempt_id": "r01-a01",
+      "causal": {
+        "exact": null,
+        "level": null,
+        "lower": null,
+        "point": 0.0,
+        "unavailable": "not_requested_in_observe_mode",
+        "upper": null
+      },
+      "caveats": [
+        "noise_not_observed",
+        "observe_gate_not_enforced",
+        "uncalibrated_point_estimates"
+      ],
+      "comparison": 23,
+      "decision": "finalist",
+      "evidence": [
+        {
+          "content_digest": "82a90a431fd8f1e4935774e4a16b6059d25307329eab311a92ed41a4de8e9c76",
+          "kind": "journal_prefix",
+          "locator": "measurements/m-r01-a01/events.jsonl#bytes=0:19046",
+          "run_id": "m-r01-a01",
+          "version": 1
+        },
+        {
+          "content_digest": "60480dc67e0abde2def7c6ef0892f28cb55fa685ee10bd604afe33f5f20ff6cb",
+          "kind": "journal_prefix",
+          "locator": "measurements/m-r01-a01-parent/events.jsonl#bytes=0:27539",
+          "run_id": "m-r01-a01-parent",
+          "version": 1
+        }
+      ],
+      "final": true,
+      "focus": {
+        "exact": null,
+        "level": null,
+        "lower": null,
+        "point": 1.0,
+        "unavailable": "not_requested_in_observe_mode",
+        "upper": null
+      },
+      "look": 1,
+      "overall": {
+        "level": null,
+        "lower": null,
+        "point": 0.5,
+        "unavailable": "not_requested_in_observe_mode",
+        "upper": null
+      },
+      "prefixes": {
+        "candidate": "measurements/m-r01-a01/events.jsonl#bytes=0:19046",
+        "parent": "measurements/m-r01-a01-parent/events.jsonl#bytes=0:27539"
+      },
+      "reason": "observe_finalist",
+      "round": 1,
+      "tolerance": {
+        "source": "measured_noise",
+        "value": 0.0
+      },
+      "would_pass_point": true
+    },
+    "run_id": "c-run",
+    "schema_version": 1,
+    "sequence": 30,
+    "timestamp": "2026-10-28T19:36:23.962138Z"
+  },
+  {
+    "event": "attempt_closed",
+    "operation_id": "dcd055e9b86d4260bf996bf562ad033f",
+    "payload": {
+      "attempt_id": "r01-a01",
+      "code": null,
+      "look": 1,
+      "outcome": "finalist",
+      "reason": "observe_finalist"
+    },
+    "run_id": "c-run",
+    "schema_version": 1,
+    "sequence": 31,
+    "timestamp": "2026-10-28T19:36:23.965532Z"
+  }
+]

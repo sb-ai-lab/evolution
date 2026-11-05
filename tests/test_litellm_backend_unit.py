@@ -87,10 +87,60 @@ def test_caller_extra_body_wins_for_gpt_oss(monkeypatch):
     assert b._kwargs["extra_body"] == {"reasoning_effort": "medium"}
 
 
+def test_explicit_qwen_off_beats_legacy_environment(monkeypatch):
+    monkeypatch.setenv("EVO_LLM_TEMPERATURE", "2")
+    monkeypatch.setenv("EVO_LLM_REASONING_EFFORT", "high")
+
+    backend = LiteLLMBackend(
+        model="openai/Qwen/Qwen3.5-35B-A3B",
+        temperature=0,
+        reasoning_effort="off",
+    )
+
+    assert backend._kwargs == {
+        "temperature": 0,
+        "extra_body": {"chat_template_kwargs": {"enable_thinking": False}},
+    }
+
+
+def test_explicit_gpt_oss_effort_overrides_auto_low_and_legacy_environment(monkeypatch):
+    monkeypatch.setenv("EVO_LLM_REASONING_EFFORT", "high")
+
+    backend = LiteLLMBackend(
+        model="openai/openai/gpt-oss-120b",
+        reasoning_effort="medium",
+    )
+
+    assert backend._kwargs == {"extra_body": {"reasoning_effort": "medium"}}
+
+
+def test_cloud_reasoning_effort_uses_litellm_provider_translation(monkeypatch):
+    monkeypatch.delenv("EVO_LLM_REASONING_EFFORT", raising=False)
+
+    backend = LiteLLMBackend(
+        model="anthropic/claude-sonnet-4",
+        reasoning_effort="high",
+    )
+
+    assert backend._kwargs["reasoning_effort"] == "high"
+    assert "extra_body" not in backend._kwargs
+
+
+def test_off_uses_each_model_familys_supported_control(monkeypatch):
+    monkeypatch.delenv("EVO_LLM_REASONING_EFFORT", raising=False)
+
+    gpt_oss = LiteLLMBackend(model="openai/gpt-oss-120b", reasoning_effort="off")
+    generic = LiteLLMBackend(model="openai/gpt-4o-mini", reasoning_effort="off")
+
+    assert gpt_oss._kwargs == {"extra_body": {"reasoning_effort": "low"}}
+    assert "extra_body" not in generic._kwargs
+
+
 def test_local_api_base_added_to_no_proxy(monkeypatch):
     monkeypatch.delenv("NO_PROXY", raising=False)
     monkeypatch.delenv("no_proxy", raising=False)
-    LiteLLMBackend(model="openai/gpt-4o-mini", api_base="http://127.0.0.1:10115/v1")
+    backend = LiteLLMBackend(model="openai/gpt-4o-mini", api_base="http://127.0.0.1:10115/v1")
+    assert backend._kwargs["api_key"] == "not-needed"
     assert "127.0.0.1" in os.environ.get("NO_PROXY", "")
     assert "127.0.0.1" in os.environ.get("no_proxy", "")
 
@@ -106,7 +156,10 @@ def test_local_no_proxy_is_non_destructive(monkeypatch):
 def test_remote_api_base_does_not_touch_no_proxy(monkeypatch):
     monkeypatch.delenv("NO_PROXY", raising=False)
     monkeypatch.delenv("no_proxy", raising=False)
-    LiteLLMBackend(model="anthropic/claude-sonnet-4", api_base="https://api.anthropic.com")
+    backend = LiteLLMBackend(
+        model="anthropic/claude-sonnet-4", api_base="https://api.anthropic.com"
+    )
+    assert "api_key" not in backend._kwargs
     assert os.environ.get("NO_PROXY", "") == ""
 
 
@@ -139,6 +192,42 @@ def test_complete_falls_back_to_reasoning_content(monkeypatch):
     b = LiteLLMBackend(model="openai/gpt-4o-mini")
     resp = asyncio.run(b.complete([{"role": "user", "content": "hi"}]))
     assert "print('hi')" in resp.content
+
+
+def test_complete_forwards_exact_seed(monkeypatch):
+    import litellm
+
+    captured: dict[str, object] = {}
+
+    class _Msg:
+        content = "OK"
+        reasoning_content = None
+
+    class _Choice:
+        message = _Msg()
+        finish_reason = "stop"
+
+    class _Usage:
+        prompt_tokens = 1
+        completion_tokens = 1
+
+    class _Resp:
+        choices = [_Choice()]
+        usage = _Usage()
+
+    async def fake_acompletion(**kwargs):
+        captured.update(kwargs)
+        return _Resp()
+
+    monkeypatch.setattr(litellm, "acompletion", fake_acompletion)
+
+    asyncio.run(
+        LiteLLMBackend(model="openai/gpt-4o-mini").complete(
+            [{"role": "user", "content": "hi"}], seed=0
+        )
+    )
+
+    assert captured["seed"] == 0
 
 
 def test_classifier_treats_rate_limit_as_retryable():
@@ -233,7 +322,9 @@ def test_litellm_local_call_temporarily_removes_proxy_env(monkeypatch):
     assert os.environ["HTTP_PROXY"] == "http://proxy"
     assert os.environ["HTTPS_PROXY"] == "http://secure-proxy"
     assert os.environ["ALL_PROXY"] == "socks5://proxy"
-    assert os.environ["NO_PROXY"] == "existing.local"
+    no_proxy_entries = set(os.environ["NO_PROXY"].split(","))
+    assert "existing.local" in no_proxy_entries
+    assert "localhost" in no_proxy_entries
 
 
 def test_litellm_remote_call_keeps_proxy_env(monkeypatch):
@@ -270,3 +361,21 @@ def test_litellm_remote_call_keeps_proxy_env(monkeypatch):
     asyncio.run(be.complete([{"role": "user", "content": "hi"}]))
 
     assert captured["HTTP_PROXY"] == "http://proxy"
+
+
+def test_non_positive_call_timeout_never_starts_the_request(monkeypatch):
+    import litellm
+
+    started: list[bool] = []
+
+    async def fake_acompletion(**kwargs):
+        started.append(True)
+        raise AssertionError("request must not start")
+
+    monkeypatch.setattr(litellm, "acompletion", fake_acompletion)
+    monkeypatch.setenv("EVO_LLM_CALL_TIMEOUT_S", "-1")
+    with pytest.raises(TimeoutError):
+        asyncio.run(
+            LiteLLMBackend(model="openai/gpt-4o-mini").complete([{"role": "user", "content": "hi"}])
+        )
+    assert started == []

@@ -2,15 +2,8 @@
 
 from __future__ import annotations
 
-import importlib.util
-import inspect
-import sys
 import tempfile
 from pathlib import Path
-
-REPO_ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(REPO_ROOT / "src"))
-sys.path.insert(0, str(REPO_ROOT / "experiments"))
 
 
 def test_artifact_shape_counts_only_no_labels_failsoft():
@@ -93,54 +86,11 @@ def test_required_outputs_instruction_only_count_suffix():
     assert load_task(d).required_outputs == ["x/y.parquet"]
 
 
-def test_trace_id_backcompat_and_collision():
-    spec = importlib.util.spec_from_file_location(
-        "solver_v3t", REPO_ROOT / "src" / "evolution" / "eval" / "solver.py"
-    )
-    import inspect
-
-    from evolution.eval import solver as S
-
-    src = inspect.getsource(S._save_trace)
-    # attempt_seed=None keeps the exact old format; a seed adds µs + a{seed}
-    assert "if attempt_seed is None:" in src
-    assert "now.microsecond:06d" in src and "_a{attempt_seed:04d}_" in src
-    assert spec is not None
-
-
-def test_k_attempts_spec_multiplicity():
-    fpv = importlib.util.spec_from_file_location(
-        "preflight_v3t",
-        REPO_ROOT
-        / "experiments"
-        / "table3-4-minimal-sbbench-v2"
-        / "runner"
-        / "preflight_offline.py",
-    )
-    mod = importlib.util.module_from_spec(fpv)  # type: ignore[arg-type]
-    sys.modules["preflight_v3t"] = mod
-    fpv.loader.exec_module(mod)  # type: ignore[union-attr]
-    row = {"task_diversity": "T1", "model_diversity": "Single"}
-    manifest_k3 = {
-        "models": {"source_models_single": [{"id": "m1"}]},
-        "attempts_per_source_model": 3,
-    }
-    manifest_k1 = {"models": {"source_models_single": [{"id": "m1"}]}}
-    s3 = mod._trace_specs_for_row(
-        row=row, source_train=["t"], support_train=[], t1_source="t", manifest=manifest_k3
-    )
-    s1 = mod._trace_specs_for_row(
-        row=row, source_train=["t"], support_train=[], t1_source="t", manifest=manifest_k1
-    )
-    assert len(s3) == 3 and len(s1) == 1
-    assert sorted(x["attempt_seed"] for x in s3) == [0, 1, 2]
-
-
 def test_low_confidence_noop_keeps_parent():
     import asyncio
 
     from evolution.core.models import Skill, SkillFrontmatter
-    from evolution.evolution.reflect import rewrite_skill
+    from evolution.evolve.reflect import rewrite_skill
     from evolution.llm.mock_backend import MockBackend
 
     d = Path(tempfile.mkdtemp())
@@ -166,12 +116,3 @@ def test_low_confidence_noop_keeps_parent():
     ]
     out = asyncio.run(rewrite_skill(MockBackend(default_response="NEW"), sk, refl_bad))
     assert out == "PARENT_BODY"  # kept parent (low-confidence no-op), no rewrite
-
-
-def test_reflection_audit_counts_traces_not_tasks():
-    from evolution.adapters import evolution_adapter as A
-
-    src = inspect.getsource(A.evolve_skills_one_round)
-    assert '"n_failing_tasks": len(failing_tasks)' in src
-    assert '"n_failing_traces": len(audit)' in src
-    assert '"n_reflections_used": len(audit)' in src

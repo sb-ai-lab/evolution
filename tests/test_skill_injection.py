@@ -27,30 +27,35 @@ def sha256(text: str) -> str:
 class TestSkillInjectionChangesPrompt:
     """Verify SKILL.md changes propagate to the LLM prompt."""
 
-    def _make_skill(self, proj: Path, skill_dir: Path, name: str,
-                    description: str, body: str) -> None:
+    def _make_skill(
+        self, proj: Path, skill_dir: Path, name: str, description: str, body: str
+    ) -> None:
         """Helper: write frontmatter + body to a SKILL.md file."""
         skill_dir.mkdir(parents=True, exist_ok=True)
         (skill_dir / "SKILL.md").write_text(
             f"---\nname: {name}\ndescription: {description}\n---\n\n{body}"
         )
 
-    def test_different_skill_bodies_produce_different_system_prompts(
-        self, tmp_path: Path
-    ):
+    def test_different_skill_bodies_produce_different_system_prompts(self, tmp_path: Path):
         """Two different SKILL.md files should produce different system prompts."""
         from evolution.core.store import SkillStore
 
         proj1 = tmp_path / "proj1"
         proj2 = tmp_path / "proj2"
-        self._make_skill(proj1,
-                         proj1 / ".agents" / "skills" / "testskill",
-                         "testskill", "Version 1",
-                         "# Test Skill v1\n## Steps\n1. Do thing A\n2. Do thing B\n")
-        self._make_skill(proj2,
-                         proj2 / ".agents" / "skills" / "testskill",
-                         "testskill", "Version 2",
-                         "# Test Skill v2\n## Steps\n1. Do thing X\n2. Do thing Y\n3. Do thing Z\n")
+        self._make_skill(
+            proj1,
+            proj1 / ".agents" / "skills" / "testskill",
+            "testskill",
+            "Version 1",
+            "# Test Skill v1\n## Steps\n1. Do thing A\n2. Do thing B\n",
+        )
+        self._make_skill(
+            proj2,
+            proj2 / ".agents" / "skills" / "testskill",
+            "testskill",
+            "Version 2",
+            "# Test Skill v2\n## Steps\n1. Do thing X\n2. Do thing Y\n3. Do thing Z\n",
+        )
 
         store1 = SkillStore(project_dir=str(proj1))
         store2 = SkillStore(project_dir=str(proj2))
@@ -75,9 +80,13 @@ class TestSkillInjectionChangesPrompt:
         from evolution.core.store import SkillStore
 
         proj = tmp_path / "proj"
-        self._make_skill(proj, proj / ".agents" / "skills" / "testskill",
-                         "testskill", "Identical",
-                         "# Test Skill\n## Steps\n1. Do something\n")
+        self._make_skill(
+            proj,
+            proj / ".agents" / "skills" / "testskill",
+            "testskill",
+            "Identical",
+            "# Test Skill\n## Steps\n1. Do something\n",
+        )
 
         store_a = SkillStore(project_dir=str(proj))
         skill_a = store_a.get("testskill")
@@ -95,10 +104,15 @@ class TestSkillInjectionChangesPrompt:
 
         proj = tmp_path / "proj"
         skill_dir = proj / ".agents" / "skills" / "xlsx"
-        self._make_skill(proj, skill_dir, "xlsx", "Handle Excel files",
-                         "# Handle Excel Files\n## When to use\n"
-                         "When working with .xlsx files.\n"
-                         "## Steps\n1. Open the file\n2. Process the data\n")
+        self._make_skill(
+            proj,
+            skill_dir,
+            "xlsx",
+            "Handle Excel files",
+            "# Handle Excel Files\n## When to use\n"
+            "When working with .xlsx files.\n"
+            "## Steps\n1. Open the file\n2. Process the data\n",
+        )
 
         store = SkillStore(project_dir=str(proj))
         skill = store.get("xlsx")
@@ -117,8 +131,7 @@ class TestSkillInjectionChangesPrompt:
         proj = tmp_path / "proj"
         for name in ("skill-a", "skill-b"):
             d = proj / ".agents" / "skills" / name
-            self._make_skill(proj, d, name, "Test",
-                             f"# Skill {name}\n## Steps\n1. Step 1\n")
+            self._make_skill(proj, d, name, "Test", f"# Skill {name}\n## Steps\n1. Step 1\n")
 
         store = SkillStore(project_dir=str(proj))
         skill_a = store.get("skill-a")
@@ -136,8 +149,8 @@ class TestSkillInjectionChangesPrompt:
 
     def test_evolution_version_change_changes_prompt(self, tmp_path: Path):
         """When evolution creates a new version, the prompt changes."""
-        from evolution.core.store import SkillStore
         from evolution.core.parser import load_skill
+        from evolution.core.store import SkillStore
         from evolution.lineage.version import VersionStore
 
         proj = tmp_path / "proj"
@@ -191,7 +204,7 @@ class TestSkillInjectionChangesPrompt:
 
         trace_gen.py prepare_skill():
           1. copies SKILL.md from source to EVOLUTION_SKILLS/<name>/SKILL.md
-          2. calls evo bench which uses SkillStore(project_dir=skills_root)
+          2. calls evo run bench which uses SkillStore(project_dir=skills_root)
         """
         from evolution.core.store import SkillStore
 

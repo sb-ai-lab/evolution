@@ -1,0 +1,242 @@
+{
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "list_files",
+        "description": "list files",
+        "parameters": {
+          "type": "object",
+          "properties": {},
+          "required": [],
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "read_file",
+        "description": "read file",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "start_line": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "end_line": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "required": [
+            "path"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "list_evidence",
+        "description": "list evidence",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "offset": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "family_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "case_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "read_evidence",
+        "description": "read evidence",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "evidence_id": {
+              "type": "string"
+            },
+            "offset": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "evidence_id"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "read_trace",
+        "description": "read trace",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "evidence_id": {
+              "type": "string"
+            },
+            "offset": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "evidence_id"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "probe_request",
+        "description": "probe request",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "method": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            },
+            "body": {
+              "type": [
+                "object",
+                "array",
+                "string",
+                "number",
+                "boolean",
+                "null"
+              ],
+              "description": "the JSON value to send as the request body; not text that contains JSON"
+            }
+          },
+          "required": [
+            "method",
+            "path",
+            "body"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "finish_reflection",
+        "description": "finish reflection",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "groups": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "root_cause": {
+                    "type": "string",
+                    "maxLength": 512
+                  },
+                  "suggested_fix": {
+                    "type": "string",
+                    "maxLength": 512
+                  },
+                  "evidence_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "At most 64 distinct observation IDs."
+                  },
+                  "affected_cases": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "maxItems": 32
+                  },
+                  "target_paths": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "maxItems": 16
+                  },
+                  "counterevidence": {
+                    "type": "string",
+                    "maxLength": 512
+                  },
+                  "regression_risks": {
+                    "type": "string",
+                    "maxLength": 512
+                  },
+                  "why_this_layer": {
+                    "type": "string",
+                    "maxLength": 512
+                  },
+                  "probe_refs": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  }
+                },
+                "required": [
+                  "root_cause",
+                  "suggested_fix",
+                  "evidence_ids",
+                  "affected_cases",
+                  "target_paths",
+                  "counterevidence",
+                  "regression_risks",
+                  "why_this_layer"
+                ],
+                "additionalProperties": false
+              },
+              "maxItems": 8
+            },
+            "declined": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "groups"
+          ],
+          "additionalProperties": false
+        }
+      }
+    }
+  ],
+  "tool_choice": "required"
+}

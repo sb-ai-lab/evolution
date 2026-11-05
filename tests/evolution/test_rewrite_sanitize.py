@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import pytest
 
-from evolution.evolution.rewrite_sanitize import sanitize_rewritten_body as _sanitize_rewritten_body
+from evolution.evolve.rewrite_sanitize import sanitize_rewritten_body as _sanitize_rewritten_body
 
 # A reasonably long, realistic skill body used as the "original" so that the
 # 40%-length guard does not trip for legitimate outputs.
@@ -261,12 +261,11 @@ def test_still_preamble_only_raises():
         _sanitize_rewritten_body("Sure, done!", ORIGINAL_BODY)
 
 
-def test_too_short_output_raises():
-    """Output drastically shorter than original (<40%) -> ValueError."""
+def test_short_complete_output_is_accepted():
+    """Complete concise rewrites may be much shorter than the original."""
     short = "# Demo Skill\n\nok."
     assert len(short) < 0.40 * len(ORIGINAL_BODY)
-    with pytest.raises(ValueError):
-        _sanitize_rewritten_body(short, ORIGINAL_BODY)
+    assert _sanitize_rewritten_body(short, ORIGINAL_BODY) == short
 
 
 def test_clean_body_idempotent():

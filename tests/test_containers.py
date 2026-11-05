@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
 
-from evolution.core.containers import ContainerStore
+from evolution.core.containers import ContainerLineageError, ContainerStore
 from evolution.core.models import ContainerSkillRef, SkillContainer
 from evolution.core.store import SkillStore
 
@@ -52,6 +53,15 @@ def skill_project(tmp_path: Path) -> Path:
 
 
 class TestSkillContainerModel:
+    def test_public_frozen_skill_ref(self):
+        ref = ContainerSkillRef(name="skill-a", version="v2", sha256="a" * 64)
+        assert ref.model_dump() == {
+            "name": "skill-a",
+            "version": "v2",
+            "sha256": "a" * 64,
+        }
+        assert str(ref) == "skill-a@v2"
+
     def test_valid(self):
         c = SkillContainer(
             name="my-container",
@@ -72,6 +82,14 @@ class TestSkillContainerModel:
     def test_metadata_optional(self):
         c = SkillContainer(name="minimal", description="x", skills=["a"])
         assert c.metadata is None
+
+    def test_structured_skill_refs_rejected(self):
+        with pytest.raises(ValueError):
+            SkillContainer(
+                name="plain-names-only",
+                description="x",
+                skills=[{"name": "a", "version": "v1"}],
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -105,6 +123,14 @@ class TestContainerStoreCreate:
         )
         assert c.metadata["source"] == "sb-bench"
 
+    def test_stale_store_cannot_overwrite_concurrent_create(self, container_dir: Path):
+        first = ContainerStore(project_dir=container_dir)
+        stale = ContainerStore(project_dir=container_dir)
+        first.create(name="shared", description="first", skills=["a"])
+
+        with pytest.raises(FileExistsError):
+            stale.create(name="shared", description="second", skills=["b"])
+
 
 class TestContainerStoreRead:
     def test_list_empty(self, cstore: ContainerStore):
@@ -119,7 +145,7 @@ class TestContainerStoreRead:
     def test_get(self, cstore: ContainerStore):
         cstore.create(name="my-cont", description="desc", skills=["a", "b"])
         c = cstore.get("my-cont")
-        assert c.skill_names == ["a", "b"]
+        assert c.skills == ["a", "b"]
 
     def test_get_missing_raises(self, cstore: ContainerStore):
         with pytest.raises(KeyError):
@@ -143,12 +169,29 @@ class TestContainerStoreUpdate:
     def test_update_skills(self, cstore: ContainerStore):
         cstore.create(name="upd2", description="x", skills=["a"])
         c = cstore.update("upd2", skills=["a", "b", "c"])
-        assert c.skill_names == ["a", "b", "c"]
+        assert c.skills == ["a", "b", "c"]
+
+    def test_update_rejects_structured_skill_refs(self, cstore: ContainerStore):
+        cstore.create(name="plain", description="x", skills=["a"])
+
+        with pytest.raises(ValueError):
+            cstore.update("plain", skills=[{"name": "a", "version": "v1"}])
 
     def test_update_metadata_merges(self, cstore: ContainerStore):
         cstore.create(name="meta", description="x", skills=["a"], metadata={"k1": "v1"})
         c = cstore.update("meta", metadata={"k2": "v2"})
         assert c.metadata == {"k1": "v1", "k2": "v2"}
+
+    def test_stale_store_rereads_container_inside_transaction(self, container_dir: Path):
+        first = ContainerStore(project_dir=container_dir)
+        first.create(name="shared", description="x", skills=["a"], metadata={"base": "1"})
+        stale = ContainerStore(project_dir=container_dir)
+
+        first.update("shared", metadata={"first": "2"})
+        stale.update("shared", metadata={"second": "3"})
+
+        persisted = ContainerStore(project_dir=container_dir).get("shared")
+        assert persisted.metadata == {"base": "1", "first": "2", "second": "3"}
 
 
 class TestContainerStoreDelete:
@@ -162,6 +205,17 @@ class TestContainerStoreDelete:
     def test_delete_missing_raises(self, cstore: ContainerStore):
         with pytest.raises(KeyError):
             cstore.delete("nonexistent")
+
+    def test_delete_rejects_absolute_name_without_touching_external_yaml(
+        self, cstore: ContainerStore, tmp_path: Path
+    ):
+        external = tmp_path / "victim.yaml"
+        external.write_text("name: victim\ndescription: keep\nskills: [a]\n")
+
+        with pytest.raises(ValueError, match="Invalid container name"):
+            cstore.delete(str(external.with_suffix("")))
+
+        assert external.exists()
 
 
 # ---------------------------------------------------------------------------
@@ -177,13 +231,40 @@ class TestContainerStoreDiscovery:
         cstore = ContainerStore(project_dir=container_dir)
         assert cstore.has("manual")
         c = cstore.get("manual")
-        assert c.skill_names == ["foo", "bar"]
+        assert c.skills == ["foo", "bar"]
 
     def test_skips_invalid_yaml(self, container_dir: Path):
         bad = container_dir / ".agents" / "containers" / "bad.yaml"
         bad.write_text("this is not valid yaml: [[[")
         cstore = ContainerStore(project_dir=container_dir)
         assert not cstore.has("bad")
+
+    def test_skips_symlinked_yaml(self, container_dir: Path, tmp_path: Path):
+        external = tmp_path / "external.yaml"
+        external.write_text("name: linked\ndescription: outside\nskills: [foo]\n")
+        linked = container_dir / ".agents" / "containers" / "linked.yaml"
+        linked.symlink_to(external)
+
+        assert not ContainerStore(project_dir=container_dir).has("linked")
+
+
+def test_container_lineage_rejects_symlinked_state_directory(
+    container_dir: Path, tmp_path: Path
+) -> None:
+    store = ContainerStore(project_dir=container_dir)
+    store.create(name="safe", description="safe", skills=["a"])
+    outside = tmp_path / "outside-lineage"
+    outside.mkdir()
+    marker = outside / "safe.json"
+    marker.write_text("[]", encoding="utf-8")
+    (container_dir / ".agents" / "containers" / ".evolution").symlink_to(
+        outside, target_is_directory=True
+    )
+
+    with pytest.raises(ValueError, match="escapes"):
+        store.snapshots("safe")
+
+    assert marker.read_text(encoding="utf-8") == "[]"
 
 
 # ---------------------------------------------------------------------------
@@ -274,64 +355,6 @@ class TestMultiSkillBackend:
 
 
 # ---------------------------------------------------------------------------
-# ContainerSkillRef model
-# ---------------------------------------------------------------------------
-
-
-class TestContainerSkillRef:
-    def test_bare_name(self):
-        ref = ContainerSkillRef(name="my-skill")
-        assert ref.name == "my-skill"
-        assert ref.version is None
-        assert str(ref) == "my-skill"
-
-    def test_with_version(self):
-        ref = ContainerSkillRef(name="my-skill", version="v2")
-        assert ref.version == "v2"
-        assert str(ref) == "my-skill@v2"
-
-    def test_container_accepts_bare_strings(self):
-        c = SkillContainer(
-            name="test",
-            description="d",
-            skills=["a", "b"],
-        )
-        assert len(c.skills) == 2
-        assert isinstance(c.skills[0], ContainerSkillRef)
-        assert c.skill_names == ["a", "b"]
-
-    def test_container_accepts_dicts(self):
-        c = SkillContainer(
-            name="test",
-            description="d",
-            skills=[{"name": "a", "version": "v1"}, {"name": "b"}],
-        )
-        assert c.skills[0].version == "v1"
-        assert c.skills[1].version is None
-        assert c.skill_names == ["a", "b"]
-
-    def test_container_accepts_mixed(self):
-        c = SkillContainer(
-            name="test",
-            description="d",
-            skills=["a", {"name": "b", "version": "v3"}],
-        )
-        assert c.skills[0].version is None
-        assert c.skills[1].version == "v3"
-
-    def test_skills_snapshot(self):
-        c = SkillContainer(
-            name="test",
-            description="d",
-            skills=[
-                {"name": "a", "version": "v1"},
-                {"name": "b", "version": "v2"},
-            ],
-        )
-        assert c.skills_snapshot() == {"a": "v1", "b": "v2"}
-
-
-# ---------------------------------------------------------------------------
 # Container Versioning — fixtures
 # ---------------------------------------------------------------------------
 
@@ -386,6 +409,22 @@ def versioned_project(tmp_path: Path) -> Path:
 
 
 class TestContainerSnapshots:
+    @pytest.mark.parametrize(
+        "payload",
+        ["{", "{}", '[{"label": 1, "skills": {}}]', '[{"label": "s1"}]'],
+    )
+    def test_malformed_lineage_json_raises_domain_error(
+        self, versioned_project: Path, payload: str
+    ):
+        cstore = ContainerStore(project_dir=versioned_project)
+        cstore.create(name="my-pack", description="test", skills=["alpha-skill"])
+        lineage_path = versioned_project / ".agents" / "containers" / ".evolution" / "my-pack.json"
+        lineage_path.parent.mkdir()
+        lineage_path.write_text(payload, encoding="utf-8")
+
+        with pytest.raises(ContainerLineageError, match="my-pack"):
+            cstore.snapshots("my-pack")
+
     def test_snapshot_records_skill_versions(self, versioned_project: Path):
         cstore = ContainerStore(project_dir=versioned_project)
         sstore = SkillStore(project_dir=versioned_project)
@@ -396,8 +435,30 @@ class TestContainerSnapshots:
         assert label == "s1"
         entries = cstore.snapshots("my-pack")
         assert len(entries) == 1
-        assert entries[0]["skills"] == {"alpha-skill": "v1", "beta-skill": "v1"}
+        assert [ref["name"] for ref in entries[0]["skill_refs"]] == [
+            "alpha-skill",
+            "beta-skill",
+        ]
+        assert all(ref["version"] == "v1" for ref in entries[0]["skill_refs"])
+        assert all(len(ref["sha256"]) == 64 for ref in entries[0]["skill_refs"])
+        assert "skills" not in entries[0]
         assert entries[0]["message"] == "initial snapshot"
+
+    def test_stale_store_snapshots_current_persisted_membership(self, versioned_project: Path):
+        writer = ContainerStore(project_dir=versioned_project)
+        writer.create(name="my-pack", description="test", skills=["alpha-skill"])
+        stale = ContainerStore(project_dir=versioned_project)
+        writer.update("my-pack", skills=["beta-skill"])
+
+        stale.snapshot(
+            "my-pack",
+            "current membership",
+            skill_store=SkillStore(project_dir=versioned_project),
+        )
+
+        assert [ref["name"] for ref in stale.snapshots("my-pack")[0]["skill_refs"]] == [
+            "beta-skill"
+        ]
 
     def test_snapshot_increments_label(self, versioned_project: Path):
         cstore = ContainerStore(project_dir=versioned_project)
@@ -438,7 +499,8 @@ class TestContainerSnapshots:
         cstore2 = ContainerStore(project_dir=versioned_project)
         entries = cstore2.snapshots("my-pack")
         assert len(entries) == 1
-        assert entries[0]["skills"]["alpha-skill"] == "v1"
+        assert entries[0]["skill_refs"][0]["name"] == "alpha-skill"
+        assert entries[0]["skill_refs"][0]["version"] == "v1"
 
     def test_container_yaml_unchanged_after_snapshot(self, versioned_project: Path):
         """Snapshot should not modify the container YAML file."""
@@ -473,3 +535,58 @@ class TestContainerSnapshots:
         cstore.create(name="my-pack", description="test", skills=["alpha-skill"])
         with pytest.raises(KeyError, match="s99"):
             cstore.resolve("my-pack", sstore, snapshot_label="s99")
+
+    def test_snapshot_freezes_ordered_membership_and_managed_tree_hash(
+        self, versioned_project: Path
+    ):
+        cstore = ContainerStore(project_dir=versioned_project)
+        sstore = SkillStore(project_dir=versioned_project)
+        version_dir = (
+            versioned_project
+            / ".agents"
+            / "skills"
+            / "alpha-skill"
+            / ".evolution"
+            / "versions"
+            / "v1"
+        )
+        reference = version_dir / "references" / "guide.md"
+        reference.parent.mkdir()
+        reference.write_text("frozen guide\n", encoding="utf-8")
+        cstore.create(
+            name="my-pack",
+            description="test",
+            skills=["beta-skill", "alpha-skill"],
+        )
+        cstore.snapshot("my-pack", "frozen", skill_store=sstore)
+        cstore.update("my-pack", skills=["alpha-skill"])
+
+        resolved = cstore.resolve("my-pack", sstore, snapshot_label="s1")
+        assert [skill.name for skill in resolved] == ["beta-skill", "alpha-skill"]
+
+        reference.write_text("tampered guide\n", encoding="utf-8")
+        with pytest.raises(ValueError, match="hash mismatch"):
+            cstore.resolve("my-pack", sstore, snapshot_label="s1")
+
+    def test_reads_legacy_snapshot_skills_map(self, versioned_project: Path):
+        cstore = ContainerStore(project_dir=versioned_project)
+        sstore = SkillStore(project_dir=versioned_project)
+        cstore.create(name="my-pack", description="test", skills=["alpha-skill"])
+        lineage_path = versioned_project / ".agents" / "containers" / ".evolution" / "my-pack.json"
+        lineage_path.parent.mkdir()
+        lineage_path.write_text(
+            json.dumps(
+                [
+                    {
+                        "label": "s1",
+                        "message": "legacy",
+                        "skills": {"beta-skill": "v1", "alpha-skill": "v1"},
+                    }
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+        resolved = cstore.resolve("my-pack", sstore, snapshot_label="s1")
+
+        assert [skill.name for skill in resolved] == ["beta-skill", "alpha-skill"]

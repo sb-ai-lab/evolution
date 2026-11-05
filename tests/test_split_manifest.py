@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from pathlib import Path
 
 import pytest
@@ -151,3 +152,61 @@ def test_records_filtered_by_scope():
     train_records = m.records(scope="skill_evolution")
     assert {r.id for r in train_records} == {"task-train-A", "task-train-B"}
     assert all(r.split == "train" for r in train_records)
+
+
+@pytest.mark.parametrize(
+    ("payload", "message"),
+    [
+        ([], "root must be an object"),
+        ({}, "must contain 'tasks'"),
+        ({"tasks": []}, "must contain 'counts'"),
+        (
+            {"tasks": [], "counts": {}},
+            "must declare train, val, and test",
+        ),
+        ({"tasks": {}}, "'tasks' must be a list"),
+        ({"tasks": ["task-a"]}, "task at index 0 must be an object"),
+        ({"tasks": [{"id": "", "split": "train"}]}, "IDs must be non-empty strings"),
+        (
+            {
+                "tasks": [
+                    {"id": "task-a", "split": "train"},
+                    {"id": "task-a", "split": "val"},
+                ]
+            },
+            "Duplicate manifest task ID",
+        ),
+        (
+            {"tasks": [{"id": "task-a", "split": "holdout"}]},
+            "Unknown split",
+        ),
+        (
+            {"tasks": [{"id": "task-a", "split": []}]},
+            "Unknown split",
+        ),
+        (
+            {"tasks": [{"id": "task-a", "split": "train"}], "counts": []},
+            "'counts' must be an object",
+        ),
+        (
+            {
+                "tasks": [{"id": "task-a", "split": "train"}],
+                "counts": {"train": "1"},
+            },
+            "count for 'train' must be a non-negative integer",
+        ),
+        (
+            {
+                "tasks": [{"id": "task-a", "split": "train"}],
+                "counts": {"train": 2},
+            },
+            "but 1 task record",
+        ),
+    ],
+)
+def test_load_rejects_malformed_manifest(tmp_path: Path, payload: object, message: str) -> None:
+    path = tmp_path / "invalid.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(ValueError, match=message):
+        SplitManifest.load(path)

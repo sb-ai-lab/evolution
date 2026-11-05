@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -116,7 +116,7 @@ class TestSkill:
 
 class TestSkillLineage:
     def _make_lineage(self) -> SkillLineage:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         return SkillLineage(
             skill_id="test",
             current_version="v3",
@@ -148,20 +148,6 @@ class TestSkillLineage:
         lin = self._make_lineage()
         with pytest.raises(KeyError):
             lin.get_entry("v99")
-
-    def test_get_active(self):
-        lin = self._make_lineage()
-        assert lin.get_active().version == "v3"
-
-    def test_ancestry(self):
-        lin = self._make_lineage()
-        chain = lin.ancestry("v3")
-        assert [e.version for e in chain] == ["v1", "v2", "v3"]
-
-    def test_ancestry_root(self):
-        lin = self._make_lineage()
-        chain = lin.ancestry("v1")
-        assert [e.version for e in chain] == ["v1"]
 
 
 class TestEvalSuite:

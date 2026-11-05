@@ -1,0 +1,2 @@
+{"case_id": "c1", "group_id": "g1", "stratum": "s1", "public": {"text": "hello", "case_id": "c1"}, "oracle": {"critical": true}, "reflection_metadata": {"uses": []}}
+{"case_id": "c2", "group_id": "g1", "stratum": "s1", "public": {"text": "hello", "case_id": "c2"}, "oracle": {"critical": true, "pass": true}, "reflection_metadata": {"uses": []}}

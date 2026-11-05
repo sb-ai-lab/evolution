@@ -3,12 +3,17 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from pathlib import Path
 
+import pytest
+
+from evolution.core.models import SkillTrace
 from evolution.core.store import SkillStore
-from evolution.evolution.rewrite_outcome import PROMOTED_ELIGIBLE
+from evolution.evolve.rewrite_outcome import PROMOTED_ELIGIBLE
+from evolution.lineage.traces import TraceStore
 from evolution.llm.mock_backend import MockBackend
-from evolution.workflow import commit_skill, list_traces, reflect, rewrite, solve
+from evolution.workflow import commit_skill, list_traces, load_trace, reflect, rewrite, solve
 
 
 def _make_custom_project(tmp_path: Path) -> tuple[Path, Path, Path]:
@@ -55,8 +60,9 @@ def _make_custom_project(tmp_path: Path) -> tuple[Path, Path, Path]:
     return project, tasks_dir, tmp_path / "workspace"
 
 
-def test_custom_task_lifecycle_uses_framework_api(tmp_path: Path) -> None:
+def test_custom_task_lifecycle_uses_framework_api(tmp_path: Path, monkeypatch) -> None:
     project, tasks_dir, workspace = _make_custom_project(tmp_path)
+    monkeypatch.setenv("EVO_REWRITE_MAX_DELTA_FRAC", "1")
 
     bad_solver = MockBackend(
         responses=[
@@ -132,3 +138,28 @@ def test_custom_task_lifecycle_uses_framework_api(tmp_path: Path) -> None:
     new_version = commit_skill("generic-writer", project_dir=project)
     assert new_version == "v2"
 
+
+def test_load_trace_rejects_path_traversal_and_symlink_reads(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    skills = SkillStore(project_dir=project)
+    skills.create(name="safe-reader", description="Test trace boundaries")
+    skill = skills.get("safe-reader")
+    trace = SkillTrace(
+        id="safe-trace",
+        skill_name=skill.name,
+        skill_version="v1",
+        model="mock",
+        task="task",
+        timestamp=datetime.now(),
+    )
+    trace_dir = TraceStore(skill).save(trace, "prompt", "response", "code")
+    secret = tmp_path / "secret.txt"
+    secret.write_text("do not read", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="Invalid trace id"):
+        load_trace("safe-reader", "../../secret.txt", project_dir=project)
+
+    (trace_dir / "prompt.md").unlink()
+    (trace_dir / "prompt.md").symlink_to(secret)
+    with pytest.raises(ValueError, match="cannot be a symlink"):
+        load_trace("safe-reader", "safe-trace", project_dir=project, sections=("prompt",))

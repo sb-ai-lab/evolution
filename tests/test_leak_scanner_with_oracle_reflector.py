@@ -1,7 +1,9 @@
-"""Integrity asymmetry: with an oracle-visible reflector (v5), the reflector
-may SEE the verifier's test source/expected values, but the rewriter must not
-COPY them into the skill body. ``leakage_provenance_corpus`` harvests the
-oracle literals; ``scan_leakage`` then rejects a body that reproduces them."""
+"""Train-oracle provenance reporting.
+
+With train-oracle evidence (v5), the reflector may see training verifier source
+and expected values. ``leakage_provenance_corpus`` still harvests those literals
+so ``scan_leakage`` can report copied train-provenance text for audit/debugging.
+"""
 
 from __future__ import annotations
 
@@ -9,7 +11,7 @@ from datetime import datetime
 from pathlib import Path
 
 from evolution.core.models import Skill, SkillFrontmatter, SkillTrace
-from evolution.evolution.rewrite_guards import leakage_provenance_corpus, scan_leakage
+from evolution.evolve.rewrite_guards import leakage_provenance_corpus, scan_leakage
 from evolution.lineage.traces import TraceStore
 
 _ORACLE_TESTS_SOURCE = (
@@ -88,7 +90,7 @@ def test_oracle_corpus_harvests_test_literals(tmp_path):
     assert "123456789" in corpus
 
 
-def test_oracle_literal_copied_into_skill_is_leak_rejected(tmp_path):
+def test_oracle_literal_copied_into_skill_is_reported(tmp_path):
     skill = _make_skill(tmp_path)
     _save_oracle_trace(skill)
     corpus = leakage_provenance_corpus(skill, "task-name")
@@ -99,7 +101,7 @@ def test_oracle_literal_copied_into_skill_is_leak_rejected(tmp_path):
         "The grand total must equal exactly 123456789 for this dataset.\n"
     )
     findings = scan_leakage(leaked_body, corpus)
-    assert findings, "copying oracle literals into the skill body must be flagged"
+    assert findings, "copying train-oracle literals into the skill body should be reported"
     assert any("DriversLicense" in f for f in findings)
     assert any("123456789" in f for f in findings)
 

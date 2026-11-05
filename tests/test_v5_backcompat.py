@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import pytest
 
-from evolution.evolution.reflection_evidence import (
+from evolution.evolve.reflection_evidence import (
     render_artifacts,
     render_failure_evidence,
     render_oracle_sections,
@@ -77,5 +77,6 @@ def test_v5_with_oracle_renders_headed_sections():
     assert "## Test Source" in out
     assert "## Failed Tests" in out
     assert "## Pytest Traceback" in out
-    # The diagnose-don't-copy guardrail sits next to the literals.
-    assert "leak scanner discards" in out
+    # The train/held-out boundary guardrail sits next to the literals.
+    assert "Training verifier evidence" in out
+    assert "held-out validation/test evidence" in out

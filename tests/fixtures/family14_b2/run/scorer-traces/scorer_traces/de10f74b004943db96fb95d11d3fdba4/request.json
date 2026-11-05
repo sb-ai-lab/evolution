@@ -1,0 +1,56 @@
+{
+  "scorer": "890d822842c71c555d40a303f440c228fc3cbaccd9979b62f49d97dd2b2e812d",
+  "trace_id": "de10f74b004943db96fb95d11d3fdba4",
+  "input": {
+    "case_id": "c2",
+    "public": {
+      "text": "hello",
+      "case_id": "c2"
+    },
+    "oracle": {
+      "critical": true,
+      "pass": true
+    },
+    "view": {
+      "history": {
+        "turns": [
+          {
+            "index": 0,
+            "message": {
+              "content": "hello",
+              "fields": {
+                "text": "hello",
+                "case_id": "c2"
+              }
+            },
+            "events": [
+              {
+                "type": "message",
+                "text": "hello"
+              }
+            ],
+            "usage": {
+              "prompt": 1,
+              "completion": 1,
+              "cached": 0,
+              "total": 2
+            },
+            "latency_ms": 1,
+            "outcome": "ok",
+            "reason": null
+          }
+        ]
+      },
+      "terminal": "completed",
+      "target": {
+        "contract_digest": "contract-v1",
+        "dependency_digest": "5d50a0a63c7d38ed3c50fac556a264b42ea82029fa6d410644f7ede0e3d24855",
+        "settings_hash": "settings-v1",
+        "seed_mode": "exact",
+        "protocol_version": "2",
+        "runtime_ref_digest": "runtime-v1"
+      }
+    }
+  },
+  "input_sha256": "f1a1164b7e022d2d8b665d47b9e6c0a85a6b2825ee4c6e0fb5c14ef1cb6f6375"
+}

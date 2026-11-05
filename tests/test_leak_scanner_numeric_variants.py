@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import pytest
 
-from evolution.evolution.rewrite_guards import scan_leakage
+from evolution.evolve.rewrite_guards import scan_leakage
 
 _CORPUS = "assert df['daily_total'].sum() == 5000\n"
 

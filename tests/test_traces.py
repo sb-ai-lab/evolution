@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import json
+import uuid
 from datetime import datetime
 from pathlib import Path
 
 import pytest
 
 from evolution.core.models import Skill, SkillFrontmatter, SkillTrace
-from evolution.lineage.traces import TraceStore
+from evolution.lineage.traces import TraceIndexError, TraceStore, load_trace_evidence, new_trace_id
 
 
 def _make_skill(tmp_path: Path) -> Skill:
@@ -90,6 +91,14 @@ class TestSkillTraceModel:
 
 
 class TestTraceStore:
+    def test_new_trace_ids_are_unique_uuids(self):
+        first = new_trace_id()
+        second = new_trace_id()
+
+        assert uuid.UUID(first).version == 4
+        assert uuid.UUID(second).version == 4
+        assert first != second
+
     def test_save_creates_files(self, tmp_path: Path):
         skill = _make_skill(tmp_path)
         store = TraceStore(skill)
@@ -286,7 +295,7 @@ class TestTraceStore:
 
         assert store.traces_dir == skill.path / ".traces"
 
-    def test_corrupted_index_handled(self, tmp_path: Path):
+    def test_corrupted_index_raises_integrity_error(self, tmp_path: Path):
         skill = _make_skill(tmp_path)
         store = TraceStore(skill)
 
@@ -295,5 +304,95 @@ class TestTraceStore:
         traces_dir.mkdir(parents=True)
         (traces_dir / "index.json").write_text("not valid json")
 
-        # Should return empty list, not crash
-        assert store.list() == []
+        with pytest.raises(TraceIndexError, match="repair"):
+            store.list()
+
+    def test_structurally_invalid_index_entry_raises_integrity_error(self, tmp_path: Path):
+        skill = _make_skill(tmp_path)
+        store = TraceStore(skill)
+        store.traces_dir.mkdir(parents=True)
+        (store.traces_dir / "index.json").write_text(
+            json.dumps([{"id": "partial"}]), encoding="utf-8"
+        )
+
+        with pytest.raises(TraceIndexError, match="repair"):
+            store.list()
+
+    def test_repair_index_rebuilds_from_valid_trace_directories(self, tmp_path: Path):
+        skill = _make_skill(tmp_path)
+        store = TraceStore(skill)
+        trace = _make_trace()
+        store.save(trace, "prompt", "response", "code")
+        (store.traces_dir / "index.json").write_text("broken", encoding="utf-8")
+
+        report = store.repair_index()
+
+        assert report.indexed == 1
+        assert report.skipped == ()
+        assert [entry["id"] for entry in store.list()] == [trace.id]
+
+    def test_save_rejects_duplicate_trace_id_without_overwriting(self, tmp_path: Path):
+        skill = _make_skill(tmp_path)
+        store = TraceStore(skill)
+        trace = _make_trace()
+        store.save(trace, "first prompt", "response", "code")
+
+        with pytest.raises(FileExistsError, match=trace.id):
+            store.save(trace, "replacement prompt", "response", "code")
+
+        assert (store.traces_dir / trace.id / "prompt.md").read_text() == "first prompt"
+        assert store.count() == 1
+
+    @pytest.mark.parametrize(
+        "trace_id", ["", ".", "..", "../outside", "a/b", "a\\b", "a\nb", " victim "]
+    )
+    def test_save_rejects_unsafe_trace_id(self, tmp_path: Path, trace_id: str):
+        store = TraceStore(_make_skill(tmp_path))
+        trace = _make_trace()
+        trace.id = trace_id
+
+        with pytest.raises(ValueError, match="Invalid trace id"):
+            store.save(trace, "prompt", "response", "code")
+
+    def test_retention_rejects_malicious_persisted_id_without_deleting_outside_tree(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        skill = _make_skill(tmp_path)
+        store = TraceStore(skill)
+        victim = skill.path.parent / "victim"
+        victim.mkdir()
+        marker = victim / "keep.txt"
+        marker.write_text("keep", encoding="utf-8")
+
+        malicious = _make_trace()
+        malicious.id = "../../victim"
+        store.traces_dir.mkdir(parents=True)
+        (store.traces_dir / "index.json").write_text(
+            json.dumps([malicious.model_dump(mode="json")]), encoding="utf-8"
+        )
+        monkeypatch.setenv("EVO_TRACE_RETENTION", "1")
+        fresh = _make_trace()
+        fresh.id = "fresh"
+
+        with pytest.raises(TraceIndexError, match="invalid trace entry"):
+            store.save(fresh, "prompt", "response", "code")
+
+        assert marker.read_text(encoding="utf-8") == "keep"
+
+    def test_index_and_evidence_symlinks_are_never_read(self, tmp_path: Path):
+        store = TraceStore(_make_skill(tmp_path))
+        store.traces_dir.mkdir(parents=True)
+        external_index = tmp_path / "external-index.json"
+        external_index.write_text("[]", encoding="utf-8")
+        (store.traces_dir / "index.json").symlink_to(external_index)
+
+        with pytest.raises(TraceIndexError, match="symlink"):
+            store.list()
+
+        trace_dir = store.traces_dir / "safe"
+        trace_dir.mkdir()
+        secret = tmp_path / "secret.json"
+        secret.write_text('{"secret": true}', encoding="utf-8")
+        (trace_dir / "evidence.json").symlink_to(secret)
+        with pytest.raises(ValueError, match="symlink"):
+            load_trace_evidence(trace_dir)

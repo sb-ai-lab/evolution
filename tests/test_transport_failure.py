@@ -18,6 +18,8 @@ from tests.test_solver import _make_solvable_task
 class _RaisingBackend:
     """Every LLM call raises (simulates litellm APIError: Access denied)."""
 
+    seed_mode = "forwarded"
+
     async def complete(self, messages, system=None, seed=None) -> LLMResponse:
         raise RuntimeError("litellm.APIError: OpenAIException - Access denied")
 
@@ -30,6 +32,8 @@ class _RaisingBackend:
 
 class _EmptyZeroTokenBackend:
     """Returns an empty, zero-token response without raising (silent no-call)."""
+
+    seed_mode = "forwarded"
 
     async def complete(self, messages, system=None, seed=None) -> LLMResponse:
         return LLMResponse(content="", tokens_in=0, tokens_out=0, time_ms=0)
@@ -46,6 +50,7 @@ def test_raising_backend_marks_transport_failed(tmp_path: Path) -> None:
     result = solve_task(task, _RaisingBackend(), workspace)
     assert result.llm_transport_failed is True
     assert result.code_extraction_failed is True
+    assert result.runtime_repair_attempted is False
     # stub still written so the harness does not crash
     assert (workspace / "_solve.py").exists()
 
@@ -55,6 +60,7 @@ def test_zero_token_response_is_transport_failed(tmp_path: Path) -> None:
     result = solve_task(task, _EmptyZeroTokenBackend(), workspace)
     assert result.llm_transport_failed is True
     assert result.code_extraction_failed is True
+    assert result.runtime_repair_attempted is False
 
 
 def test_genuine_no_code_block_is_not_transport_failed(tmp_path: Path) -> None:
@@ -67,6 +73,7 @@ def test_genuine_no_code_block_is_not_transport_failed(tmp_path: Path) -> None:
     result = solve_task(task, backend, workspace)
     assert result.llm_transport_failed is False
     assert result.code_extraction_failed is True
+    assert result.runtime_repair_attempted is False
 
 
 def test_max_tokens_clamped_for_localhost(monkeypatch: pytest.MonkeyPatch) -> None:
