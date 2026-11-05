@@ -11,30 +11,37 @@ import re
 import subprocess
 import time
 import traceback
+from collections.abc import Collection
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from evolution.adapters.workspace_guard import build_guarded_env
+from evolution.core._util import ms_since
+from evolution.core.bindings import SkillBinding
 from evolution.core.models import Skill, SkillTrace
+from evolution.eval.child_env import minimal_child_env
 from evolution.eval.evidence import (
     attach_verifier_result,
     build_evidence,
+    sanitize_feedback,
     snapshot_workspace,
 )
+from evolution.eval.layouts.base import RunResult, TaskLayout
 from evolution.eval.python_env import resolve_python_for_role
 from evolution.eval.runner import run_task
 from evolution.eval.task import Task, TaskResult
 from evolution.eval.workspace import setup_workspace
-from evolution.lineage.traces import TraceStore
-from evolution.lineage.tracker import LineageTracker
-from evolution.llm.backend import LLMBackend, LLMResponse
+from evolution.eval.workspace_guard import build_guarded_env
+from evolution.lineage.traces import TraceStore, new_trace_id
+from evolution.llm.backend import LLMBackend, LLMResponse, require_seed_support
 
 if TYPE_CHECKING:
     from evolution.splits import SplitManifest
 
 logger = logging.getLogger(__name__)
+
+DEFAULT_SOLVE_TIMEOUT_S = 300.0
 
 BASE_SOLVER_SYSTEM_PROMPT = """\
 You are a skilled Python programmer solving a task.
@@ -85,6 +92,9 @@ class SolveResult:
     code_extraction_failed: bool = False
     code_extraction_retried: bool = False
     llm_transport_failed: bool = False
+    runtime_repair_attempted: bool = False
+    runtime_repair_succeeded: bool = False
+    initial_script_exit_code: int | None = None
     solve_exception: str | None = None
     solve_exception_frame: str | None = None
     # Per-phase timing (ms). llm time lives on ``llm_response.time_ms``;
@@ -92,6 +102,7 @@ class SolveResult:
     # pytest evaluation. ``completion_ms`` is their sum (full task wall time).
     exec_ms: int = 0
     eval_ms: int = 0
+    trace_ids: list[str] = field(default_factory=list)
 
     @property
     def completion_ms(self) -> int:
@@ -127,51 +138,125 @@ def _build_workspace_context(workspace: Path) -> str:
         ".cfg",
     }
     MAX_TEXT_SIZE = 8_000  # include text files up to 8KB
+    MAX_CONTEXT_SIZE = 64 * 1024
+    MAX_FILES = 100
     PREVIEW_ROWS = 5  # for spreadsheets, show first N rows
+    INTERNAL_NAMES = {
+        "output",
+        "prompt_audit.json",
+        "solution",
+        "solution.py",
+        "source_artifacts",
+        "tests",
+        "__pycache__",
+    }
 
     parts = []
-    files = sorted(f for f in workspace.iterdir() if f.is_file() and not f.name.startswith("_"))
+    files: list[tuple[Path, str, int]] = []
+    for root, dirs, names in os.walk(workspace, followlinks=False):
+        root_path = Path(root)
+        dirs[:] = sorted(
+            name
+            for name in dirs
+            if not name.startswith((".", "_"))
+            and name.lower() not in INTERNAL_NAMES
+            and "ground_truth" not in name.lower()
+            and not (root_path / name).is_symlink()
+        )
+        for name in sorted(names):
+            if (
+                name.startswith((".", "_"))
+                or name.lower() in INTERNAL_NAMES
+                or "ground_truth" in name.lower()
+            ):
+                continue
+            path = root_path / name
+            if path.is_symlink() or not path.is_file():
+                continue
+            try:
+                files.append((path, path.relative_to(workspace).as_posix(), path.stat().st_size))
+            except OSError:
+                continue
+            if len(files) == MAX_FILES:
+                dirs[:] = []
+                break
+        if len(files) == MAX_FILES:
+            break
 
     if not files:
         return ""
 
     parts.append("## Workspace files\n")
 
-    for f in files:
-        size = f.stat().st_size
-        parts.append(f"- `{f.name}` ({size:,} bytes)")
+    for _path, relative, size in files:
+        parts.append(f"- `{relative}` ({size:,} bytes)")
 
     # Include contents of small text files
-    for f in files:
-        if f.suffix.lower() in TEXT_EXTS and f.stat().st_size <= MAX_TEXT_SIZE:
+    for f, relative, size in files:
+        if f.suffix.lower() in TEXT_EXTS and size <= MAX_TEXT_SIZE:
             try:
                 content = f.read_text(encoding="utf-8", errors="replace")
-                parts.append(f"\n### {f.name}\n```\n{content.strip()}\n```")
+                parts.append(f"\n### {relative}\n```\n{content.strip()}\n```")
             except Exception:
                 pass
 
     # For spreadsheets, show column names and first few rows
-    for f in files:
+    for f, relative, _size in files:
         if f.suffix.lower() in (".xlsx", ".xls"):
             try:
                 import pandas as pd
+            except ImportError:
+                # When `openpyxl` is installed without `pandas`, keep public
+                # workbook schemas useful to the solver instead of silently
+                # reducing an `.xlsx` file to its name and size.
+                if f.suffix.lower() != ".xlsx":
+                    continue
+                try:
+                    from openpyxl import load_workbook
 
-                xls = pd.ExcelFile(f)
-                for sheet in xls.sheet_names:
-                    df = pd.read_excel(xls, sheet_name=sheet, nrows=PREVIEW_ROWS)
-                    if df.empty and len(df.columns) == 0:
-                        parts.append(f'\n### {f.name} — sheet "{sheet}"\n(empty)')
-                    else:
-                        parts.append(
-                            f'\n### {f.name} — sheet "{sheet}" '
-                            f"(columns: {list(df.columns)})\n"
-                            f"```\n{df.head(PREVIEW_ROWS).to_string()}\n```"
-                        )
-            except Exception:
-                pass
+                    workbook = load_workbook(f, read_only=True, data_only=True)
+                    try:
+                        for sheet in workbook.worksheets:
+                            rows = list(
+                                sheet.iter_rows(
+                                    min_row=1, max_row=PREVIEW_ROWS + 1, values_only=True
+                                )
+                            )
+                            if not rows:
+                                parts.append(f'\n### {relative} — sheet "{sheet.title}"\n(empty)')
+                                continue
+                            columns = list(rows[0])
+                            preview = "\n".join(
+                                " | ".join("" if value is None else str(value) for value in row)
+                                for row in rows[1:]
+                            )
+                            parts.append(
+                                f'\n### {relative} — sheet "{sheet.title}" '
+                                f"(columns: {columns})\n"
+                                f"```\n{preview}\n```"
+                            )
+                    finally:
+                        workbook.close()
+                except Exception:
+                    pass
+            else:
+                try:
+                    xls = pd.ExcelFile(f)
+                    for sheet in xls.sheet_names:
+                        df = pd.read_excel(xls, sheet_name=sheet, nrows=PREVIEW_ROWS)
+                        if df.empty and len(df.columns) == 0:
+                            parts.append(f'\n### {relative} — sheet "{sheet}"\n(empty)')
+                        else:
+                            parts.append(
+                                f'\n### {relative} — sheet "{sheet}" '
+                                f"(columns: {list(df.columns)})\n"
+                                f"```\n{df.head(PREVIEW_ROWS).to_string()}\n```"
+                            )
+                except Exception:
+                    pass
 
     # For PDFs, list form fields
-    for f in files:
+    for f, relative, _size in files:
         if f.suffix.lower() == ".pdf":
             try:
                 import fitz
@@ -186,14 +271,58 @@ def _build_workspace_context(workspace: Path) -> str:
                         )
                 if fields:
                     parts.append(
-                        f"\n### {f.name} — form fields ({len(fields)} fields)\n"
+                        f"\n### {relative} — form fields ({len(fields)} fields)\n"
                         f"```\n" + "\n".join(fields) + "\n```"
                     )
                 doc.close()
             except Exception:
                 pass
 
-    return "\n".join(parts)
+    context = "\n".join(parts)
+    if len(context) > MAX_CONTEXT_SIZE:
+        context = context[:MAX_CONTEXT_SIZE] + "\n...[workspace context truncated]"
+    return context
+
+
+def _complete_once(
+    backend: LLMBackend,
+    messages: list[dict[str, str]],
+    skills: list[Skill],
+    *,
+    system: str,
+    seed: int | None,
+) -> LLMResponse:
+    if skills:
+        return asyncio.run(backend.complete_with_skills(messages, skills, system=system, seed=seed))
+    return asyncio.run(backend.complete(messages, system=system, seed=seed))
+
+
+def _execute_generated_code(
+    task: Task,
+    layout: TaskLayout,
+    workspace: Path,
+    code: str,
+    *,
+    timeout: float,
+    pass_env: Collection[str],
+) -> tuple[Path, RunResult]:
+    script_path = layout.place_solution(workspace, code)
+    if not (workspace / "_solve.py").is_file():
+        (workspace / "_solve.py").write_text(code, encoding="utf-8")
+    solve_home = workspace / "_solve_home"
+    solve_home.mkdir(parents=True, exist_ok=True)
+    env = build_guarded_env(
+        framework="evolution",
+        workspace_dir=workspace,
+        run_home=solve_home,
+        audit_log_path=workspace / ".workspace_guard.jsonl",
+        base_env=minimal_child_env(allow=pass_env),
+        set_home=True,
+        command_wrappers=True,
+    )
+    return script_path, layout.run_solution(
+        workspace, resolve_python_for_role(task.role), timeout=timeout, env=env
+    )
 
 
 def _system_prompt_for_workspace(workspace: Path) -> tuple[str, str]:
@@ -207,7 +336,7 @@ def _write_prompt_audit(
     system_prompt: str,
     prompt: str,
     execution_contract: str,
-    skills: list[Skill],
+    bindings: list[SkillBinding],
     backend: LLMBackend,
     model_name: str,
     phase: str,
@@ -229,12 +358,13 @@ def _write_prompt_audit(
         "task": task_name,
         "skills": [
             {
-                "name": s.frontmatter.name,
-                "version": getattr(s.frontmatter, "version", None) or "",
-                "body_chars": len(s.body or ""),
-                "body_sha256": hashlib.sha256((s.body or "").encode("utf-8")).hexdigest(),
+                **binding.provenance(),
+                "body_chars": len(binding.skill.body or ""),
+                "body_sha256": hashlib.sha256(
+                    (binding.skill.body or "").encode("utf-8")
+                ).hexdigest(),
             }
-            for s in skills
+            for binding in bindings
         ],
     }
     (workspace / "prompt_audit.json").write_text(
@@ -249,7 +379,8 @@ def solve_task(
     workspace: Path,
     skill: Skill | None = None,
     skills: list[Skill] | None = None,
-    timeout: float = 300.0,
+    bindings: list[SkillBinding] | None = None,
+    timeout: float = DEFAULT_SOLVE_TIMEOUT_S,
     evaluate: bool = True,
     model_name: str = "",
     manifest: SplitManifest | None = None,
@@ -258,6 +389,8 @@ def solve_task(
     trace_spec_idx: int | None = None,
     round_id: str | None = None,
     phase: str = "collect",
+    pass_env: Collection[str] = (),
+    trace_required: bool = False,
 ) -> SolveResult:
     """Solve a task: LLM generates code, we execute it, then evaluate.
 
@@ -267,6 +400,8 @@ def solve_task(
         workspace: Directory with input files (use setup_workspace first).
         skill: Optional single skill (backward compat, use skills instead).
         skills: Optional list of skills to inject into LLM context.
+        bindings: Exact skills plus owner/version provenance. Cannot be combined
+            with the backward-compatible ``skill``/``skills`` arguments.
         timeout: Script execution timeout in seconds.
         evaluate: Whether to run evaluation tests after execution.
         model_name: Model identifier for trace recording (e.g. "claude-sonnet-4").
@@ -280,6 +415,9 @@ def solve_task(
     Returns:
         SolveResult with LLM response, execution output, and eval results.
     """
+    require_seed_support(backend, attempt_seed, label="Solver backend")
+    workspace = Path(workspace).resolve()
+
     if manifest is not None:
         if manifest_scope is None:
             raise ValueError(
@@ -292,12 +430,14 @@ def solve_task(
             scope=manifest_scope,
             context=f"solve_task({task.name})",
         )
-    # Normalize: single skill → list
-    resolved_skills: list[Skill] = []
-    if skills:
-        resolved_skills = skills
-    elif skill is not None:
-        resolved_skills = [skill]
+    if bindings is not None and (skill is not None or skills is not None):
+        raise ValueError("bindings cannot be combined with skill or skills")
+    if bindings is not None:
+        resolved_bindings = list(bindings)
+    else:
+        selected = list(skills or ([skill] if skill is not None else []))
+        resolved_bindings = [SkillBinding.from_skill(item) for item in selected]
+    resolved_skills = [binding.skill for binding in resolved_bindings]
 
     result = SolveResult(task_name=task.name)
 
@@ -309,6 +449,11 @@ def solve_task(
         "round_id": round_id,
         "phase": phase,
     }
+    evidence_policy = (
+        "train-evidence-v1"
+        if manifest_scope == "skill_evolution" and trace_ctx.get("phase") == "collect"
+        else None
+    )
     # Split-controlled feedback is collect-phase ONLY. Promotion-validation
     # traces NEVER carry source_feedback (plan §B) — structural, not merely
     # filtered at reflection time.
@@ -335,7 +480,7 @@ def solve_task(
         system_prompt=system_prompt,
         prompt=prompt,
         execution_contract=execution_contract,
-        skills=resolved_skills,
+        bindings=resolved_bindings,
         backend=backend,
         model_name=model_name,
         phase=phase,
@@ -344,35 +489,24 @@ def solve_task(
     )
 
     try:
-        if resolved_skills:
-            llm_resp = asyncio.run(
-                backend.complete_with_skills(
-                    messages,
-                    resolved_skills,
-                    system=system_prompt,
-                    seed=attempt_seed,
-                )
-            )
-        else:
-            llm_resp = asyncio.run(
-                backend.complete(messages, system=system_prompt, seed=attempt_seed)
-            )
+        llm_resp = _complete_once(
+            backend,
+            messages,
+            resolved_skills,
+            system=system_prompt,
+            seed=attempt_seed,
+        )
         result.llm_response = llm_resp
     except Exception as exc:
         result.errors.append(f"LLM call failed: {exc}; retrying once")
         try:
-            if resolved_skills:
-                llm_resp = asyncio.run(
-                    backend.complete_with_skills(
-                        messages,
-                        resolved_skills,
-                        system=system_prompt,
-                    )
-                )
-            else:
-                llm_resp = asyncio.run(
-                    backend.complete(messages, system=system_prompt, seed=attempt_seed)
-                )
+            llm_resp = _complete_once(
+                backend,
+                messages,
+                resolved_skills,
+                system=system_prompt,
+                seed=attempt_seed,
+            )
             result.llm_response = llm_resp
         except Exception as retry_exc:
             result.errors.append(f"LLM call failed after retry: {retry_exc}; using stub _solve.py")
@@ -405,19 +539,13 @@ def solve_task(
         result.errors.append("No Python code block found in LLM response; retrying once")
         retry_system = f"{system_prompt}\n\n{CODE_RETRY_SYSTEM_REMINDER}"
         try:
-            if resolved_skills:
-                retry_resp = asyncio.run(
-                    backend.complete_with_skills(
-                        messages,
-                        resolved_skills,
-                        system=retry_system,
-                        seed=attempt_seed,
-                    )
-                )
-            else:
-                retry_resp = asyncio.run(
-                    backend.complete(messages, system=retry_system, seed=attempt_seed)
-                )
+            retry_resp = _complete_once(
+                backend,
+                messages,
+                resolved_skills,
+                system=retry_system,
+                seed=attempt_seed,
+            )
             result.llm_response = retry_resp
             llm_resp = retry_resp
             (workspace / "_response_retry.md").write_text(llm_resp.content, encoding="utf-8")
@@ -436,21 +564,14 @@ def solve_task(
     # workspace solve.sh is present (both layouts), else ``python _solve.py``.
     # We keep a ``_solve.py`` debug copy regardless for trace/audit code.
     layout = task.resolve_layout()
-    script_path = layout.place_solution(workspace, code)
-    if not (workspace / "_solve.py").is_file():
-        (workspace / "_solve.py").write_text(code, encoding="utf-8")
-    result.script_path = script_path
-
     try:
-        env = build_guarded_env(
-            framework="evolution",
-            workspace_dir=workspace,
-            audit_log_path=workspace / ".workspace_guard.jsonl",
-            base_env=None,
-            command_wrappers=True,
-        )
-        run = layout.run_solution(
-            workspace, resolve_python_for_role(task.role), timeout=timeout, env=env
+        result.script_path, run = _execute_generated_code(
+            task,
+            layout,
+            workspace,
+            code,
+            timeout=timeout,
+            pass_env=pass_env,
         )
         result.script_output = (run.stdout or "") + (run.stderr or "")
         result.script_exit_code = run.returncode
@@ -458,6 +579,88 @@ def solve_task(
         if run.timed_out:
             # Re-raise so the existing TimeoutExpired handler below runs.
             raise subprocess.TimeoutExpired(cmd="<layout>", timeout=timeout)
+
+        if (
+            result.script_exit_code > 0
+            and not result.code_extraction_failed
+            and not result.llm_transport_failed
+        ):
+            result.runtime_repair_attempted = True
+            result.initial_script_exit_code = result.script_exit_code
+            trace_ctx.update(
+                {
+                    "runtime_repair_attempted": True,
+                    "runtime_repair_succeeded": False,
+                    "initial_script_exit_code": result.initial_script_exit_code,
+                }
+            )
+            initial_prompt = prompt
+            initial_response = llm_resp.content
+            diagnostic = sanitize_feedback(result.script_output, limit=4_000)
+            repair_prompt = (
+                f"{prompt}\n\n"
+                "## Runtime repair\n"
+                f"The generated script exited with code {result.script_exit_code} before "
+                "verification. Fix that runtime failure without changing the task requirements. "
+                "Return one complete replacement Python script.\n\n"
+                f"### Previous script\n```python\n{code}\n```\n\n"
+                f"### Sanitized runtime diagnostic\n```\n{diagnostic}\n```"
+            )
+            repair_messages = [{"role": "user", "content": repair_prompt}]
+            try:
+                repair_resp = _complete_once(
+                    backend,
+                    repair_messages,
+                    resolved_skills,
+                    system=system_prompt,
+                    seed=attempt_seed,
+                )
+                repair_code = _extract_python_code(repair_resp.content)
+            except Exception as exc:
+                result.errors.append(f"Runtime repair LLM call failed: {exc}")
+            else:
+                if not repair_code:
+                    result.errors.append("Runtime repair returned no Python code")
+                else:
+                    setup_workspace(task, workspace)
+                    ws_pre_snapshot = snapshot_workspace(workspace)
+                    prompt = repair_prompt
+                    llm_resp = repair_resp
+                    result.llm_response = repair_resp
+                    code = repair_code
+                    (workspace / "_prompt_initial.md").write_text(initial_prompt, encoding="utf-8")
+                    (workspace / "_response_initial.md").write_text(
+                        initial_response, encoding="utf-8"
+                    )
+                    (workspace / "_prompt.md").write_text(prompt, encoding="utf-8")
+                    (workspace / "_response.md").write_text(llm_resp.content, encoding="utf-8")
+                    _write_prompt_audit(
+                        workspace,
+                        system_prompt=system_prompt,
+                        prompt=prompt,
+                        execution_contract=execution_contract,
+                        bindings=resolved_bindings,
+                        backend=backend,
+                        model_name=model_name,
+                        phase=f"{phase}_runtime_repair",
+                        attempt_seed=attempt_seed,
+                        task_name=task.name,
+                    )
+                    result.script_path, run = _execute_generated_code(
+                        task,
+                        layout,
+                        workspace,
+                        code,
+                        timeout=timeout,
+                        pass_env=pass_env,
+                    )
+                    result.script_output = (run.stdout or "") + (run.stderr or "")
+                    result.script_exit_code = run.returncode
+                    result.exec_ms += int(run.elapsed_sec * 1000)
+                    if run.timed_out:
+                        raise subprocess.TimeoutExpired(cmd="<layout>", timeout=timeout)
+                    result.runtime_repair_succeeded = result.script_exit_code == 0
+                    trace_ctx["runtime_repair_succeeded"] = result.runtime_repair_succeeded
 
         if result.script_exit_code != 0:
             result.errors.append(f"Script exited with code {result.script_exit_code}")
@@ -482,26 +685,22 @@ def solve_task(
             task_dir=task.path,
             test_file=task.test_file,
             manifest_scope=manifest_scope,
+            evidence_policy=evidence_policy,
         )
-        if resolved_skills and model_name:
-            for s in resolved_skills:
-                try:
-                    _save_trace(
-                        s,
-                        task,
-                        result,
-                        model_name,
-                        prompt,
-                        result.llm_response.content if result.llm_response else "",
-                        code,
-                        manifest=manifest,
-                        manifest_scope=manifest_scope,
-                        evidence=evidence,
-                        attempt_seed=attempt_seed,
-                        trace_context=trace_ctx,
-                    )
-                except Exception as exc:
-                    logger.warning("Failed to save timeout trace for %s: %s", s.name, exc)
+        _save_traces(
+            resolved_bindings,
+            task,
+            result,
+            model_name,
+            prompt,
+            code,
+            manifest=manifest,
+            manifest_scope=manifest_scope,
+            evidence=evidence,
+            trace_context=trace_ctx,
+            required=trace_required,
+            label="timeout ",
+        )
         return result
     except Exception as exc:
         result.solve_exception = type(exc).__name__
@@ -527,26 +726,22 @@ def solve_task(
             task_dir=task.path,
             test_file=task.test_file,
             manifest_scope=manifest_scope,
+            evidence_policy=evidence_policy,
         )
-        if resolved_skills and model_name:
-            for s in resolved_skills:
-                try:
-                    _save_trace(
-                        s,
-                        task,
-                        result,
-                        model_name,
-                        prompt,
-                        result.llm_response.content if result.llm_response else "",
-                        code,
-                        manifest=manifest,
-                        manifest_scope=manifest_scope,
-                        evidence=evidence,
-                        attempt_seed=attempt_seed,
-                        trace_context=trace_ctx,
-                    )
-                except Exception as save_exc:
-                    logger.warning("Failed to save exception trace for %s: %s", s.name, save_exc)
+        _save_traces(
+            resolved_bindings,
+            task,
+            result,
+            model_name,
+            prompt,
+            code,
+            manifest=manifest,
+            manifest_scope=manifest_scope,
+            evidence=evidence,
+            trace_context=trace_ctx,
+            required=trace_required,
+            label="exception ",
+        )
         return result
 
     # Build evidence before pytest/verifier execution. The artifact manifest
@@ -569,6 +764,7 @@ def solve_task(
         task_dir=task.path,
         test_file=task.test_file,
         manifest_scope=manifest_scope,
+        evidence_policy=evidence_policy,
     )
 
     # Place produced files where the verifier reads them (sb-bench copies root
@@ -581,8 +777,8 @@ def solve_task(
     # Step 4: Evaluate
     if evaluate and not collect.error:
         eval_t0 = time.monotonic()
-        result.eval_result = run_task(task, workspace)
-        result.eval_ms = int((time.monotonic() - eval_t0) * 1000)
+        result.eval_result = run_task(task, workspace, pass_env=pass_env)
+        result.eval_ms = ms_since(eval_t0)
         if result.eval_result is not None:
             attach_verifier_result(
                 evidence,
@@ -594,31 +790,65 @@ def solve_task(
             )
 
     # Step 5: Save trace for each skill used
-    if resolved_skills and result.eval_result is not None and model_name:
-        for s in resolved_skills:
-            try:
-                _save_trace(
-                    s,
-                    task,
-                    result,
-                    model_name,
-                    prompt,
-                    result.llm_response.content if result.llm_response else "",
-                    code,
-                    manifest=manifest,
-                    manifest_scope=manifest_scope,
-                    evidence=evidence,
-                    attempt_seed=attempt_seed,
-                    trace_context=trace_ctx,
-                )
-            except Exception as exc:
-                logger.warning("Failed to save trace for %s: %s", s.name, exc)
+    if result.eval_result is not None or (evaluate and collect.error):
+        _save_traces(
+            resolved_bindings,
+            task,
+            result,
+            model_name,
+            prompt,
+            code,
+            manifest=manifest,
+            manifest_scope=manifest_scope,
+            evidence=evidence,
+            trace_context=trace_ctx,
+            required=trace_required,
+        )
 
     return result
 
 
+def _save_traces(
+    bindings: list[SkillBinding],
+    task: Task,
+    result: SolveResult,
+    model_name: str,
+    prompt: str,
+    code: str,
+    *,
+    manifest: SplitManifest | None,
+    manifest_scope: str | None,
+    evidence: dict | None,
+    trace_context: dict | None,
+    required: bool,
+    label: str = "",
+) -> None:
+    if not bindings or not model_name:
+        return
+    for binding in bindings:
+        try:
+            trace_id = _save_trace(
+                binding,
+                task,
+                result,
+                model_name,
+                prompt,
+                result.llm_response.content if result.llm_response else "",
+                code,
+                manifest=manifest,
+                manifest_scope=manifest_scope,
+                evidence=evidence,
+                trace_context=trace_context,
+            )
+            result.trace_ids.append(trace_id)
+        except Exception as exc:
+            if required:
+                raise
+            logger.warning("Failed to save %strace for %s: %s", label, binding.name, exc)
+
+
 def _save_trace(
-    skill: Skill,
+    binding: SkillBinding,
     task: Task,
     result: SolveResult,
     model_name: str,
@@ -628,27 +858,25 @@ def _save_trace(
     manifest: SplitManifest | None = None,
     manifest_scope: str | None = None,
     evidence: dict | None = None,
-    attempt_seed: int | None = None,
     trace_context: dict | None = None,
-) -> None:
+) -> str:
     """Save a skill trace after evaluation."""
-    tracker = LineageTracker(skill)
     now = datetime.now()
-    model_tag = model_name.replace("/", "-")
-
-    if attempt_seed is None:
-        trace_id = f"{now.strftime('%Y%m%d_%H%M%S')}_{model_tag}_{task.name}"
-    else:
-        trace_id = (
-            f"{now.strftime('%Y%m%d_%H%M%S')}{now.microsecond:06d}"
-            f"_a{attempt_seed:04d}_{model_tag}_{task.name}"
-        )
 
     er = result.eval_result
+    scored_measurement_valid = bool(
+        not result.llm_transport_failed
+        and result.solve_exception is None
+        and not any(error.startswith("output collection failed:") for error in result.errors)
+        and er is not None
+        and er.total_tests > 0
+        and er.passed + er.failed > 0
+        and all(str(error).startswith("FAILED ") for error in er.errors)
+    )
     trace = SkillTrace(
-        id=trace_id,
-        skill_name=skill.name,
-        skill_version=tracker.current_version,
+        id=new_trace_id(),
+        skill_name=binding.name,
+        skill_version=binding.version,
         model=model_name,
         task=task.name,
         timestamp=now,
@@ -663,38 +891,16 @@ def _save_trace(
         manifest_name=manifest.name if manifest is not None else None,
         manifest_sha=manifest.sha256 if manifest is not None else None,
         manifest_scope=manifest_scope,
-        trace_context=trace_context or None,
+        trace_context={
+            **(trace_context or {}),
+            "scored_measurement_valid": scored_measurement_valid,
+            "skill_binding": binding.provenance(),
+        },
     )
 
-    store = TraceStore(skill)
+    store = TraceStore(binding.owner)
     store.save(trace, prompt, response, code, evidence=evidence)
-
-
-def solve_task_pair(
-    task: Task,
-    backend: LLMBackend,
-    workspace_dir: Path,
-    skill: Skill | None = None,
-    skills: list[Skill] | None = None,
-    timeout: float = 300.0,
-) -> tuple[SolveResult, SolveResult]:
-    """Solve a task twice: once without skill, once with skill(s).
-
-    This measures the skill's effectiveness (fitness = delta).
-
-    Returns:
-        (baseline_result, skill_result)
-    """
-    ws_base = Path(workspace_dir) / f"{task.name}-baseline"
-    ws_skill = Path(workspace_dir) / f"{task.name}-with-skill"
-
-    setup_workspace(task, ws_base)
-    setup_workspace(task, ws_skill)
-
-    baseline = solve_task(task, backend, ws_base, timeout=timeout)
-    with_skill = solve_task(task, backend, ws_skill, skill=skill, skills=skills, timeout=timeout)
-
-    return baseline, with_skill
+    return trace.id
 
 
 def _looks_like_python_code(code: str) -> bool:

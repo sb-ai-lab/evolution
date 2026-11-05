@@ -25,13 +25,13 @@ class Task:
     skills_required: list[str]
     tags: list[str] = field(default_factory=list)
     # sb-bench role (de/ds/genai/infra/pm/swe); selects the interpreter the
-    # solution + tests run under (see eval/python_env.py). None for evo tasks.
+    # solution + tests run under (see eval/python_env.py). None for Evolution-native tasks.
     role: str | None = None
     source: str = ""  # e.g. "skillsbench"
     source_task: str = ""  # original task id
     timeout_sec: float = 600.0
     test_file: str = "tests/test_outputs.py"
-    # Public declared outputs only; never tests/expected/oracle (see CLAUDE.md).
+    # Public declared outputs only; never tests, expected values, or oracles.
     required_outputs: list[str] = field(default_factory=list)
     path: Path = field(default_factory=lambda: Path("."))
     # Populated by ``load_task`` via ``detect_layout``. Carries the
@@ -79,6 +79,14 @@ class TaskResult:
         return self.failed == 0 and self.total_tests > 0
 
 
+class TaskDiscoveryError(ValueError):
+    """Raised after all declared task directories have been checked."""
+
+    def __init__(self, errors: list[str]) -> None:
+        self.errors = tuple(errors)
+        super().__init__("Invalid task(s):\n" + "\n".join(f"- {error}" for error in errors))
+
+
 def load_task(task_dir: Path) -> Task:
     """Load a task from its directory.
 
@@ -124,10 +132,13 @@ def discover_tasks(tasks_dir: Path) -> list[Task]:
         return []
 
     tasks: list[Task] = []
+    errors: list[str] = []
     for child in sorted(tasks_dir.iterdir()):
         if child.is_dir() and (child / "task.toml").exists():
             try:
                 tasks.append(load_task(child))
-            except Exception:
-                continue
+            except Exception as exc:
+                errors.append(f"{child / 'task.toml'}: {exc}")
+    if errors:
+        raise TaskDiscoveryError(errors)
     return tasks

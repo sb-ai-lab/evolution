@@ -2,16 +2,20 @@
 
 from __future__ import annotations
 
-import os
+import logging
 import re
+from collections.abc import Collection
 from pathlib import Path
 
-from evolution.adapters.workspace_guard import build_guarded_env
+from evolution.eval.child_env import minimal_child_env
 from evolution.eval.python_env import resolve_python_for_role
-from evolution.eval.task import Task, TaskResult, discover_tasks
+from evolution.eval.task import Task, TaskResult
+from evolution.eval.workspace_guard import build_guarded_env
 
 _PYTEST_OUTPUT_MAX = 64 * 1024
 _NODEID_LINE = re.compile(r"^(\S+::\S+)\s+(?:PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS)\b")
+
+logger = logging.getLogger(__name__)
 
 
 def _collected_nodeids(stdout: str) -> list[str]:
@@ -30,14 +34,16 @@ def _persist_pytest_output(workspace: Path, stdout: str) -> None:
         text = f"{text[:half]}\n...[truncated]...\n{text[-half:]}"
     try:
         (workspace / "pytest_output.txt").write_text(text, encoding="utf-8")
-    except OSError:
-        pass
+    except OSError as exc:
+        logger.warning("Could not persist pytest output to %s: %s", workspace, exc)
 
 
 def run_task(
     task: Task,
     workspace: Path,
     timeout: float | None = None,
+    *,
+    pass_env: Collection[str] = (),
 ) -> TaskResult:
     """Run a task's test suite against a workspace directory.
 
@@ -67,7 +73,7 @@ def run_task(
         framework="evolution-pytest",
         workspace_dir=workspace,
         audit_log_path=workspace / ".workspace_guard.jsonl",
-        base_env=os.environ,
+        base_env=minimal_child_env(allow=pass_env),
         command_wrappers=True,
     )
     result = task.resolve_layout().run_tests(
@@ -98,18 +104,3 @@ def run_task(
         raw_stdout=result.stdout,
         nodeids=_collected_nodeids(result.stdout),
     )
-
-
-def run_all_tasks(
-    tasks_dir: Path,
-    workspace: Path,
-    task_names: list[str] | None = None,
-) -> list[TaskResult]:
-    """Discover and run all tasks (or a filtered subset) against a workspace."""
-    tasks = discover_tasks(tasks_dir)
-
-    if task_names:
-        name_set = set(task_names)
-        tasks = [t for t in tasks if t.name in name_set]
-
-    return [run_task(t, workspace) for t in tasks]

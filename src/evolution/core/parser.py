@@ -87,14 +87,14 @@ def _fix_unquoted_colons(yaml_text: str) -> str:
     return "\n".join(lines)
 
 
-def load_skill(path: str | Path) -> Skill:
+def load_skill(path: str | Path, *, validate_dir_name: bool = True) -> Skill:
     """Load a Skill from a directory path or SKILL.md file path.
 
     Steps:
     1. Resolve to directory (if file given, use parent).
     2. Read and parse SKILL.md.
     3. Validate frontmatter via SkillFrontmatter model.
-    4. Warn (don't fail) if name != directory name.
+    4. Warn (don't fail) if name != directory name unless disabled.
     5. Return Skill instance.
 
     Raises:
@@ -116,11 +116,11 @@ def load_skill(path: str | Path) -> Skill:
 
     raw_fm, body = parse_skill_md(skill_md_path)
 
-    # Validate frontmatter
     frontmatter = SkillFrontmatter.model_validate(raw_fm)
 
-    # Warn if name doesn't match directory
-    if frontmatter.name != skill_dir.name:
+    # Warn if name doesn't match directory. Version snapshots live under
+    # .evolution/versions/vN, so callers loading those pass validate_dir_name=False.
+    if validate_dir_name and frontmatter.name != skill_dir.name:
         warnings.warn(
             f"Skill name {frontmatter.name!r} does not match directory name {skill_dir.name!r}",
             stacklevel=2,

@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import json
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from pydantic import ValidationError
 
 from evolution.core.models import LineageEntry, Skill, SkillLineage
+from evolution.lineage.state_io import atomic_write_json, skill_mutation_lock, transaction_lock
 from evolution.lineage.version import VersionStore
 
 
@@ -18,7 +19,7 @@ class LineageError(RuntimeError):
 
     The framework deliberately fails loud rather than silently fabricating
     lineage history (a research-artifact integrity invariant). Recovery is an
-    explicit, user-invoked `evo repair <skill>`.
+    explicit, user-invoked `evo skill repair <skill>`.
     """
 
 
@@ -28,6 +29,7 @@ class LineageTracker:
     def __init__(self, skill: Skill) -> None:
         self._skill = skill
         self._lineage_path = skill.path / ".evolution" / "lineage.json"
+        self._lock_path = skill.path / ".evolution" / "lineage.lock"
         self._lineage: SkillLineage | None = None
 
     @property
@@ -43,19 +45,18 @@ class LineageTracker:
             self._lineage = SkillLineage(
                 skill_id=self._skill.name,
                 current_version="v0",
-                created_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
                 lineage=[],
             )
         else:
-            data = json.loads(self._lineage_path.read_text(encoding="utf-8"))
             try:
-                self._lineage = SkillLineage.model_validate(data)
-            except ValidationError as exc:
-                missing = sorted({str(e["loc"][0]) for e in exc.errors() if e["loc"]})
+                self._lineage = SkillLineage.model_validate_json(
+                    self._lineage_path.read_text(encoding="utf-8")
+                )
+            except (OSError, ValidationError) as exc:
                 raise LineageError(
-                    f"{self._skill.name}: .evolution/lineage.json is malformed "
-                    f"(invalid/missing fields: {', '.join(missing) or 'unknown'}). "
-                    f"Run `evo repair {self._skill.name}` to rebuild it from the "
+                    f"{self._skill.name}: .evolution/lineage.json is unreadable or malformed. "
+                    f"Run `evo skill repair {self._skill.name}` to rebuild it from the "
                     f"on-disk version snapshots."
                 ) from exc
 
@@ -64,10 +65,7 @@ class LineageTracker:
     def _save(self) -> None:
         lin = self._load()
         self._lineage_path.parent.mkdir(parents=True, exist_ok=True)
-        self._lineage_path.write_text(
-            json.dumps(lin.model_dump(mode="json"), indent=2, default=str),
-            encoding="utf-8",
-        )
+        atomic_write_json(self._lineage_path, lin.model_dump(mode="json"))
 
     # --- Read ---
 
@@ -82,73 +80,100 @@ class LineageTracker:
     def get_entry(self, version: str) -> LineageEntry:
         return self._load().get_entry(version)
 
-    def get_active(self) -> LineageEntry | None:
-        return self._load().get_active()
+    def promotion_count(self, version: str | None = None) -> int:
+        """Count retained parent edges from *version* to its lineage root.
 
-    def ancestry(self, version: str) -> list[LineageEntry]:
-        return self._load().ancestry(version)
+        Labels are identifiers, not maturity.  This deliberately follows the
+        recorded parent links and rejects corrupt graph shapes before an editor
+        can use an incorrect decay step.
+        """
+        lineage = self._load()
+        active = version or lineage.current_version
+        entries: dict[str, LineageEntry] = {}
+        for entry in lineage.lineage:
+            if entry.version in entries:
+                raise LineageError(f"{self._skill.name}: duplicate lineage label {entry.version!r}")
+            entries[entry.version] = entry
+        count = 0
+        seen: set[str] = set()
+        while active in entries:
+            if active in seen:
+                raise LineageError(f"{self._skill.name}: lineage cycle at {active!r}")
+            seen.add(active)
+            entry = entries[active]
+            parent = entry.parent
+            if parent is None:
+                break
+            if parent not in entries and parent != "v0":
+                raise LineageError(
+                    f"{self._skill.name}: lineage parent {parent!r} for {active!r} is missing"
+                )
+            if entry.status != "rejected":
+                count += 1
+            active = parent
+        return count
+
+    retained_promotion_count = promotion_count
 
     # --- Write ---
 
     def record(self, entry: LineageEntry) -> None:
         """Append a lineage entry and persist."""
-        lin = self._load()
-        lin.lineage.append(entry)
-        self._save()
+        with skill_mutation_lock(self._skill.path), transaction_lock(self._lock_path):
+            self._lineage = None
+            lin = self._load()
+            lin.lineage.append(entry)
+            self._save()
 
     def promote(self, version: str, fitness: float | None = None) -> None:
         """Set *version* as active. Retire the previous active version.
 
-        Also restores the version's SKILL.md snapshot to the skill root
-        so that the active version is what gets used.
+        Also restores the version's complete managed tree (SKILL.md, scripts,
+        references, and assets) so the active version is what gets used.
         """
-        lin = self._load()
-
-        # Retire current active
-        for entry in lin.lineage:
-            if entry.status == "active":
-                entry.status = "retired"
-
-        # Promote target
-        target = lin.get_entry(version)
-        target.status = "active"
-        if fitness is not None:
-            target.fitness = fitness
-
-        lin.current_version = version
-        self._save()
-
-        # Restore version snapshot to skill root
-        from evolution.lineage.version import VersionStore
-
-        vs = VersionStore(self._skill)
-        if vs.exists(version):
-            import shutil
-
-            version_dir = vs.versions_dir / version
-            version_skill_md = version_dir / "SKILL.md"
-            if version_skill_md.is_file():
-                shutil.copy2(version_skill_md, self._skill.skill_md_path)
-
-    def retire(self, version: str) -> None:
-        """Mark version as retired."""
-        entry = self._load().get_entry(version)
-        entry.status = "retired"
-        self._save()
-
-    def archive(self, version: str) -> None:
-        """Mark version as archived."""
-        entry = self._load().get_entry(version)
-        entry.status = "archived"
-        self._save()
+        with skill_mutation_lock(self._skill.path), transaction_lock(self._lock_path):
+            self._lineage = None
+            lin = self._load()
+            target = lin.get_entry(version)
+            previous_version = lin.current_version
+            VersionStore(self._skill).restore(version)
+            try:
+                for entry in lin.lineage:
+                    if entry.status == "active":
+                        entry.status = "retired"
+                target.status = "active"
+                if fitness is not None:
+                    target.fitness = fitness
+                lin.current_version = version
+                self._save()
+            except Exception:
+                persisted_version: str | None = None
+                try:
+                    persisted_version = SkillLineage.model_validate_json(
+                        self._lineage_path.read_text(encoding="utf-8")
+                    ).current_version
+                except (OSError, ValidationError):
+                    pass
+                if persisted_version != version:
+                    try:
+                        VersionStore(self._skill).restore(previous_version)
+                    except Exception as rollback_error:
+                        raise LineageError(
+                            f"Promotion of {version!r} failed and the previous managed tree "
+                            f"could not be restored"
+                        ) from rollback_error
+                self._lineage = None
+                raise
 
     def reject(self, version: str, fitness: float | None = None) -> None:
         """Mark version as rejected (δ-gated promotion declined; stays on disk)."""
-        entry = self._load().get_entry(version)
-        entry.status = "rejected"
-        if fitness is not None:
-            entry.fitness = fitness
-        self._save()
+        with skill_mutation_lock(self._skill.path), transaction_lock(self._lock_path):
+            self._lineage = None
+            entry = self._load().get_entry(version)
+            entry.status = "rejected"
+            if fitness is not None:
+                entry.fitness = fitness
+            self._save()
 
     def delete_version(self, version: str, force: bool = False) -> None:
         """Delete a version from lineage and disk.
@@ -156,35 +181,39 @@ class LineageTracker:
         Cannot delete active version. Cannot delete versions with children
         unless force=True (reparents children to deleted entry's parent).
         """
-        lin = self._load()
+        with skill_mutation_lock(self._skill.path), transaction_lock(self._lock_path):
+            self._lineage = None
+            lin = self._load()
 
-        if lin.current_version == version:
-            raise ValueError(f"Cannot delete active version {version!r}. Promote another first.")
+            if lin.current_version == version:
+                raise ValueError(
+                    f"Cannot delete active version {version!r}. Promote another first."
+                )
 
-        target = lin.get_entry(version)
-        parent = target.parent
+            target = lin.get_entry(version)
+            parent = target.parent
 
-        # Check for children
-        children = [e.version for e in lin.lineage if e.parent == version]
-        if children and not force:
-            raise ValueError(
-                f"Version {version!r} has children: {', '.join(children)}. "
-                f"Use --force to delete and reparent."
-            )
+            # Check for children
+            children = [e.version for e in lin.lineage if e.parent == version]
+            if children and not force:
+                raise ValueError(
+                    f"Version {version!r} has children: {', '.join(children)}. "
+                    f"Use --force to delete and reparent."
+                )
 
-        # Reparent children to deleted entry's parent
-        for entry in lin.lineage:
-            if entry.parent == version:
-                entry.parent = parent
+            # Reparent children to deleted entry's parent
+            for entry in lin.lineage:
+                if entry.parent == version:
+                    entry.parent = parent
 
-        lin.lineage = [e for e in lin.lineage if e.version != version]
-        self._save()
+            lin.lineage = [e for e in lin.lineage if e.version != version]
+            self._save()
 
-        # Remove from disk
-        from evolution.lineage.version import VersionStore
+            # Remove from disk
+            from evolution.lineage.version import VersionStore
 
-        vs = VersionStore(self._skill)
-        vs.delete(version)
+            vs = VersionStore(self._skill)
+            vs.delete(version)
 
     def next_version_label(self) -> str:
         """Generate the next version label (v1, v2, v3, ...)."""
@@ -195,10 +224,6 @@ class LineageTracker:
             if v.startswith("v") and v[1:].isdigit():
                 max_v = max(max_v, int(v[1:]))
         return f"v{max_v + 1}"
-
-    def next_candidate_label(self, parent_version: str, index: int) -> str:
-        """Generate a candidate label like 'v3-candidate-1'."""
-        return f"{parent_version}-candidate-{index}"
 
 
 def _natural_version_key(version: str) -> tuple[int, str]:
@@ -223,7 +248,7 @@ def rebuild_lineage(skill: Skill) -> tuple[SkillLineage, list[str]]:
     ``mutation_type="recovered-from-disk"`` because the true mutation chain is
     unknowable from snapshots alone. Returns the rebuilt lineage plus
     human-readable notes (e.g. a remapped ``current_version``) for the caller
-    to surface. Does not write — callers (``evo repair``) persist explicitly.
+    to surface. Does not write — callers (``evo skill repair``) persist explicitly.
     """
     notes: list[str] = []
     evo_dir = skill.path / ".evolution"
@@ -245,9 +270,9 @@ def rebuild_lineage(skill: Skill) -> tuple[SkillLineage, list[str]]:
     if created_at is None:
         if versions:
             first = evo_dir / "versions" / versions[0]
-            created_at = datetime.fromtimestamp(first.stat().st_mtime, tz=timezone.utc)
+            created_at = datetime.fromtimestamp(first.stat().st_mtime, tz=UTC)
         else:
-            created_at = datetime.now(timezone.utc)
+            created_at = datetime.now(UTC)
 
     requested = partial.get("current_version")
     if versions:
@@ -270,7 +295,7 @@ def rebuild_lineage(skill: Skill) -> tuple[SkillLineage, list[str]]:
     prev: str | None = None
     for v in versions:
         vdir = evo_dir / "versions" / v
-        ts = datetime.fromtimestamp(vdir.stat().st_mtime, tz=timezone.utc)
+        ts = datetime.fromtimestamp(vdir.stat().st_mtime, tz=UTC)
         entries.append(
             LineageEntry(
                 version=v,

@@ -3,7 +3,7 @@
 A `TaskLayout` encapsulates everything that differs between task layouts
 the evolution pipeline can drive (the evo native format and the upstream
 sb-bench format): metadata parsing, workspace staging, solution placement,
-execution, and test running. See ``plans/layout_abstraction.md``.
+execution, and test running.
 
 The eval pipeline (`workspace.py`, `runner.py`, `solver.py`) always routes
 through ``Task.resolve_layout()``; ``detect_layout`` picks the layout at

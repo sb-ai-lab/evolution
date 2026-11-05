@@ -1,0 +1,2 @@
+{"case_id": "q1", "group_id": "g", "stratum": "s", "public": {"text": "question one"}, "oracle": {"critical": true}}
+{"case_id": "q2", "group_id": "g", "stratum": "s", "public": {"text": "question two"}, "oracle": {"critical": true}}

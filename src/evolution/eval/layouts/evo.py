@@ -16,7 +16,6 @@ Layout assumptions (evo native):
 
 from __future__ import annotations
 
-import os
 import re
 import shutil
 import subprocess
@@ -24,14 +23,18 @@ import sys
 import time
 from pathlib import Path
 
+from evolution.eval.child_env import minimal_child_env
 from evolution.eval.layouts.base import (
     CollectResult,
     RunResult,
     TaskLayout,
     TaskMetadata,
     TestResult,
+    read_task_toml,
     rewrite_tests_if_needed,
 )
+from evolution.eval.proc import run_capture
+from evolution.eval.workspace_guard import isolate_home_env
 
 
 class EvoTaskLayout(TaskLayout):
@@ -46,25 +49,76 @@ class EvoTaskLayout(TaskLayout):
         instruction_path = task_dir / "instruction.md"
         if not toml_path.exists():
             raise FileNotFoundError(f"task.toml not found in {task_dir}")
-        toml_text = toml_path.read_text(encoding="utf-8")
+        data, toml_text = read_task_toml(task_dir)
         instruction = (
             instruction_path.read_text(encoding="utf-8").strip()
             if instruction_path.exists()
             else ""
         )
 
+        metadata = _table(data, "metadata")
+        task = _table(data, "task")
+        source = _table(data, "source")
+        skills = _table(data, "skills")
+        evaluation = _table(data, "evaluation")
+        verifier = _table(data, "verifier")
+        name = (
+            _string(metadata.get("name")) or _string(task.get("name")) or _string(data.get("name"))
+        )
+        difficulty = (
+            _string(metadata.get("difficulty"))
+            or _string(task.get("difficulty"))
+            or _string(data.get("difficulty"))
+        )
+        category = (
+            _string(metadata.get("category"))
+            or _string(task.get("role"))
+            or _string(data.get("category"))
+        )
+        tags = (
+            _strings(metadata.get("tags"))
+            or _strings(task.get("tags"))
+            or _strings(data.get("tags"))
+        )
+        required_skills = (
+            _strings(skills.get("required"))
+            or _strings(task.get("skills"))
+            or _strings(data.get("required"))
+        )
+        timeout = evaluation.get(
+            "timeout_sec", verifier.get("timeout_sec", data.get("timeout_sec", 600))
+        )
+        test_file = (
+            _string(evaluation.get("test_file"))
+            or _string(verifier.get("test_file"))
+            or _string(data.get("test_file"))
+            or "tests/test_outputs.py"
+        )
         return TaskMetadata(
-            name=_toml_value(toml_text, "name") or task_dir.name,
+            name=name or task_dir.name,
             instruction=instruction,
-            difficulty=_toml_value(toml_text, "difficulty") or "medium",
-            category=_toml_value(toml_text, "category") or "",
-            skills_required=_toml_list(toml_text, "required"),
-            tags=_toml_list(toml_text, "tags"),
-            timeout_sec=float(_toml_value(toml_text, "timeout_sec") or "600"),
-            test_file=_toml_value(toml_text, "test_file") or "tests/test_outputs.py",
-            required_outputs=_required_outputs(toml_text, instruction),
-            source=_toml_value(toml_text, "origin") or "",
-            source_task=_toml_value(toml_text, "task_id") or "",
+            difficulty=difficulty or "medium",
+            category=category,
+            skills_required=required_skills,
+            tags=tags,
+            role=(
+                _string(source.get("role"))
+                or _string(task.get("role"))
+                or _string(data.get("role"))
+                or None
+            ),
+            timeout_sec=float(timeout),
+            test_file=test_file,
+            required_outputs=_strings(evaluation.get("required_outputs"))
+            or _strings(verifier.get("required_outputs"))
+            or _strings(data.get("required_outputs"))
+            or _required_outputs(toml_text, instruction),
+            source=_string(source.get("origin")) or _string(data.get("origin")),
+            source_task=(
+                _string(source.get("task_id"))
+                or _string(task.get("id"))
+                or _string(data.get("task_id"))
+            ),
             raw_toml=toml_text,
         )
 
@@ -127,13 +181,14 @@ class EvoTaskLayout(TaskLayout):
             cmd = [py, str(script)]
         start = time.time()
         try:
-            proc = subprocess.run(
+            proc = run_capture(
                 cmd,
                 cwd=str(workspace),
-                capture_output=True,
                 text=True,
                 timeout=timeout,
-                env=env,
+                env=env
+                if env is not None
+                else isolate_home_env(minimal_child_env(), workspace / "_solve_home"),
             )
             return RunResult(
                 ok=proc.returncode == 0,
@@ -199,13 +254,16 @@ class EvoTaskLayout(TaskLayout):
         ]
         start = time.time()
         try:
-            proc = subprocess.run(
+            proc = run_capture(
                 cmd,
                 cwd=str(run_cwd),
-                capture_output=True,
                 text=True,
                 timeout=timeout,
-                env=env or {**os.environ, "WORKSPACE_DIR": str(workspace)},
+                env=env
+                or {
+                    **isolate_home_env(minimal_child_env(), workspace / "_solve_home"),
+                    "WORKSPACE_DIR": str(workspace),
+                },
             )
         except subprocess.TimeoutExpired:
             return TestResult(
@@ -248,22 +306,22 @@ _OUT_SUFFIXES = "json|csv|tsv|xlsx|xls|txt|parquet|db|sqlite|pdf|png|md|html|yam
 _OUT_RE = re.compile(r"`([A-Za-z0-9_./-]+\.(?:" + _OUT_SUFFIXES + r"))`")
 
 
-def _toml_value(text: str, key: str) -> str:
-    m = re.search(rf'^{key}\s*=\s*"([^"]*)"', text, re.MULTILINE)
-    return m.group(1) if m else ""
+def _table(data: dict, name: str) -> dict:
+    value = data.get(name, {})
+    return value if isinstance(value, dict) else {}
 
 
-def _toml_list(text: str, key: str) -> list[str]:
-    m = re.search(rf"^{key}\s*=\s*\[(.*?)\]", text, re.MULTILINE | re.DOTALL)
-    if not m:
+def _string(value: object) -> str:
+    return value if isinstance(value, str) else ""
+
+
+def _strings(value: object) -> list[str]:
+    if not isinstance(value, list):
         return []
-    return re.findall(r'"([^"]*)"', m.group(1))
+    return [item for item in value if isinstance(item, str)]
 
 
 def _required_outputs(toml_text: str, instruction: str) -> list[str]:
-    explicit = _toml_list(toml_text, "required_outputs")
-    if explicit:
-        return explicit
     seen: set[str] = set()
     out: list[str] = []
     for m in _OUT_RE.finditer(instruction or ""):

@@ -1,17 +1,27 @@
 [project]
-name = "evolution"
-version = "0.1.0"
+name = "evo-skills"
+dynamic = ["version"]
 description = "Trace-driven skill evolution framework for LLM agents"
 readme = "README.md"
-license = { file = "LICENSE" }
-requires-python = ">=3.10"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+keywords = [
+    "llm",
+    "agents",
+    "agent-skills",
+    "procedural-memory",
+    "skill-evolution",
+    "prompt-optimization",
+]
+requires-python = ">=3.11.3"
 classifiers = [
     "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
-    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Operating System :: POSIX",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 dependencies = [
@@ -19,57 +29,88 @@ dependencies = [
     "pydantic>=2.0",
     "typer>=0.12",
     "rich>=13.0",
+    "pytest>=8.0",
 ]
 
 [project.optional-dependencies]
 llm = ["litellm>=1.40"]
 gigachat = ["gigachat>=0.1.0"]
-gui = ["streamlit>=1.35", "pandas>=2.0", "plotly>=5.0"]
-paper = [
-    "duckdb>=1.0",
-    "numpy>=1.26",
-    "openpyxl>=3.1",
-    "pandas>=2.0",
-    "pdfplumber>=0.11",
-    "pypdf>=4.0",
-    "python-docx>=1.1",
-    "python-dotenv>=1.0",
-    "python-pptx>=0.6.23",
-    "requests>=2.31",
-]
-adapters = ["openai>=1.0", "python-dotenv>=1.0"]
+tree = ["httpx>=0.27", "openai>=1.0"]
+
+[dependency-groups]
 dev = [
-    "pytest>=8.0",
+    "openpyxl>=3.1",
     "pytest-asyncio>=0.23",
+    "pytest-xdist>=3.6",
     "ruff>=0.6",
     "mypy>=1.10",
+    "build>=1.2",
+    "twine>=5.1",
 ]
-research = ["evolution[paper,adapters]"]
-all = ["evolution[llm,gigachat,gui,paper,adapters,dev]"]
+
+[project.urls]
+Homepage = "https://github.com/sb-ai-lab/evolution"
+Repository = "https://github.com/sb-ai-lab/evolution"
+Issues = "https://github.com/sb-ai-lab/evolution/issues"
+Documentation = "https://github.com/sb-ai-lab/evolution/tree/main/docs"
+Changelog = "https://github.com/sb-ai-lab/evolution/blob/main/CHANGELOG.md"
 
 [project.scripts]
 evo = "evolution.cli.main:app"
+evo-target = "evolution.tree.reference_target_cli:app"
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling==1.31.0"]
 build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "src/evolution/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/evolution"]
 
+[tool.hatch.build.targets.sdist]
+only-include = [
+    "/src/evolution",
+    "/README.md",
+    "/QUICKSTART.md",
+    "/LICENSE",
+    "/CHANGELOG.md",
+    "/CONTRIBUTING.md",
+    "/SECURITY.md",
+    "/CITATION.cff",
+    "/pyproject.toml",
+]
+exclude = [
+    "/.agents",
+    "/tasks",
+    "/results",
+    "/dist",
+    "/papers",
+    "/data",
+    "/models",
+]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+pythonpath = ["src"]
+tmp_path_retention_policy = "failed"
 markers = [
     "live: requires API key (deselect with -m 'not live')",
     "paper: requires the external CRAFT/SB-Bench paper corpus and paper artifacts",
     "external_repo: requires sibling baseline repositories outside this checkout",
+    "slow: a test or module that costs seconds, such as whole campaigns, subprocesses or a wheel build; the fast tier deselects it with -m 'not slow'",
 ]
 
 [tool.ruff]
 line-length = 100
-target-version = "py310"
-extend-exclude = ["docs/internal", ".agents", "tasks", "splits"]
+target-version = "py311"
+extend-exclude = [
+    ".agents",
+    "tasks",
+    "src/evolution/eval/_guard_scripts",
+]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B"]
@@ -82,13 +123,21 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["B011", "B017"]
 "src/evolution/cli/bench.py" = ["UP007", "UP045"]  # Typer compatibility with older local releases
-"src/evolution/cli/main.py" = ["E402", "UP007", "UP045"]  # bench import after app; Typer compatibility
 
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.11"
 ignore_missing_imports = true
 warn_unused_ignores = true
 warn_redundant_casts = true
 no_implicit_optional = true
 files = ["src/evolution"]
-exclude = "src/evolution/adapters/"
+exclude = ['src/evolution/eval/_guard_scripts/']
+
+[[tool.mypy.overrides]]
+module = ["litellm", "litellm.*", "gigachat", "gigachat.*"]
+follow_imports = "skip"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["evolution.tree"]
+follow_imports = "skip"

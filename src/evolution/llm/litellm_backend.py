@@ -10,6 +10,17 @@ import urllib.request
 from typing import Any
 from urllib.parse import urlparse
 
+from evolution import config
+from evolution.core._util import ms_since
+from evolution.core.models import Skill
+from evolution.llm.backend import LLMResponse, SeedMode
+from evolution.llm.proxy_env import (
+    env_without_proxy_for_local_model,
+    is_local_api_base,
+    without_proxy_for_local_model,
+)
+from evolution.llm.retry import retry_async
+
 _LOCAL_HOSTS = frozenset({"127.0.0.1", "localhost", "0.0.0.0", "::1"})
 
 
@@ -35,14 +46,6 @@ def _bypass_proxy_for_local(api_base: str | None) -> None:
             entries.add(host)
             os.environ[var] = ",".join(sorted(entries))
 
-from evolution.core.models import Skill
-from evolution.llm._retry import retry_async
-from evolution.llm.backend import LLMResponse
-from evolution.llm.proxy_env import (
-    env_without_proxy_for_local_model,
-    is_local_api_base,
-    without_proxy_for_local_model,
-)
 
 __all__ = [
     "LiteLLMBackend",
@@ -135,7 +138,7 @@ def _default_reasoning_controls(model: str) -> dict[str, Any] | None:
 class LiteLLMBackend:
     """Backend using LiteLLM — supports Claude, OpenAI, and 100+ other providers.
 
-    Requires ``pip install evolution[llm]`` (litellm dependency).
+    Requires ``pip install evo-skills[llm]`` (LiteLLM dependency).
 
     Local reasoning models (Qwen3, gpt-oss, …) are served by vLLM/sglang
     with thinking ON, which routes the answer to the reasoning channel and
@@ -147,15 +150,22 @@ class LiteLLMBackend:
     also falls back to ``reasoning_content`` when ``content`` is empty.
     """
 
+    seed_mode: SeedMode = "forwarded"
+
     def __init__(self, model: str = "anthropic/claude-sonnet-4-5-20241022", **kwargs: Any) -> None:
         try:
             import litellm  # noqa: F401
         except ImportError:
             raise ImportError(
-                "LiteLLM is required for this backend. Install with: pip install evolution[llm]"
+                "LiteLLM is required for this backend. Install with: pip install evo-skills[llm]"
             )
         self._model = model
         self._kwargs = kwargs
+        explicit_reasoning_effort = self._kwargs.pop("reasoning_effort", None)
+        if self._kwargs.get("api_key") is None and is_local_api_base(
+            str(self._kwargs.get("api_base") or "")
+        ):
+            self._kwargs["api_key"] = "not-needed"
         # Local endpoints must bypass any corporate HTTP(S)_PROXY (see helper).
         _bypass_proxy_for_local(self._kwargs.get("api_base"))
         # Auto-apply reasoning controls for locally-served reasoning models
@@ -177,15 +187,45 @@ class LiteLLMBackend:
                 self._kwargs["temperature"] = float(env_temp)
             except ValueError:
                 pass
-        # Explicit reasoning-effort env wins over any auto-default above so the
-        # paper pipeline (which sets EVO_LLM_REASONING_EFFORT) is authoritative.
-        env_reff = os.environ.get("EVO_LLM_REASONING_EFFORT")
-        if env_reff:
-            eb = self._kwargs.get("extra_body")
-            if not isinstance(eb, dict):
-                eb = {}
-                self._kwargs["extra_body"] = eb
-            eb["reasoning_effort"] = env_reff
+        # A caller value wins over the legacy environment fallback and the
+        # model-family auto-default above.
+        reasoning_effort = (
+            explicit_reasoning_effort
+            if explicit_reasoning_effort is not None
+            else config.llm_reasoning_effort()
+        )
+        if reasoning_effort:
+            normalized_effort = str(reasoning_effort).lower()
+            model_family = model.lower()
+            if normalized_effort == "off":
+                eb = self._kwargs.get("extra_body")
+                if not isinstance(eb, dict):
+                    eb = {}
+                    self._kwargs["extra_body"] = eb
+                if "qwen3" in model_family:
+                    chat_template = eb.setdefault("chat_template_kwargs", {})
+                    if isinstance(chat_template, dict):
+                        chat_template["enable_thinking"] = False
+                    eb.pop("reasoning_effort", None)
+                elif "gpt-oss" in model_family:
+                    eb["reasoning_effort"] = "low"
+                else:
+                    eb.pop("reasoning_effort", None)
+                    if not eb:
+                        self._kwargs.pop("extra_body", None)
+            elif "qwen3" in model_family:
+                eb = self._kwargs.setdefault("extra_body", {})
+                if isinstance(eb, dict):
+                    chat_template = eb.setdefault("chat_template_kwargs", {})
+                    if isinstance(chat_template, dict):
+                        chat_template["enable_thinking"] = True
+                    eb.pop("reasoning_effort", None)
+            elif "gpt-oss" in model_family:
+                eb = self._kwargs.setdefault("extra_body", {})
+                if isinstance(eb, dict):
+                    eb["reasoning_effort"] = reasoning_effort
+            else:
+                self._kwargs["reasoning_effort"] = reasoning_effort
         env_max = os.environ.get("EVO_LLM_MAX_TOKENS")
         if env_max and "max_tokens" not in self._kwargs:
             try:
@@ -224,16 +264,17 @@ class LiteLLMBackend:
 
         async def _attempt() -> LLMResponse:
             start = time.monotonic()
+            # A spent budget never starts the request, as `wait_for(..., 0)` did.
+            if _call_timeout <= 0:
+                raise TimeoutError
             with without_proxy_for_local_model(ab):
-                response = await asyncio.wait_for(
-                    litellm.acompletion(
+                async with asyncio.timeout(_call_timeout):
+                    response = await litellm.acompletion(
                         model=self._model,
                         messages=call_messages,
                         **call_kwargs,
-                    ),
-                    timeout=_call_timeout,
-                )
-            elapsed_ms = int((time.monotonic() - start) * 1000)
+                    )
+            elapsed_ms = ms_since(start)
 
             choice = response.choices[0]
             content = (choice.message.content or "").strip()
@@ -246,6 +287,7 @@ class LiteLLMBackend:
                 tokens_in=usage.prompt_tokens if usage else 0,
                 tokens_out=usage.completion_tokens if usage else 0,
                 time_ms=elapsed_ms,
+                finish_reason=(getattr(choice, "finish_reason", "") or ""),
             )
 
         return await retry_async(

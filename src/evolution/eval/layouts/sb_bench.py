@@ -22,13 +22,10 @@ import os
 import shutil
 import subprocess
 import time
+import tomllib
 from pathlib import Path
 
-try:
-    import tomllib  # Python 3.11+
-except ImportError:  # pragma: no cover
-    import tomli as tomllib  # type: ignore
-
+from evolution.eval.child_env import minimal_child_env
 from evolution.eval.layouts.base import (
     CollectResult,
     RunResult,
@@ -39,23 +36,8 @@ from evolution.eval.layouts.base import (
     rewrite_tests_if_needed,
 )
 from evolution.eval.layouts.evo import _parse_pytest_summary
-from evolution.eval.python_env import resolve_python_for_role
-
-# Filenames never carried into the safe-copy workspace.
-_COPY_IGNORE = shutil.ignore_patterns(
-    "output",
-    "solution.py",
-    "_solve.py",
-    "__pycache__",
-    "*.pyc",
-    ".pytest_cache",
-    "_solve_output.txt",
-    "_pytest_output.txt",
-)
-
-# data_generator.py uses Path("environment/data") relative to cwd; cap it so a
-# misbehaving generator can't wedge the whole pipeline.
-_DATA_GEN_TIMEOUT_S = float(os.environ.get("EVO_SB_DATA_GEN_TIMEOUT_S", "120") or "120")
+from evolution.eval.proc import run_capture
+from evolution.eval.workspace_guard import isolate_home_env
 
 
 class SbBenchTaskLayout(TaskLayout):
@@ -85,7 +67,7 @@ class SbBenchTaskLayout(TaskLayout):
             # Identity is the directory name (== sb-bench task id), NOT the
             # human-readable [task].name title — every other part of the
             # system addresses tasks by their dir id (role/task_id splits,
-            # the .txt task lists, evo bench --tasks). Mirrors the SkillStore
+            # the .txt task lists, evo run bench run --tasks). Mirrors the SkillStore
             # convention where a skill's identity is its folder, not its
             # frontmatter name. The descriptive title is intentionally
             # dropped; the raw id is preserved in source_task below.
@@ -94,7 +76,9 @@ class SbBenchTaskLayout(TaskLayout):
             role=task_block.get("role"),
             difficulty=task_block.get("difficulty", "medium"),
             category=task_block.get("role") or "",  # sb-bench has no separate category
-            skills_required=list(task_block.get("skills") or []),
+            skills_required=[
+                str(skill).replace("_", "-") for skill in task_block.get("skills") or []
+            ],
             tags=list(task_block.get("tags") or []),
             timeout_sec=float(
                 verify_block.get("timeout_seconds") or task_block.get("timeout_seconds") or 300
@@ -109,65 +93,15 @@ class SbBenchTaskLayout(TaskLayout):
     # ── staging ────────────────────────────────────────────────────────
 
     def stage_workspace(self, task_dir: Path, workspace: Path) -> None:
-        """Copy the entire task tree (sans output/, caches) into the workspace.
+        """Mirror the task tree into ``workspace`` (sans output/, caches).
 
-        sb-bench tasks reference paths like ``environment/data/foo.xlsx``
-        from instruction.md and solve.sh, so the layout cannot afford to
-        flatten files into the workspace root. The workspace mirrors the
-        task tree.
+        sb-bench tasks reference paths like ``environment/data/foo.xlsx`` from
+        instruction.md and solve.sh, so the workspace mirrors the task tree
+        rather than flattening. Delegates to the shared core materializer.
         """
-        if workspace.exists() and workspace.is_dir() and any(workspace.iterdir()):
-            # Fresh-start an existing workspace dir.
-            for child in workspace.iterdir():
-                if child.is_file() or child.is_symlink():
-                    child.unlink()
-                else:
-                    shutil.rmtree(child)
-        workspace.parent.mkdir(parents=True, exist_ok=True)
-        if not workspace.exists():
-            shutil.copytree(task_dir, workspace, ignore=_COPY_IGNORE)
-        else:
-            # ``copytree`` insists the target not exist; we manually copy.
-            for item in task_dir.iterdir():
-                if item.name in {"output", "__pycache__", ".pytest_cache"}:
-                    continue
-                dest = workspace / item.name
-                if item.is_file():
-                    shutil.copy2(item, dest)
-                elif item.is_dir():
-                    shutil.copytree(item, dest)
-        (workspace / "output").mkdir(exist_ok=True)
-        self._regenerate_environment_data(workspace, self.parse_metadata(task_dir).role)
+        from evolution.eval.workspace_materializer import materialize_workspace
 
-    @staticmethod
-    def _regenerate_environment_data(workspace: Path, role: str | None) -> None:
-        """Run ``data_generator.py`` from the workspace if present.
-
-        Tasks like the AFTER benchmark ship raw inputs in ``source_artifacts/``
-        and rebuild ``environment/data/`` at solve time. Pre-populated
-        ``environment/data/`` tasks ship without a generator — that's fine; we
-        only fire when the script exists. The generator runs under the role
-        interpreter (same one ``run_solution``/``run_tests`` use), so generators
-        needing pandas/openpyxl/duckdb stop silently no-op'ing under bare python3.
-        """
-        gen = workspace / "data_generator.py"
-        if not gen.is_file():
-            return
-        if (workspace / "environment" / "data").is_dir() and any(
-            (workspace / "environment" / "data").iterdir()
-        ):
-            return
-        try:
-            subprocess.run(
-                [resolve_python_for_role(role), "data_generator.py"],
-                cwd=str(workspace),
-                capture_output=True,
-                text=True,
-                timeout=_DATA_GEN_TIMEOUT_S,
-                check=False,
-            )
-        except (OSError, subprocess.TimeoutExpired):
-            return
+        materialize_workspace(task_dir, workspace, contract="core")
 
     # ── solution placement + run ───────────────────────────────────────
 
@@ -203,13 +137,14 @@ class SbBenchTaskLayout(TaskLayout):
         patched = solve_sh.read_text(encoding="utf-8").replace("python3", python_exe)
         start = time.time()
         try:
-            proc = subprocess.run(
+            proc = run_capture(
                 ["bash", "-c", patched],
                 cwd=str(workspace),
-                capture_output=True,
                 text=True,
                 timeout=timeout,
-                env=env,
+                env=env
+                if env is not None
+                else isolate_home_env(minimal_child_env(), workspace / "_solve_home"),
             )
             return RunResult(
                 ok=proc.returncode == 0,
@@ -248,25 +183,51 @@ class SbBenchTaskLayout(TaskLayout):
     ) -> TestResult:
         """Run pytest from the workspace with TASK_WORKSPACE set.
 
-        Handles the historical sb-bench convention: tests bake in
+        The authoritative test directory is staged only after the solver has
+        finished, so relative ``Path(__file__)`` roots point at the evaluated
+        workspace while solver-created shadow tests are replaced. Handles the
+        historical sb-bench convention: tests bake in
         ``/root/`` and ``/app/`` prefixes for ground-truth files. If any
         such reference is present, we copy the tests directory into a
         sibling ``_hidden_tests__<workspace_name>/`` and rewrite paths
         there before invoking pytest. The originals are never touched.
         """
         tf = test_file or "tests/test_outputs.py"
-        test_path = workspace / tf
-        if not test_path.exists():
-            # Fall back to the source task dir for the test source. This
-            # mirrors ``runner.run_task`` which reads from ``task.test_path``.
-            test_path = task_dir / tf
-        if not test_path.exists():
-            return TestResult(error=f"Test file not found at {tf}")
+        from evolution.eval.workspace_materializer import (
+            WorkspaceMaterializationError,
+            validated_verifier_source,
+        )
+
+        try:
+            source_test, relative_test = validated_verifier_source(task_dir, tf)
+        except WorkspaceMaterializationError as exc:
+            return TestResult(error=str(exc))
+
+        staged_dir = workspace / relative_test.parent
+        if relative_test.parent == Path("."):
+            test_path = workspace / relative_test.name
+            if test_path.is_symlink() or test_path.is_file():
+                test_path.unlink()
+            shutil.copy2(source_test, test_path)
+        else:
+            workspace_root = workspace.resolve()
+            if not staged_dir.parent.resolve(strict=False).is_relative_to(workspace_root):
+                return TestResult(error=f"Unsafe staged test path: {tf}")
+            if staged_dir.is_symlink() or staged_dir.is_file():
+                staged_dir.unlink()
+            elif staged_dir.exists():
+                shutil.rmtree(staged_dir)
+            staged_dir.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copytree(source_test.parent, staged_dir)
+            test_path = workspace / relative_test
 
         # Shared /root|/app rewrite (same helper EvoTaskLayout uses).
         run_test_path, run_cwd = rewrite_tests_if_needed(test_path, workspace)
 
-        run_env = {**(env or os.environ), "TASK_WORKSPACE": str(workspace)}
+        run_env = {
+            **(env or isolate_home_env(minimal_child_env(), workspace / "_solve_home")),
+            "TASK_WORKSPACE": str(workspace),
+        }
         # Prepend the role python's bin dir so bare ``python3`` resolves there.
         py_bin_dir = os.path.dirname(python_exe)
         if py_bin_dir:
@@ -285,10 +246,9 @@ class SbBenchTaskLayout(TaskLayout):
         ]
         start = time.time()
         try:
-            proc = subprocess.run(
+            proc = run_capture(
                 cmd,
                 cwd=str(run_cwd),
-                capture_output=True,
                 text=True,
                 timeout=timeout,
                 env=run_env,

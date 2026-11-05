@@ -12,15 +12,11 @@ without repeated construction.
 
 from __future__ import annotations
 
-import re
 from pathlib import Path
 
-from evolution.eval.layouts.base import TaskLayout
+from evolution.eval.layouts.base import TaskLayout, read_task_toml
 from evolution.eval.layouts.evo import EvoTaskLayout
 from evolution.eval.layouts.sb_bench import SbBenchTaskLayout
-
-_LAYOUT_KIND_RE = re.compile(r"^\s*kind\s*=\s*\"([A-Za-z0-9_\-]+)\"", re.MULTILINE)
-_LAYOUT_SECTION_RE = re.compile(r"^\[layout\][^\[]*", re.MULTILINE | re.DOTALL)
 
 # Singletons — layouts are stateless.
 _EVO = EvoTaskLayout()
@@ -37,23 +33,25 @@ LAYOUTS: dict[str, TaskLayout] = {
 def detect_layout(task_dir: Path) -> TaskLayout:
     """Return the appropriate layout for ``task_dir``.
 
-    See module docstring for the decision order. Falls back to evo on
-    any ambiguity (current default behavior).
+    See module docstring for the decision order. An explicit layout kind is
+    authoritative; malformed or unknown declarations fail closed.
     """
-    toml_path = task_dir / "task.toml"
-    if toml_path.is_file():
-        try:
-            text = toml_path.read_text(encoding="utf-8")
-        except OSError:
-            text = ""
-        section_match = _LAYOUT_SECTION_RE.search(text)
-        if section_match:
-            kind_match = _LAYOUT_KIND_RE.search(section_match.group(0))
-            if kind_match:
-                kind = kind_match.group(1).lower()
-                if kind in LAYOUTS:
-                    return LAYOUTS[kind]
+    data, _ = read_task_toml(task_dir)
+    layout = data.get("layout")
+    kind = layout.get("kind") if isinstance(layout, dict) else None
+    if kind is None:
+        kind = data.get("kind")
+    if kind is not None:
+        if not isinstance(kind, str) or not kind.strip():
+            raise ValueError(f"{task_dir / 'task.toml'}: layout kind must be a non-empty string")
+        normalized = kind.lower()
+        if normalized not in LAYOUTS:
+            raise ValueError(
+                f"{task_dir / 'task.toml'}: unknown task layout kind {kind!r}; "
+                f"expected one of {sorted(LAYOUTS)}"
+            )
+        return LAYOUTS[normalized]
 
-    if (task_dir / "solve.sh").is_file():
+    if (task_dir / "solve.sh").is_file() and (task_dir / "environment").is_dir():
         return _SB_BENCH
     return _EVO

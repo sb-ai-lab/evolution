@@ -10,9 +10,9 @@ GigaChat. The model id selects the agent:
   - ``hermes`` / ``hermes/<model>``      -> Hermes CLI  (config default model)
   - any bare model name                  -> Codex CLI (back-compat)
 
-The shared subprocess orchestration (temp dir, ``start_new_session`` process
-group, ``asyncio.wait_for`` timeout, ``killpg`` terminate, wall-clock timing)
-lives in :class:`AgentBackend`; only the CLI-specific differences (argv,
+The shared subprocess orchestration (temp dir, bounded output, isolated
+environment, process-group timeout escalation, wall-clock timing) lives in
+:class:`AgentBackend`; only the CLI-specific differences (argv,
 working-directory mechanism, reply extraction, usage parsing) live in a small
 :class:`CliAgent` strategy. Adding a fourth agent is one ``CliAgent`` subclass
 plus one registry entry.
@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import hashlib
 import json
 import os
 import re
@@ -37,18 +38,37 @@ import shlex
 import shutil
 import signal
 import subprocess
+import sys
 import tempfile
 import time
+from collections.abc import Iterator, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
+import yaml
+
+from evolution import config
+from evolution.core._util import ms_since
 from evolution.core.models import Skill
-from evolution.llm.backend import LLMResponse
+from evolution.eval.child_env import minimal_child_env
+from evolution.eval.proc import _BoundedCapture
+from evolution.llm.backend import (
+    LLMResponse,
+    SeedMode,
+    agent_model_label,
+    is_agent_model,
+    require_seed_support,
+)
+from evolution.paths import account_home
 
 
 class AgentBackendError(RuntimeError):
     """Raised when a coding-agent CLI cannot produce a completion."""
+
+    def __init__(self, message: str, *, timed_out: bool = False) -> None:
+        super().__init__(message)
+        self.timed_out = timed_out
 
 
 _ALLOWED_FILE_EDIT_SANDBOXES = frozenset({"workspace-write", "danger-full-access"})
@@ -58,7 +78,7 @@ _ALLOWED_FILE_EDIT_MODES = _ALLOWED_FILE_EDIT_SANDBOXES | {
     _FILE_EDIT_BYPASS,
     "dangerously-bypass-approvals-and-sandbox",
 }
-_BASHRC_PATH = Path(os.environ.get("EVO_BASHRC_PATH", str(Path.home() / "research" / ".bashrc")))
+_BASHRC_PATH = Path(os.environ.get("EVO_BASHRC_PATH", str(account_home() / "research" / ".bashrc")))
 
 # Claude Code built-in tools. Text completions disable edits (empty set); the
 # file-edit path enables file-authoring tools so Claude rewrites SKILL.md in cwd.
@@ -79,13 +99,274 @@ _PROXY_ENV_KEYS = (
     "http_proxy",
     "https_proxy",
     "all_proxy",
+    "NO_PROXY",
+    "no_proxy",
 )
 _PROXY_ENV_AT_IMPORT = {k: os.environ[k] for k in _PROXY_ENV_KEYS if k in os.environ}
+
+_COMMON_AGENT_ENV_KEYS = frozenset(
+    {
+        "HOME",
+        "XDG_CONFIG_HOME",
+        "NODE_EXTRA_CA_CERTS",
+        *_PROXY_ENV_KEYS,
+    }
+)
+_CLI_ENV_KEYS = {
+    "codex": frozenset(
+        {
+            "CODEX_HOME",
+            "OPENAI_API_KEY",
+            "OPENAI_BASE_URL",
+            "OPENAI_ORGANIZATION",
+            "OPENAI_PROJECT",
+        }
+    ),
+    "claude": frozenset(
+        {
+            "ANTHROPIC_API_KEY",
+            "ANTHROPIC_AUTH_TOKEN",
+            "ANTHROPIC_BASE_URL",
+            "CLAUDE_CONFIG_DIR",
+        }
+    ),
+    "hermes": frozenset(
+        {
+            "GIGACHAT_ACCESS_TOKEN",
+            "GIGACHAT_API_KEY",
+            "GIGACHAT_CREDENTIALS",
+            "HERMES_PROVIDER",
+            "OPENAI_API_KEY",
+            "OPENAI_BASE_URL",
+            "OPENROUTER_API_KEY",
+            "OPENROUTER_BASE_URL",
+        }
+    ),
+}
+_MAX_CAPTURE_BYTES = 1024 * 1024
+_PROCESS_TERM_GRACE_SECONDS = 1.0
 
 # Hermes delivers the prompt as the argv value of ``-z`` (not stdin); guard
 # against Linux's per-argument size limit (MAX_ARG_STRLEN, 128 KiB) with a
 # clear error rather than an opaque OSError on spawn.
 _HERMES_ARGV_PROMPT_LIMIT = 120_000
+AgentPermission = Literal["safe", "unsafe"]
+
+_HERMES_CONFIG_SECTIONS = frozenset({"custom_providers", "model", "provider_routing", "providers"})
+_HERMES_SECRET_CONFIG_KEYS = frozenset(
+    {
+        "api_key",
+        "access_token",
+        "authorization",
+        "credentials",
+        "password",
+        "secret",
+        "token",
+    }
+)
+_SAFE_HERMES_PATH = "/usr/local/bin:/usr/bin:/bin"
+_SAFE_HERMES_DROP_ENV = frozenset(
+    {
+        "BASH_ENV",
+        "CONDA_PREFIX",
+        "ENV",
+        "GCONV_PATH",
+        "NODE_OPTIONS",
+        "PERL5OPT",
+        "RUBYOPT",
+        "VIRTUAL_ENV",
+    }
+)
+
+
+def _agent_env(tool: str, permission: AgentPermission) -> dict[str, str]:
+    source = {**os.environ, **_PROXY_ENV_AT_IMPORT}
+    if permission == "unsafe":
+        return source
+    return minimal_child_env(
+        source,
+        allow=_COMMON_AGENT_ENV_KEYS | _CLI_ENV_KEYS.get(tool, frozenset()),
+    )
+
+
+def _is_secret_config_key(key: object) -> bool:
+    normalized = str(key).strip().lower().replace("-", "_")
+    return normalized != "key_env" and any(
+        marker in normalized for marker in _HERMES_SECRET_CONFIG_KEYS
+    )
+
+
+def _without_inline_secrets(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {
+            key: _without_inline_secrets(child)
+            for key, child in value.items()
+            if not _is_secret_config_key(key)
+        }
+    if isinstance(value, list):
+        return [_without_inline_secrets(child) for child in value]
+    return value
+
+
+def _key_env_names(value: Any) -> set[str]:
+    if isinstance(value, dict):
+        names = {
+            child.strip()
+            for key, child in value.items()
+            if str(key).strip().lower() == "key_env" and isinstance(child, str) and child.strip()
+        }
+        for child in value.values():
+            names.update(_key_env_names(child))
+        return names
+    if isinstance(value, list):
+        collected: set[str] = set()
+        for child in value:
+            collected.update(_key_env_names(child))
+        return collected
+    return set()
+
+
+def _hermes_source_home() -> Path:
+    configured = os.environ.get("HERMES_HOME", "").strip()
+    if configured:
+        return Path(configured).expanduser()
+    home = Path(os.environ.get("HOME", str(account_home()))).expanduser()
+    return home / ".hermes"
+
+
+def _copy_safe_hermes_config(destination: Path) -> set[str]:
+    source = _hermes_source_home() / "config.yaml"
+    if not source.is_file():
+        return set()
+    try:
+        loaded = yaml.safe_load(source.read_text(encoding="utf-8")) or {}
+    except (OSError, UnicodeError, yaml.YAMLError) as exc:
+        raise AgentBackendError(f"cannot prepare safe Hermes config: {exc}") from exc
+    if not isinstance(loaded, dict):
+        raise AgentBackendError("cannot prepare safe Hermes config: root must be a mapping")
+    config = _without_inline_secrets(
+        {key: loaded[key] for key in _HERMES_CONFIG_SECTIONS if key in loaded}
+    )
+    destination.write_text(
+        yaml.safe_dump(config, allow_unicode=True, sort_keys=False),
+        encoding="utf-8",
+    )
+    destination.chmod(0o600)
+    return _key_env_names(config)
+
+
+def _safe_hermes_env(run_state: Path, workspace: Path) -> dict[str, str]:
+    hermes_home = run_state / "hermes"
+    isolated_home = run_state / "home"
+    temp_dir = run_state / "tmp"
+    for path in (hermes_home, isolated_home, temp_dir):
+        path.mkdir(parents=True)
+    env = _agent_env("hermes", "safe")
+    for name in _copy_safe_hermes_config(hermes_home / "config.yaml"):
+        if name in os.environ:
+            env[name] = os.environ[name]
+    for name in tuple(env):
+        if name in _SAFE_HERMES_DROP_ENV or name.startswith(("LD_", "PYTHON")):
+            env.pop(name)
+    env.update(
+        {
+            "HERMES_HOME": str(hermes_home),
+            "HOME": str(isolated_home),
+            "XDG_CACHE_HOME": str(run_state / "cache"),
+            "XDG_CONFIG_HOME": str(run_state / "config"),
+            "XDG_DATA_HOME": str(run_state / "data"),
+            "TMPDIR": str(temp_dir),
+            "TEMP": str(temp_dir),
+            "TMP": str(temp_dir),
+            "TERMINAL_CWD": str(workspace),
+            "HERMES_WORKSPACE": str(workspace),
+            "PYTHONDONTWRITEBYTECODE": "1",
+            "PATH": _SAFE_HERMES_PATH,
+        }
+    )
+    return env
+
+
+def _safe_hermes_argv(command: list[str], workspace: Path, run_state: Path) -> list[str]:
+    executable = Path(command[0]).resolve(strict=True)
+    resolved_command = [str(executable), *command[1:]]
+    interpreter_root = Path(sys.executable).resolve(strict=True).parent.parent
+    executable_root = executable.parent.parent
+    read_roots = {interpreter_root}
+    if (executable_root / "pyvenv.cfg").is_file():
+        read_roots.add(executable_root)
+        checkout = executable_root.parent
+        if (checkout / "run_agent.py").is_file() and (checkout / "pyproject.toml").is_file():
+            read_roots.add(checkout)
+    else:
+        read_roots.add(executable.parent)
+    sandbox = Path(__file__).with_name("hermes_sandbox.py")
+    argv = [
+        sys.executable,
+        "-I",
+        str(sandbox),
+        "--workspace",
+        str(workspace),
+        "--state",
+        str(run_state),
+    ]
+    for root in sorted(read_roots, key=str):
+        argv.extend(["--read", str(root)])
+    return [*argv, "--", *resolved_command]
+
+
+@contextlib.contextmanager
+def _safe_hermes_spawn(
+    invocation: AgentInvocation, explicit_env: Mapping[str, str] | None = None
+) -> Iterator[tuple[list[str], dict[str, str]]]:
+    if invocation.cwd is None:
+        raise AgentBackendError("safe Hermes invocation requires a workspace")
+    try:
+        workspace = invocation.cwd.resolve(strict=True)
+    except OSError as exc:
+        raise AgentBackendError(f"cannot confine Hermes workspace: {exc}") from exc
+    with tempfile.TemporaryDirectory(prefix="evo_hermes_state_") as raw_state:
+        run_state = Path(raw_state).resolve()
+        argv = _safe_hermes_argv(invocation.argv, workspace, run_state)
+        if explicit_env is not None:
+            # Explicit env: overlay only the prepared HERMES_HOME onto a copy
+            # of the caller's mapping; every other knob (HOME, PATH, ...) is
+            # the caller's to set, not this backend's.
+            hermes_home = run_state / "hermes"
+            hermes_home.mkdir(parents=True)
+            _copy_safe_hermes_config(hermes_home / "config.yaml")
+            env = dict(explicit_env)
+            env["HERMES_HOME"] = str(hermes_home)
+            yield (argv, env)
+        else:
+            yield (argv, _safe_hermes_env(run_state, workspace))
+
+
+async def _read_bounded(stream: asyncio.StreamReader | None) -> bytes:
+    if stream is None:
+        return b""
+    capture = _BoundedCapture(_MAX_CAPTURE_BYTES)
+    while chunk := await stream.read(64 * 1024):
+        capture.feed(chunk)
+    return capture.value()
+
+
+async def _communicate_bounded(
+    proc: asyncio.subprocess.Process, stdin: bytes | None
+) -> tuple[bytes, bytes]:
+    stdout_task = asyncio.create_task(_read_bounded(proc.stdout))
+    stderr_task = asyncio.create_task(_read_bounded(proc.stderr))
+    if proc.stdin is not None:
+        try:
+            if stdin is not None:
+                proc.stdin.write(stdin)
+                await proc.stdin.drain()
+        except (BrokenPipeError, ConnectionResetError):
+            pass
+        finally:
+            proc.stdin.close()
+    await proc.wait()
+    return await asyncio.gather(stdout_task, stderr_task)
 
 
 def _resolve_file_edit_sandbox() -> str:
@@ -363,6 +644,46 @@ def _tail(text: str, limit: int = 900) -> str:
     return text[-limit:] if len(text) > limit else text
 
 
+def _file_digest(path: Path | None) -> str | None:
+    if path is None or path.is_symlink() or not path.is_file():
+        return None
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _record_required_write(
+    diagnostics: dict[str, Any],
+    required_write: Path | None,
+    before_digest: str | None,
+) -> None:
+    if required_write is None:
+        return
+    after_digest = _file_digest(required_write)
+    if before_digest == after_digest:
+        diagnostics.setdefault("file_changes", [])
+        return
+    kind = "add" if before_digest is None else "delete" if after_digest is None else "update"
+    changes = diagnostics.setdefault("file_changes", [])
+    if not any(
+        isinstance(change, dict)
+        and (
+            Path(str(change.get("path") or "")).resolve()
+            if Path(str(change.get("path") or "")).is_absolute()
+            else (required_write.parent / str(change.get("path") or "")).resolve()
+        )
+        == required_write.resolve()
+        for change in changes
+    ):
+        changes.append(
+            {
+                "path": str(required_write),
+                "kind": kind,
+                "source": "backend_before_after",
+                "before_sha256": before_digest,
+                "after_sha256": after_digest,
+            }
+        )
+
+
 @dataclass(frozen=True)
 class AgentInvocation:
     """One spawn recipe produced by a :class:`CliAgent` for one call.
@@ -406,10 +727,12 @@ class CliAgent:
         agent_bin: str,
         model: str,
         reasoning_effort: str,
+        agent_permission: AgentPermission = "safe",
         sandbox: str,
         prompt: str,
         work: Path,
         out_file: Path,
+        explicit: bool = False,
     ) -> AgentInvocation:
         raise NotImplementedError
 
@@ -419,9 +742,12 @@ class CliAgent:
         agent_bin: str,
         model: str,
         reasoning_effort: str,
+        agent_permission: AgentPermission = "safe",
         prompt: str,
         work_dir: Path,
         out_file: Path,
+        file_edit_sandbox: str | None = None,
+        explicit: bool = False,
     ) -> AgentInvocation:
         raise NotImplementedError
 
@@ -431,10 +757,13 @@ class CliAgent:
         agent_bin: str,
         model: str,
         reasoning_effort: str,
+        agent_permission: AgentPermission = "safe",
         prompt: str,
         work_dir: Path,
         out_file: Path,
         budget_usd: float | None,
+        file_edit_sandbox: str | None = None,
+        explicit: bool = False,
     ) -> AgentInvocation:
         """Multi-turn agentic session in a rich workspace.
 
@@ -445,9 +774,12 @@ class CliAgent:
             agent_bin=agent_bin,
             model=model,
             reasoning_effort=reasoning_effort,
+            agent_permission=agent_permission,
             prompt=prompt,
             work_dir=work_dir,
             out_file=out_file,
+            file_edit_sandbox=file_edit_sandbox,
+            explicit=explicit,
         )
 
     def extract_reply(self, *, stdout: str, stderr: str, out_file: Path | None) -> str:
@@ -478,11 +810,15 @@ class CodexCli(CliAgent):
         agent_bin: str,
         model: str,
         reasoning_effort: str,
+        agent_permission: AgentPermission = "safe",
         sandbox: str,
         prompt: str,
         work: Path,
         out_file: Path,
+        explicit: bool = False,
     ) -> AgentInvocation:
+        if agent_permission == "safe":
+            sandbox = "read-only"
         argv = [
             agent_bin,
             "exec",
@@ -509,11 +845,19 @@ class CodexCli(CliAgent):
         agent_bin: str,
         model: str,
         reasoning_effort: str,
+        agent_permission: AgentPermission = "safe",
         prompt: str,
         work_dir: Path,
         out_file: Path,
+        file_edit_sandbox: str | None = None,
+        explicit: bool = False,
     ) -> AgentInvocation:
-        sandbox = _resolve_file_edit_sandbox()
+        if agent_permission == "safe":
+            sandbox = "workspace-write"
+        elif file_edit_sandbox is not None:
+            sandbox = file_edit_sandbox
+        else:
+            sandbox = _resolve_file_edit_sandbox()
         argv = [
             agent_bin,
             "exec",
@@ -570,9 +914,9 @@ class CodexCli(CliAgent):
 class ClaudeCli(CliAgent):
     """Claude Code CLI: ``claude -p`` scoped by subprocess cwd, JSON reply.
 
-    The sandbox argument is ignored (Claude runs
-    ``--dangerously-skip-permissions``); the reply and usage come from the
-    stdout JSON payload, not a ``-o`` file.
+    The sandbox argument is ignored; safe mode retains Claude's permission
+    checks, while explicit unsafe mode passes ``--dangerously-skip-permissions``.
+    The reply and usage come from the stdout JSON payload, not a ``-o`` file.
     """
 
     tool = "claude"
@@ -580,9 +924,14 @@ class ClaudeCli(CliAgent):
     default_model = "claude-sonnet-4-6"
 
     def _base_argv(
-        self, agent_bin: str, model: str, reasoning_effort: str, tools: str
+        self,
+        agent_bin: str,
+        model: str,
+        reasoning_effort: str,
+        tools: str,
+        agent_permission: AgentPermission = "safe",
     ) -> list[str]:
-        return [
+        argv = [
             agent_bin,
             "-p",
             "--model",
@@ -590,12 +939,18 @@ class ClaudeCli(CliAgent):
             "--effort",
             reasoning_effort,
             "--no-session-persistence",
-            "--dangerously-skip-permissions",
-            "--output-format",
-            "json",
-            "--tools",
-            tools,
         ]
+        if agent_permission == "unsafe":
+            argv.append("--dangerously-skip-permissions")
+        argv.extend(
+            [
+                "--output-format",
+                "json",
+                "--tools",
+                tools,
+            ]
+        )
+        return argv
 
     def text_invocation(
         self,
@@ -603,12 +958,16 @@ class ClaudeCli(CliAgent):
         agent_bin: str,
         model: str,
         reasoning_effort: str,
+        agent_permission: AgentPermission = "safe",
         sandbox: str,
         prompt: str,
         work: Path,
         out_file: Path,
+        explicit: bool = False,
     ) -> AgentInvocation:
-        argv = self._base_argv(agent_bin, model, reasoning_effort, _CLAUDE_NO_TOOLS)
+        argv = self._base_argv(
+            agent_bin, model, reasoning_effort, _CLAUDE_NO_TOOLS, agent_permission
+        )
         return AgentInvocation(argv=argv, stdin=prompt, cwd=work, out_file=None)
 
     def file_edit_invocation(
@@ -617,12 +976,21 @@ class ClaudeCli(CliAgent):
         agent_bin: str,
         model: str,
         reasoning_effort: str,
+        agent_permission: AgentPermission = "safe",
         prompt: str,
         work_dir: Path,
         out_file: Path,
+        file_edit_sandbox: str | None = None,
+        explicit: bool = False,
     ) -> AgentInvocation:
-        argv = self._base_argv(agent_bin, model, reasoning_effort, _CLAUDE_FILE_EDIT_TOOLS)
-        seed = {"sandbox": "claude-skip-permissions"}
+        argv = self._base_argv(
+            agent_bin, model, reasoning_effort, _CLAUDE_FILE_EDIT_TOOLS, agent_permission
+        )
+        seed = {
+            "sandbox": (
+                "claude-skip-permissions" if agent_permission == "unsafe" else "claude-permissions"
+            )
+        }
         return AgentInvocation(
             argv=argv, stdin=prompt, cwd=work_dir, out_file=None, diagnostics_seed=seed
         )
@@ -633,15 +1001,25 @@ class ClaudeCli(CliAgent):
         agent_bin: str,
         model: str,
         reasoning_effort: str,
+        agent_permission: AgentPermission = "safe",
         prompt: str,
         work_dir: Path,
         out_file: Path,
         budget_usd: float | None,
+        file_edit_sandbox: str | None = None,
+        explicit: bool = False,
     ) -> AgentInvocation:
-        argv = self._base_argv(agent_bin, model, reasoning_effort, _CLAUDE_SESSION_TOOLS)
+        argv = self._base_argv(
+            agent_bin, model, reasoning_effort, _CLAUDE_SESSION_TOOLS, agent_permission
+        )
         if budget_usd is not None:
             argv.extend(["--max-budget-usd", str(budget_usd)])
-        seed = {"sandbox": "claude-skip-permissions", "session": True}
+        seed = {
+            "sandbox": (
+                "claude-skip-permissions" if agent_permission == "unsafe" else "claude-permissions"
+            ),
+            "session": True,
+        }
         return AgentInvocation(
             argv=argv, stdin=prompt, cwd=work_dir, out_file=None, diagnostics_seed=seed
         )
@@ -668,16 +1046,24 @@ class HermesCli(CliAgent):
     """Hermes CLI: ``hermes -z "<prompt>"`` one-shot, scoped by subprocess cwd.
 
     The prompt rides in ``argv`` (not stdin); the final assistant text is the
-    process stdout. Approvals are auto-bypassed inside hermes; there is no
-    token telemetry, so usage is empty and ``time_ms`` is wall clock. An empty
-    model falls back to hermes's configured default (``-m`` omitted).
+    process stdout. File-edit calls use only Hermes file tools. Safe calls run
+    behind the shared filesystem sandbox; explicit unsafe calls bypass it.
+    There is no token telemetry, so ``time_ms`` is wall clock. An empty model
+    falls back to Hermes's configured default (``-m`` omitted).
     """
 
     tool = "hermes"
     label_prefix = "hermes"
     default_model = ""
 
-    def _argv(self, agent_bin: str, model: str, prompt: str) -> list[str]:
+    def _argv(
+        self,
+        agent_bin: str,
+        model: str,
+        prompt: str,
+        *,
+        explicit: bool = False,
+    ) -> list[str]:
         if len(prompt.encode("utf-8")) > _HERMES_ARGV_PROMPT_LIMIT:
             raise AgentBackendError(
                 f"hermes prompt is too large for argv delivery "
@@ -686,10 +1072,18 @@ class HermesCli(CliAgent):
         argv = [agent_bin, "-z", prompt]
         if model:
             argv.extend(["-m", model])
-            provider = os.environ.get("HERMES_PROVIDER", "").strip()
-            if provider:
-                argv.extend(["--provider", provider])
+            # Explicit mode: no campaign semantic comes from the environment
+            # (design §3) — the manifest declares the model only.
+            if not explicit:
+                provider = os.environ.get("HERMES_PROVIDER", "").strip()
+                if provider:
+                    argv.extend(["--provider", provider])
         return argv
+
+    def _file_argv(
+        self, agent_bin: str, model: str, prompt: str, *, explicit: bool = False
+    ) -> list[str]:
+        return [*self._argv(agent_bin, model, prompt, explicit=explicit), "-t", "file"]
 
     def text_invocation(
         self,
@@ -697,13 +1091,22 @@ class HermesCli(CliAgent):
         agent_bin: str,
         model: str,
         reasoning_effort: str,
+        agent_permission: AgentPermission = "safe",
         sandbox: str,
         prompt: str,
         work: Path,
         out_file: Path,
+        explicit: bool = False,
     ) -> AgentInvocation:
+        argv = self._argv(agent_bin, model, prompt, explicit=explicit)
+        if agent_permission == "safe":
+            argv.extend(["-t", "file"])
         return AgentInvocation(
-            argv=self._argv(agent_bin, model, prompt), stdin=None, cwd=work, out_file=None
+            argv=argv,
+            stdin=None,
+            cwd=work,
+            out_file=None,
+            diagnostics_seed={"sandbox": "landlock" if agent_permission == "safe" else "none"},
         )
 
     def file_edit_invocation(
@@ -712,12 +1115,51 @@ class HermesCli(CliAgent):
         agent_bin: str,
         model: str,
         reasoning_effort: str,
+        agent_permission: AgentPermission = "safe",
         prompt: str,
         work_dir: Path,
         out_file: Path,
+        file_edit_sandbox: str | None = None,
+        explicit: bool = False,
     ) -> AgentInvocation:
         return AgentInvocation(
-            argv=self._argv(agent_bin, model, prompt), stdin=None, cwd=work_dir, out_file=None
+            argv=self._file_argv(agent_bin, model, prompt, explicit=explicit),
+            stdin=None,
+            cwd=work_dir,
+            out_file=None,
+            diagnostics_seed={
+                "sandbox": "landlock" if agent_permission == "safe" else "none",
+                "toolsets": "file",
+            },
+        )
+
+    def session_invocation(
+        self,
+        *,
+        agent_bin: str,
+        model: str,
+        reasoning_effort: str,
+        agent_permission: AgentPermission = "safe",
+        prompt: str,
+        work_dir: Path,
+        out_file: Path,
+        budget_usd: float | None,
+        file_edit_sandbox: str | None = None,
+        explicit: bool = False,
+    ) -> AgentInvocation:
+        return AgentInvocation(
+            argv=(
+                self._file_argv(agent_bin, model, prompt, explicit=explicit)
+                if agent_permission == "safe"
+                else self._argv(agent_bin, model, prompt, explicit=explicit)
+            ),
+            stdin=None,
+            cwd=work_dir,
+            out_file=None,
+            diagnostics_seed={
+                "sandbox": "landlock" if agent_permission == "safe" else "none",
+                "session": True,
+            },
         )
 
     def extract_reply(self, *, stdout: str, stderr: str, out_file: Path | None) -> str:
@@ -744,6 +1186,33 @@ def _select_cli(model_id: str) -> tuple[CliAgent, str]:
     return _DEFAULT_CLI, _DEFAULT_CLI.normalize_model(model_id)
 
 
+def CURATED_ENV_NAMES(tool: str) -> frozenset[str]:
+    """Environment variable names Evolution curates for one CLI's safe env.
+
+    A caller building an explicit child environment for :class:`AgentBackend`
+    (Task 7's Candidate editor) uses this to know which names matter for
+    ``tool`` (``"codex"``/``"claude"``/``"hermes"``) without depending on the
+    backend's internal safe-env construction.
+    """
+    return _COMMON_AGENT_ENV_KEYS | _CLI_ENV_KEYS.get(tool, frozenset())
+
+
+def agent_tool_for(model: str) -> str:
+    """Return the CLI ``tool`` name (``codex``/``claude``/``hermes``) a model id selects."""
+    cli, _ = _select_cli(model)
+    return cli.tool
+
+
+def reports_tool_turns(model: str) -> bool:
+    """Whether the CLI a model id selects reports turn telemetry.
+
+    ``False`` when the selected :class:`CliAgent` does not override
+    :meth:`CliAgent.tool_turns` (Hermes has no turn telemetry).
+    """
+    cli, _ = _select_cli(model)
+    return type(cli).tool_turns is not CliAgent.tool_turns
+
+
 class AgentBackend:
     """LLMBackend that routes completions through a coding-agent CLI.
 
@@ -754,31 +1223,60 @@ class AgentBackend:
     telemetry contract.
     """
 
+    seed_mode: SeedMode = "unsupported"
+
     def __init__(
         self,
         model: str = "codex/gpt-5.5",
         *,
+        agent_permission: Literal["safe", "unsafe"] = "safe",
         reasoning_effort: str | None = None,
         timeout_s: float | None = None,
         sandbox: str | None = None,
         agent_bin: str | None = None,
+        env: Mapping[str, str] | None = None,
+        explicit: bool = False,
         **_ignored_kwargs: Any,
     ) -> None:
+        if agent_permission not in ("safe", "unsafe"):
+            raise ValueError("agent_permission must be 'safe' or 'unsafe'")
         self._cli, self._model = _select_cli(model)
-        self.model_label = f"{self._cli.label_prefix}/{self._model or 'default'}"
-        self._reasoning_effort = (
-            reasoning_effort
-            or os.environ.get("EVO_CODEX_REASONING_EFFORT")
-            or os.environ.get("EVO_LLM_REASONING_EFFORT")
-            or "xhigh"
+        self.model_label = (
+            agent_model_label(model)
+            if is_agent_model(model)
+            else f"{self._cli.label_prefix}/{self._model or 'default'}"
         )
-        self._timeout_s = float(
-            timeout_s
-            or os.environ.get("EVO_CODEX_TIMEOUT_S")
-            or os.environ.get("EVO_LLM_TIMEOUT_S")
-            or 1800
-        )
-        self._sandbox = sandbox or os.environ.get("EVO_CODEX_SANDBOX") or "read-only"
+        self.agent_permission = agent_permission
+        self._explicit = explicit
+        self._env = env
+        if explicit:
+            # No campaign semantic comes from the environment (design §3): a
+            # knob left ``None`` here takes the constructor's own constant
+            # default and never consults ``os.environ``.
+            self._reasoning_effort = reasoning_effort or "xhigh"
+            self._timeout_s = float(timeout_s or 1800)
+            self._sandbox = "read-only" if agent_permission == "safe" else (sandbox or "read-only")
+        else:
+            self._reasoning_effort = (
+                reasoning_effort
+                or os.environ.get("EVO_CODEX_REASONING_EFFORT")
+                or config.llm_reasoning_effort()
+                or "xhigh"
+            )
+            self._timeout_s = float(
+                timeout_s
+                or os.environ.get("EVO_CODEX_TIMEOUT_S")
+                or os.environ.get("EVO_LLM_TIMEOUT_S")
+                or 1800
+            )
+            self._sandbox = (
+                "read-only"
+                if agent_permission == "safe"
+                else sandbox or os.environ.get("EVO_CODEX_SANDBOX") or "read-only"
+            )
+        # File-edit/session sandbox for an unsafe Codex run: explicit mode
+        # never lets ``EVO_CODEX_FILE_EDIT_SANDBOX`` decide it (design §3).
+        self._file_edit_sandbox: str | None = (sandbox or _FILE_EDIT_BYPASS) if explicit else None
         self._agent_bin = agent_bin
         # Populated after every ``complete``/``complete_file_edit`` call so
         # callers can fold usage into the rewrite-audit JSON (C1 §1.4).
@@ -790,19 +1288,35 @@ class AgentBackend:
         }
         self.last_codex_diagnostics: dict[str, Any] = {}
 
+    def _resolved_agent_bin(self) -> str:
+        """Return the executable to spawn without touching the environment.
+
+        Explicit mode uses ``self._agent_bin`` exactly as given (an absolute
+        path); ``_resolve_agent_bin`` (``<TOOL>_BIN``/``PATH``/bashrc) is not
+        consulted on any call path.
+        """
+        if self._explicit:
+            if not self._agent_bin:
+                raise AgentBackendError(
+                    f"explicit AgentBackend requires agent_bin (tool={self._cli.tool})"
+                )
+            return self._agent_bin
+        return _resolve_agent_bin(self._cli.tool, self._agent_bin)
+
     async def complete(
         self,
         messages: list[dict[str, str]],
         system: str | None = None,
         seed: int | None = None,
     ) -> LLMResponse:
+        require_seed_support(self, seed)
         prompt = _format_agent_prompt(messages, system=system)
         if not prompt:
             raise AgentBackendError(
                 f"empty prompt for AgentBackend.complete (model={self.model_label})"
             )
 
-        agent_bin = _resolve_agent_bin(self._cli.tool, self._agent_bin)
+        agent_bin = self._resolved_agent_bin()
 
         with tempfile.TemporaryDirectory(prefix="evo_agent_") as work:
             out_file = Path(work) / "last_message.txt"
@@ -810,10 +1324,12 @@ class AgentBackend:
                 agent_bin=agent_bin,
                 model=self._model,
                 reasoning_effort=self._reasoning_effort,
+                agent_permission=self.agent_permission,
                 sandbox=self._sandbox,
                 prompt=prompt,
                 work=Path(work),
                 out_file=out_file,
+                explicit=self._explicit,
             )
             timed_out, rc, stdout, stderr, elapsed_ms = await self._run(inv, self._timeout_s)
             combined = f"{stdout}\n{stderr}"
@@ -868,10 +1384,10 @@ class AgentBackend:
         Used by the C1 file-edit rewrite mode. The caller seeds
         ``work_dir/SKILL.md``; this method invokes the agent in that directory
         and **does not** delete ``work_dir`` afterwards — the caller reads the
-        post-exit file. Codex edits via ``-C`` (bypass sandbox by default, as
-        this host's bubblewrap fails); Claude/Hermes edit in ``cwd=work_dir``.
-        Safety comes from the temporary candidate workspace plus the caller's
-        post-run isolation checks.
+        post-exit file. Codex edits via ``-C``; Claude/Hermes edit in
+        ``cwd=work_dir``. Safe Codex runs use ``workspace-write``; historical
+        bypass behavior requires ``agent_permission="unsafe"``. Safe Hermes
+        runs use file-only tools and a kernel-enforced workspace allowlist.
 
         Returns ``LLMResponse(content="", ...)``. ``content`` is empty by
         contract; the caller reads the candidate SKILL.md from disk.
@@ -883,7 +1399,7 @@ class AgentBackend:
         if not self._cli.supports_file_edit:
             raise AgentBackendError(f"{self._cli.tool} does not support file-edit rewrites")
 
-        agent_bin = _resolve_agent_bin(self._cli.tool, self._agent_bin)
+        agent_bin = self._resolved_agent_bin()
 
         work_dir = Path(work_dir)
         if not work_dir.is_dir():
@@ -898,9 +1414,12 @@ class AgentBackend:
                 agent_bin=agent_bin,
                 model=self._model,
                 reasoning_effort=self._reasoning_effort,
+                agent_permission=self.agent_permission,
                 prompt=full_prompt,
                 work_dir=work_dir,
                 out_file=out_file,
+                file_edit_sandbox=self._file_edit_sandbox,
+                explicit=self._explicit,
             )
             timed_out, rc, stdout, stderr, elapsed_ms = await self._run(inv, deadline)
             combined = f"{stdout}\n{stderr}"
@@ -908,7 +1427,8 @@ class AgentBackend:
             if timed_out:
                 raise AgentBackendError(
                     f"{self._cli.tool} file-edit timed out after {deadline:.0f}s "
-                    f"(model={self.model_label}, effort={self._reasoning_effort})"
+                    f"(model={self.model_label}, effort={self._reasoning_effort})",
+                    timed_out=True,
                 )
 
             last_message = self._cli.extract_reply(
@@ -956,6 +1476,7 @@ class AgentBackend:
         *,
         budget_usd: float | None = None,
         timeout_s: float | None = None,
+        required_write: Path | None = None,
     ) -> LLMResponse:
         """Run a multi-turn agentic session in an existing rich workspace.
 
@@ -979,11 +1500,16 @@ class AgentBackend:
         if not self._cli.supports_file_edit:
             raise AgentBackendError(f"{self._cli.tool} does not support agentic sessions")
 
-        agent_bin = _resolve_agent_bin(self._cli.tool, self._agent_bin)
+        agent_bin = self._resolved_agent_bin()
 
         work_dir = Path(work_dir)
         if not work_dir.is_dir():
             raise AgentBackendError(f"work_dir does not exist: {work_dir}")
+        if required_write is not None:
+            required_write = Path(required_write)
+            if not required_write.resolve().is_relative_to(work_dir.resolve()):
+                raise AgentBackendError("required_write must be inside work_dir")
+        before_digest = _file_digest(required_write)
 
         self.last_codex_diagnostics = {}
         full_prompt = f"{system}\n\n{prompt}" if system else prompt
@@ -994,10 +1520,13 @@ class AgentBackend:
                 agent_bin=agent_bin,
                 model=self._model,
                 reasoning_effort=self._reasoning_effort,
+                agent_permission=self.agent_permission,
                 prompt=full_prompt,
                 work_dir=work_dir,
                 out_file=out_file,
                 budget_usd=budget_usd,
+                file_edit_sandbox=self._file_edit_sandbox,
+                explicit=self._explicit,
             )
             timed_out, rc, stdout, stderr, elapsed_ms = await self._run(inv, deadline)
             combined = f"{stdout}\n{stderr}"
@@ -1013,6 +1542,7 @@ class AgentBackend:
             )
             tokens_in, tokens_out, diag = self._cli.parse_usage(stdout=stdout, stderr=stderr)
             diag = dict(diag)
+            _record_required_write(diag, required_write, before_digest)
             diag.update(inv.diagnostics_seed)
             diag.update(
                 {
@@ -1041,32 +1571,69 @@ class AgentBackend:
         """Spawn one invocation in its own process group; return outcome.
 
         Returns ``(timed_out, returncode, stdout, stderr, elapsed_ms)``. On
-        timeout the process group is terminated and ``("", "")`` is returned.
+        timeout the process group is terminated and bounded captured output is returned.
         """
+        if isinstance(self._cli, HermesCli) and self.agent_permission == "safe":
+            with _safe_hermes_spawn(inv, self._env) as (argv, env):
+                return await self._run_process(inv, argv, env, timeout)
+        env = (
+            dict(self._env)
+            if self._env is not None
+            else _agent_env(self._cli.tool, self.agent_permission)
+        )
+        return await self._run_process(inv, inv.argv, env, timeout)
+
+    async def _run_process(
+        self,
+        inv: AgentInvocation,
+        argv: list[str],
+        env: dict[str, str],
+        timeout: float,
+    ) -> tuple[bool, int, str, str, int]:
         start = time.monotonic()
         proc = await asyncio.create_subprocess_exec(
-            *inv.argv,
+            *argv,
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             cwd=str(inv.cwd) if inv.cwd is not None else None,
             start_new_session=True,
-            env={**os.environ, **_PROXY_ENV_AT_IMPORT},
+            env=env,
         )
         stdin_bytes = inv.stdin.encode("utf-8") if inv.stdin is not None else None
+        communicate = asyncio.create_task(_communicate_bounded(proc, stdin_bytes))
         try:
-            stdout_b, stderr_b = await asyncio.wait_for(
-                proc.communicate(stdin_bytes), timeout=timeout
-            )
+            # `asyncio.timeout`, not `wait_for`: on 3.11 `wait_for` drops a stop
+            # that lands as the child finishes (#164).
+            async with asyncio.timeout(timeout):
+                stdout_b, stderr_b = await asyncio.shield(communicate)
         except TimeoutError:
-            self._terminate(proc)
-            with contextlib.suppress(Exception):
-                await asyncio.wait_for(proc.wait(), timeout=5)
-            elapsed_ms = int((time.monotonic() - start) * 1000)
+            await self._terminate(proc)
+            try:
+                async with asyncio.timeout(_PROCESS_TERM_GRACE_SECONDS):
+                    stdout_b, stderr_b = await asyncio.shield(communicate)
+            except TimeoutError:
+                communicate.cancel()
+                with contextlib.suppress(asyncio.CancelledError, Exception):
+                    await communicate
+                stdout_b, stderr_b = b"", b""
+            elapsed_ms = ms_since(start)
             rc = proc.returncode if proc.returncode is not None else -1
-            return True, rc, "", "", elapsed_ms
+            return (
+                True,
+                rc,
+                stdout_b.decode("utf-8", errors="replace"),
+                stderr_b.decode("utf-8", errors="replace"),
+                elapsed_ms,
+            )
+        except asyncio.CancelledError:
+            await self._terminate(proc)
+            communicate.cancel()
+            with contextlib.suppress(asyncio.CancelledError, Exception):
+                await communicate
+            raise
 
-        elapsed_ms = int((time.monotonic() - start) * 1000)
+        elapsed_ms = ms_since(start)
         return (
             False,
             int(proc.returncode or 0),
@@ -1075,16 +1642,23 @@ class AgentBackend:
             elapsed_ms,
         )
 
-    def _terminate(self, proc: asyncio.subprocess.Process) -> None:
-        if proc.returncode is not None:
-            return
+    async def _terminate(self, proc: asyncio.subprocess.Process) -> None:
         try:
             os.killpg(proc.pid, signal.SIGTERM)
-        except Exception:
+        except (ProcessLookupError, PermissionError):
             try:
                 proc.terminate()
             except ProcessLookupError:
-                return
+                pass
+        await asyncio.sleep(_PROCESS_TERM_GRACE_SECONDS)
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except (ProcessLookupError, PermissionError):
+            if proc.returncode is None:
+                with contextlib.suppress(ProcessLookupError):
+                    proc.kill()
+        if proc.returncode is None:
+            await proc.wait()
 
     async def complete_with_skill(
         self,
@@ -1113,10 +1687,13 @@ __all__ = [
     "AgentBackend",
     "AgentBackendError",
     "AgentInvocation",
+    "CURATED_ENV_NAMES",
     "CliAgent",
     "ClaudeCli",
     "CodexCli",
     "HermesCli",
+    "agent_tool_for",
+    "reports_tool_turns",
     "_format_agent_prompt",
     "_normalise_model",
     "_parse_claude_result",

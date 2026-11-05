@@ -1,0 +1,10 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using the metadata from this file."
+title: "Evolution: Trace-driven skill evolution framework for LLM agents"
+type: software
+authors:
+  - name: "Evolution"
+repository-code: "https://github.com/sb-ai-lab/evolution"
+url: "https://github.com/sb-ai-lab/evolution"
+license: "Apache-2.0"
+version: "2.0.0b16"

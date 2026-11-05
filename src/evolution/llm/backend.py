@@ -3,9 +3,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Protocol, runtime_checkable
+from typing import Literal, Protocol, runtime_checkable
 
 from evolution.core.models import Skill
+
+SeedMode = Literal["forwarded", "unsupported"]
+
+_AGENT_MODEL_DEFAULTS = {
+    "codex": "gpt-5.5",
+    "claude-code": "claude-sonnet-4-6",
+    "hermes": "",
+}
 
 
 @dataclass
@@ -16,6 +24,7 @@ class LLMResponse:
     tokens_in: int = 0
     tokens_out: int = 0
     time_ms: int = 0
+    finish_reason: str = ""
 
     @property
     def total_tokens(self) -> int:
@@ -25,6 +34,8 @@ class LLMResponse:
 @runtime_checkable
 class LLMBackend(Protocol):
     """Protocol that all LLM backends must implement."""
+
+    seed_mode: SeedMode
 
     async def complete(
         self,
@@ -56,6 +67,39 @@ class LLMBackend(Protocol):
         ...
 
 
+def is_agent_model(name: str) -> bool:
+    """Return whether ``name`` selects a supported coding-agent CLI."""
+    prefix, _, _ = name.partition("/")
+    return prefix in _AGENT_MODEL_DEFAULTS
+
+
+def agent_model_label(name: str) -> str:
+    """Return the stable label for an agent model without starting its CLI."""
+    if not is_agent_model(name):
+        raise ValueError(f"not an agent model: {name!r}")
+    prefix, _, requested_model = name.partition("/")
+    model = requested_model or _AGENT_MODEL_DEFAULTS[prefix] or "default"
+    return f"{prefix}/{model}"
+
+
+def model_seed_mode(name: str) -> SeedMode:
+    """Return seed handling for a model routed by :func:`get_backend`."""
+    if is_agent_model(name) or name.startswith("gigachat"):
+        return "unsupported"
+    return "forwarded"
+
+
+def require_seed_support(
+    backend: object,
+    seed: int | None,
+    *,
+    label: str | None = None,
+) -> None:
+    """Reject seeded calls unless a backend explicitly forwards the seed."""
+    if seed is not None and getattr(backend, "seed_mode", "unsupported") != "forwarded":
+        raise ValueError(f"{label or type(backend).__name__} does not support seeded completions")
+
+
 def get_backend(name: str, **kwargs) -> LLMBackend:
     """Factory: resolve a backend name to an instance.
 
@@ -72,20 +116,19 @@ def get_backend(name: str, **kwargs) -> LLMBackend:
       - 'hermes' / 'hermes/<MODEL>' -> AgentBackend using `hermes -z`
       - any other string -> LiteLLMBackend with that model name
     """
+    agent_permission = kwargs.pop("agent_permission", "safe")
+    if agent_permission not in ("safe", "unsafe"):
+        raise ValueError("agent_permission must be 'safe' or 'unsafe'")
+
     if name == "mock":
         from evolution.llm.mock_backend import MockBackend
 
         return MockBackend(**kwargs)
 
-    if (
-        name in ("codex", "claude-code", "hermes")
-        or name.startswith("codex/")
-        or name.startswith("claude-code/")
-        or name.startswith("hermes/")
-    ):
+    if is_agent_model(name):
         from evolution.llm.agent_backend import AgentBackend
 
-        return AgentBackend(model=name, **kwargs)
+        return AgentBackend(model=name, agent_permission=agent_permission, **kwargs)
 
     # Litellm-style routing: `gigachat/<MODEL>` -> GigaChatBackend with <MODEL>.
     # The SDK is case-sensitive on model names, so we pass the suffix verbatim.

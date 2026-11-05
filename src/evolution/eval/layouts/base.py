@@ -10,11 +10,28 @@ instead of branching inline on file presence.
 from __future__ import annotations
 
 import shutil
+import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Protocol
 
 from evolution.eval.evidence import produced_paths
+
+
+class TaskTomlError(ValueError):
+    """Raised when a task.toml cannot be read as a TOML document."""
+
+
+def read_task_toml(task_dir: Path) -> tuple[dict, str]:
+    """Read and parse ``task.toml`` with a path-specific error."""
+    path = Path(task_dir) / "task.toml"
+    try:
+        text = path.read_text(encoding="utf-8")
+        return tomllib.loads(text), text
+    except tomllib.TOMLDecodeError as exc:
+        raise TaskTomlError(f"{path}: invalid TOML: {exc}") from exc
+    except OSError as exc:
+        raise TaskTomlError(f"{path}: cannot read TOML: {exc}") from exc
 
 
 @dataclass
@@ -31,15 +48,15 @@ class TaskMetadata:
     """Raw instruction text (after any layout-internal path rewriting)."""
 
     role: str | None = None
-    """sb-bench role (de / ds / genai / infra / pm / swe). None for evo tasks."""
+    """sb-bench role (de / ds / genai / infra / pm / swe). None for Evolution-native tasks."""
 
     difficulty: str = "medium"
 
     category: str = ""
 
     skills_required: list[str] = field(default_factory=list)
-    """Skill names the task asks for. evo: ``[skills].required``;
-    sb-bench: ``[task].skills``."""
+    """Skill names the task asks for. Evolution-native tasks use
+    ``[skills].required``; SB-Bench and AFTER tasks use ``[task].skills``."""
 
     tags: list[str] = field(default_factory=list)
 
@@ -191,8 +208,8 @@ class TaskLayout(Protocol):
     """The methods a layout must provide to drive one task end-to-end.
 
     Implementations are stateless and cheap to instantiate; the eval
-    pipeline keeps one instance per `Task`. See module docstring + the
-    plan document at ``plans/layout_abstraction.md`` for the contract.
+    pipeline keeps one instance per `Task`. The module docstring describes
+    the shared contract.
     """
 
     name: str

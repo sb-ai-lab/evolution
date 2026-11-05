@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from evolution.core.models import Skill
-from evolution.llm.backend import LLMResponse
+from evolution.llm.backend import LLMResponse, SeedMode
 
 
 class MockBackend:
@@ -17,6 +17,8 @@ class MockBackend:
         # If responses exhausted, returns default_response.
     """
 
+    seed_mode: SeedMode = "forwarded"
+
     def __init__(
         self,
         responses: list[str] | None = None,
@@ -24,8 +26,8 @@ class MockBackend:
         **_ignored_kwargs: Any,
     ) -> None:
         # Accept and ignore backend kwargs (max_tokens, api_base, api_key, ...)
-        # that get_backend forwards, mirroring CodexBackend — so `-m mock`
-        # works on every code path (e.g. `evo solve`) without a TypeError.
+        # that get_backend forwards, mirroring agent backends — so `-m mock`
+        # works on every code path (e.g. `evo run solve`) without a TypeError.
         self._responses = list(responses or [])
         self._default = default_response
         self.calls: list[dict] = []  # record of all calls for assertion
@@ -41,9 +43,7 @@ class MockBackend:
         system: str | None = None,
         seed: int | None = None,
     ) -> LLMResponse:
-        self.calls.append(
-            {"messages": messages, "system": system, "skill": None, "seed": seed}
-        )
+        self.calls.append({"messages": messages, "system": system, "skill": None, "seed": seed})
         return LLMResponse(
             content=self._next_response(),
             tokens_in=100,

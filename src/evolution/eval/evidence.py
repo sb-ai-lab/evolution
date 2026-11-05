@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import os
 import re
 from pathlib import Path
 from typing import Any
 
+from evolution import config
 from evolution.eval.artifact_shape import shape_for
+
+logger = logging.getLogger(__name__)
 
 ARTIFACT_MAX_FILES = int(os.environ.get("EVO_TRACE_ARTIFACT_MAX_FILES", "80") or "80")
 
@@ -26,7 +30,7 @@ _SCAFFOLD_NAMES = {
 _SCAFFOLD_PREFIXES = (
     "_",
 )  # any underscore-prefixed path part: _prompt.md, _solve.py, _workspace_guard_bin/
-# C1 rewrite-audit sidecar (``<row_id>_rewrite_audit.json``) and codex debug
+# Rewrite-audit sidecars (``<row_id>_rewrite_audit.json``) and editor debug
 # candidates (under ``c1_candidates/``) must never leak into produced_artifacts,
 # or their structured payloads end up in the next-round leakage corpus.
 # Memory ``feedback_audit_files_must_not_feed_evidence``.
@@ -73,9 +77,11 @@ def snapshot_workspace(workspace: Path) -> dict[str, str]:
                 continue
             try:
                 snap[str(p.relative_to(workspace))] = _sha256_file(p)
-            except Exception:
+            except Exception as exc:
+                logger.warning("snapshot_workspace: failed to hash %s: %s", p, exc)
                 continue
-    except Exception:
+    except Exception as exc:
+        logger.warning("snapshot_workspace: scan failed for %s: %s", workspace, exc)
         return snap
     return snap
 
@@ -114,13 +120,15 @@ def _produced_manifest(workspace: Path, pre: dict[str, str]) -> list[dict[str, A
                 continue
             try:
                 rel = str(p.relative_to(workspace))
-            except Exception:
+            except Exception as exc:
+                logger.warning("produced_manifest: relpath failed for %s: %s", p, exc)
                 continue
             if _is_scaffold_or_forbidden(rel):
                 continue
             try:
                 digest = _sha256_file(p)
-            except Exception:
+            except Exception as exc:
+                logger.warning("produced_manifest: failed to hash %s: %s", p, exc)
                 continue
             if pre.get(rel) == digest:
                 continue  # unchanged pre-existing input
@@ -137,6 +145,7 @@ def _produced_manifest(workspace: Path, pre: dict[str, str]) -> list[dict[str, A
             )
         return out
     except Exception as exc:  # pragma: no cover - defensive
+        logger.warning("produced_manifest: manifest build failed for %s: %s", workspace, exc)
         return f"(unavailable: artifact manifest failed: {type(exc).__name__})"
 
 
@@ -157,25 +166,30 @@ def produced_paths(workspace: Path, pre: dict[str, str]) -> list[str]:
                 continue
             try:
                 rel = str(p.relative_to(workspace))
-            except Exception:
+            except Exception as exc:
+                logger.warning("produced_paths: relpath failed for %s: %s", p, exc)
                 continue
             if _is_scaffold_or_forbidden(rel):
                 continue
             try:
                 digest = _sha256_file(p)
-            except Exception:
+            except Exception as exc:
+                logger.warning("produced_paths: failed to hash %s: %s", p, exc)
                 continue
             if pre.get(rel) == digest:
                 continue
             if digest in pre_hashes:
                 continue
             out.append(rel)
-    except Exception:
+    except Exception as exc:
+        logger.warning("produced_paths: scan failed for %s: %s", workspace, exc)
         return out
     return out
 
 
 SCHEMA = "evolution-trace-evidence-v5"
+TRAIN_EVIDENCE_SCHEMA = "train-evidence-v1"
+TRAIN_EVIDENCE_SCOPES = frozenset({"train", "collect"})
 
 FEEDBACK_TAIL_CHARS = int(os.environ.get("EVO_FEEDBACK_TAIL_CHARS", "2000") or "2000")
 
@@ -206,7 +220,7 @@ def sanitize_feedback(text: str | None, limit: int = FEEDBACK_TAIL_CHARS) -> str
 
     Never emits pytest node ids, FAILED/ERROR lines, assertion-introspection
     (``E assert/where/+/-``), diff lines, long quoted strings, >=4-digit
-    numbers, or absolute paths. Policy detail in CLAUDE.md.
+    numbers, or absolute paths.
     """
     if not text:
         return ""
@@ -239,6 +253,7 @@ def _produced_outputs(
         try:
             shape = shape_for(Path(workspace) / rel)
         except Exception as exc:  # pragma: no cover - defensive
+            logger.warning("produced_outputs: shape_for failed for %s: %s", rel, exc)
             shape = {"parse_ok": False, "error": type(exc).__name__}
         out.append({"path": rel, "suffix": entry.get("suffix", ""), "shape": shape})
     return out
@@ -294,7 +309,7 @@ def _failure_categories(
 
 def _oracle_visible(phase: str | None, manifest_scope: str | None) -> bool:
     """Gate for capturing oracle_evidence into the packet (rev H1)."""
-    if os.environ.get("EVO_REFLECT_BLIND") == "1":
+    if config.reflect_blind():
         return False
     if (phase or "") in _NEVER_ORACLE_PHASES:
         return False
@@ -303,6 +318,30 @@ def _oracle_visible(phase: str | None, manifest_scope: str | None) -> bool:
     if manifest_scope is not None and manifest_scope != "skill_evolution":
         return False
     return True
+
+
+def build_train_evidence_packet(records: list[dict[str, Any]]) -> dict[str, Any]:
+    """Build a strict train-only evidence packet.
+
+    The packet deliberately requires an explicit record scope. Validation,
+    test, promotion-gate, and cross-role records fail before an editor call.
+    """
+    accepted: list[dict[str, Any]] = []
+    for index, record in enumerate(records):
+        if not isinstance(record, dict):
+            raise ValueError(f"train evidence record {index} must be an object")
+        scope = record.get("scope")
+        if scope not in TRAIN_EVIDENCE_SCOPES:
+            raise ValueError(
+                f"train evidence record {index} has invalid scope {scope!r}; "
+                "expected explicit 'train' or 'collect'"
+            )
+        accepted.append(dict(record))
+    return {
+        "schema": TRAIN_EVIDENCE_SCHEMA,
+        "scope": "train",
+        "records": accepted,
+    }
 
 
 def _head_tail(text: str, limit: int) -> str:
@@ -329,10 +368,12 @@ def _capture_tests_source(task_dir: Path | None, test_file: str) -> str:
         for f in files:
             try:
                 parts.append(f"# {f.name}\n{f.read_text(encoding='utf-8')}")
-            except OSError:
+            except OSError as exc:
+                logger.warning("capture_tests_source: read failed for %s: %s", f, exc)
                 continue
         return _head_tail("\n\n".join(parts), REFLECT_TESTS_CHARS)
-    except Exception:
+    except Exception as exc:
+        logger.warning("capture_tests_source: failed for task_dir=%s: %s", task_dir, exc)
         return ""
 
 
@@ -353,7 +394,8 @@ def _capture_source_artifacts(task_dir: Path | None) -> list[dict[str, Any]]:
                 continue
             try:
                 rel = str(p.relative_to(root))
-            except Exception:
+            except Exception as exc:
+                logger.warning("capture_source_artifacts: relpath failed for %s: %s", p, exc)
                 continue
             entry: dict[str, Any] = {
                 "path": rel,
@@ -363,11 +405,12 @@ def _capture_source_artifacts(task_dir: Path | None) -> list[dict[str, Any]]:
             if p.suffix.lower() in _TEXT_ARTIFACT_SUFFIXES:
                 try:
                     entry["content"] = p.read_text(encoding="utf-8")[:REFLECT_SRC_ARTIFACTS_CHARS]
-                except OSError:
-                    pass
+                except OSError as exc:
+                    logger.warning("capture_source_artifacts: read failed for %s: %s", p, exc)
             out.append(entry)
         return out
-    except Exception:
+    except Exception as exc:
+        logger.warning("capture_source_artifacts: failed for task_dir=%s: %s", task_dir, exc)
         return []
 
 
@@ -399,6 +442,7 @@ def build_evidence(
     task_dir: Path | None = None,
     test_file: str = "tests/test_outputs.py",
     manifest_scope: str | None = None,
+    evidence_policy: str | None = None,
 ) -> dict[str, Any]:
     """Assemble the v5 evidence packet on every exit path. Never raises.
 
@@ -440,7 +484,26 @@ def build_evidence(
             "timeout": bool(solve_timeout),
         }
     failure_evidence.update(_required_outputs_summary(required_outputs, manifest))
-    if _oracle_visible((trace_context or {}).get("phase"), manifest_scope):
+    if evidence_policy == TRAIN_EVIDENCE_SCHEMA:
+        phase = (trace_context or {}).get("phase")
+        scope = "collect" if phase == "collect" else phase
+        packet = build_train_evidence_packet(
+            [
+                {
+                    "scope": scope,
+                    "agent_solve": dict(
+                        failure_evidence=dict(failure_evidence),
+                        diagnostic={
+                            "exit_code": solve_exit_code,
+                            "timeout": bool(solve_timeout),
+                        },
+                    ),
+                    "produced_artifacts": manifest,
+                }
+            ]
+        )
+        failure_evidence["train_evidence"] = packet
+    elif _oracle_visible((trace_context or {}).get("phase"), manifest_scope):
         failure_evidence["oracle_evidence"] = {
             "tests_source": _capture_tests_source(task_dir, test_file),
             "source_artifacts": _capture_source_artifacts(task_dir),
@@ -473,8 +536,8 @@ def attach_verifier_result(
 
     When the packet carries an ``oracle_evidence`` sub-dict (gate was open at
     build time) the raw failed-test list and unsanitized pytest tail are folded
-    in here — the reflector is allowed to see them; the leak scanner is what
-    keeps them out of the rewritten skill.
+    in here: the reflector is allowed to see train evidence. Held-out evidence
+    remains outside this packet.
     """
     try:
         fe = evidence.get("failure_evidence")
@@ -506,9 +569,24 @@ def attach_verifier_result(
             "total": int(total or 0),
             "verification_category": cat,
         }
+        packet = fe.get("train_evidence")
+        if isinstance(packet, dict) and isinstance(packet.get("records"), list):
+            for record in packet["records"]:
+                if not isinstance(record, dict):
+                    continue
+                record["verifier_result"] = dict(fe["verifier_result"])
+                nested_solve = record.get("agent_solve")
+                nested_failure = (
+                    nested_solve.get("failure_evidence") if isinstance(nested_solve, dict) else None
+                )
+                if isinstance(nested_failure, dict):
+                    nested_failure["verifier_result"] = dict(fe["verifier_result"])
+                if pytest_stdout:
+                    record["verifier_output"] = str(pytest_stdout)
         if cat == "produced_but_failed_verification":
             cats = fe.setdefault("failure_categories", [])
             if "produced_but_failed_verification" not in cats:
                 cats.append("produced_but_failed_verification")
-    except Exception:
+    except Exception as exc:
+        logger.warning("attach_verifier_result: fold failed: %s", exc)
         return
