@@ -46,8 +46,9 @@ import shutil
 import subprocess
 import sys
 import time
+import tomllib
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 _EVO_SRC = Path(__file__).parent.parent / "src"
@@ -55,12 +56,6 @@ if _EVO_SRC.is_dir() and str(_EVO_SRC) not in sys.path:
     sys.path.insert(0, str(_EVO_SRC))
 
 from evolution.core.store import SkillStore  # noqa: E402
-
-try:
-    import tomllib  # Python 3.11+
-except ImportError:
-    import tomli as tomllib  # type: ignore
-
 
 # ── constants ───────────────────────────────────────────────────────────────
 
@@ -128,7 +123,7 @@ def _read_task_toml(task_dir: Path) -> dict:
 
 def _default_workdir(role: str, task_id: str) -> Path:
     """`runs/<UTC-timestamp>/<role>/<task_id>/`, anchored at this script's dir."""
-    ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    ts = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     return Path(__file__).resolve().parent / "runs" / ts / role / task_id
 
 
@@ -318,7 +313,7 @@ def prepare_task(
         "skills_deprecated": [str(p) for p in deprecated_paths],
         "timeout_sec": timeout_sec,
         "role_python": ROLE_PYTHON_MAP[role],
-        "prepared_at": datetime.now(timezone.utc).isoformat(),
+        "prepared_at": datetime.now(UTC).isoformat(),
     }
     (workdir / "_prep_manifest.json").write_text(json.dumps(manifest, indent=2))
 
@@ -331,21 +326,6 @@ def prepare_task(
         deprecated_skill_dirs=deprecated_paths,
         timeout_sec=timeout_sec,
     )
-
-
-def clean_task_outputs(workdir: Path) -> None:
-    """Wipe ``output/`` and any stale ``solution.py`` before a new attempt."""
-    workdir = Path(workdir)
-    out_dir = workdir / "output"
-    if out_dir.is_dir():
-        for child in out_dir.iterdir():
-            if child.is_file() or child.is_symlink():
-                child.unlink()
-            else:
-                shutil.rmtree(child)
-    sol = workdir / "solution.py"
-    if sol.is_file():
-        sol.unlink()
 
 
 def run_solve(
