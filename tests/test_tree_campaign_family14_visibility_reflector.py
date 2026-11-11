@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import tempfile
 from dataclasses import replace
 from pathlib import Path, PurePosixPath
 
@@ -374,6 +375,9 @@ def test_every_admissible_target_path_is_visible(writable, path, readable):
 async def test_a_reflector_that_changes_its_projection_fails_projection_changed(
     tmp_path, monkeypatch, action
 ):
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    monkeypatch.setattr(tempfile, "tempdir", str(scratch))
     editor_listing = _arrange(tmp_path, monkeypatch)
     script, reflector_listing = _reflector(tmp_path, action)
     run, snapshot = await family14_run(
@@ -385,8 +389,7 @@ async def test_a_reflector_that_changes_its_projection_fails_projection_changed(
     # The published Parent is untouched, and the private copy is gone.
     for champion in (run / "artifacts" / "champions").iterdir():
         assert (champion / "prompts" / "system.md").read_bytes() == b"system prompt\n"
-    reflections = run / ".reflections"
-    assert not reflections.exists() or not any(reflections.iterdir())
+    assert list(scratch.glob("evo-tree-editor-*")) == []
 
 
 async def test_the_reflectors_own_control_subtree_is_exempt(tmp_path, monkeypatch):

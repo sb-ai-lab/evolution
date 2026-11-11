@@ -203,7 +203,7 @@ Reflection reads eligible failing traces. Rewrite produces a checked candidate; 
 
 ## Tree Service Commands
 
-The `evo tree` surface has six commands: `conformance` checks an operator-started Target Service; `evolve` runs or resumes a campaign; `authorize` records acceptance of eligible campaign refusal findings; `evaluate` measures a frozen tree on train or test; `trace` exports one provenance record per try of a finished or in-flight run; and `watch` follows a run read only. Start the target first; Evolution never starts it.
+The `evo tree` surface has six commands: [conformance](#evo-tree-conformance) checks an operator-started Target Service; [evolve](#evo-tree-evolve) runs or resumes a campaign; [authorize](#evo-tree-authorize) records acceptance of eligible campaign refusal findings; [evaluate](#measure-a-tree-on-train-or-test) measures a frozen tree on train or test; [trace](#evo-tree-trace) exports one provenance record per try; and [watch](#evo-tree-watch) follows a run read only. Start the target first; Evolution never starts it.
 
 ```bash
 evo tree conformance --manifest ./demo/manifest.json
@@ -453,78 +453,7 @@ The `decision` is `continue`, `rejected`, `finalist` or `insufficient_evidence`,
 
 `would_pass_point` is what the point values would have decided. It is `null` in `statistical` and when the calibration is unavailable. An `observe` Attempt closed before any look was evaluated (`no_evaluable_pairs`) has `evaluated: []` and no method caveat. None of these values changes a decision, because decisions are taken on the published values.
 
-A current round carries a `final` list, not `cohort`; see the [complete current example](#final-measurement-reports-family-14). The following historical cohort example and its key descriptions are retained only to explain older linked evidence when read with `2.0.0b9`; they are not current output or instructions to open a removed-family run:
-
-```json
-{
-  "condition_changed_in_place": false,
-  "contrasts": [
-    {
-      "attempt_id": "r01-a01",
-      "condition_changed_in_place": false,
-      "eligible": true,
-      "level": 0.9,
-      "lower": 0.28875,
-      "pairing": "exact",
-      "point": 0.32625000000000004,
-      "reason": "global_off",
-      "unavailable": null
-    }
-  ],
-  "global": "off",
-  "listed": [],
-  "members": [
-    {
-      "attempt_id": null,
-      "complete": true,
-      "critical": false,
-      "measurement_id": "m-r01-cohort-champion",
-      "missing": 0,
-      "point": 0.5175,
-      "role": "champion"
-    },
-    {
-      "attempt_id": "r01-a01",
-      "complete": true,
-      "critical": false,
-      "measurement_id": "m-r01-cohort-a01",
-      "missing": 0,
-      "point": 0.84375,
-      "role": "finalist"
-    }
-  ],
-  "mode": "statistical",
-  "next_baseline_measurement_id": "m-r01-cohort-a01",
-  "selection": {
-    "attempt_id": "r01-a01",
-    "measurement_id": "m-r01-cohort-a01",
-    "reason": "finalist_selected"
-  }
-}
-```
-
-The keys of `cohort` are:
-
-- `mode` and `global`: the gate mode and the `global` setting the cohort ran under.
-- `members`: the current member ids, the Champion first. A member re-bound after an accepted `continue` is named `<id>@e<k>`. Each member has `role` (`champion` or `finalist`), `attempt_id` (`null` for the Champion), and `complete`, `point`, `missing` and `critical` from its completed measurement. All four are `null` while the member is unfinished. A finalist left incomplete by a non-infrastructure cause is reported with `complete: false`, `point: null` and `missing` above 0.
-- `contrasts`: one for each finalist whose comparison record is written, incomplete finalists included. It has `point` (finalist minus Champion), `lower`, `level`, `pairing` (`exact` or `unpaired`), `eligible` and `reason`. In `observe`, `lower` and `level` are `null` and `unavailable` is `bound_not_requested_in_observe_mode`. An incomplete finalist has `unavailable: cohort_incomplete`. The reasons are `global_off`, `global_point_improved`, `global_bound_positive`, `critical_failure`, `cohort_incomplete`, `global_point_not_improved` and `global_bound_not_positive`.
-- `selection`: `null` until the round selects, then `reason`, `attempt_id` (`null` when the Champion is retained) and `measurement_id`. The reasons are `finalist_selected`, `no_eligible_finalist`, `global_point_not_improved` and `global_bound_not_positive`. A round without finalists has no cohort, so it has no selection to report here.
-- `next_baseline_measurement_id`: the measurement that becomes the next round's baseline. It is set when the round closed `promoted` or `retained`.
-- `listed`: the rows of the round's latest `cohort_incomplete` listing, each with `measurement_id`, `case_id`, `sample_id`, `retry_ordinal` and `owner`. It stays in the report after a repair has finished the cohort. Its measurement ids are the ids as they were at the listing: after a `continue` re-binds members to `@e<k>`, the listed ids are the earlier ones, not those in `members`. It holds at most the first 256 rows; the total count is on the `suspended:` line that `evo tree evolve` prints to stderr. It is `[]` when the round never suspended.
-- `condition_changed_in_place`: `true` when an accepted `continue` of this round came after the cohort was bound. Each contrast carries its own flag, `true` when that `continue` came before the contrast.
-
-After a promotion or a retention, `final_champion.measurement_complete` is `true`, because the new baseline is a complete cohort member. A round without finalists keeps the previous baseline's value.
-
-A `retained` round continues the visitation cycle. It advances visitation like any other closed round and carries the cases it visited by case id, so the next round does not start over.
-
-The top-level `caveats` list gains seven method kinds, each with the keys `kind`, `round` and `attempt_id`: `intervals_empirical`, `noise_allowance_empirical`, `causal_parent_not_contemporaneous`, `observe_gate_not_enforced`, `uncalibrated_point_estimates`, `observe_calibration_degenerate` and `noise_allowance_unavailable`. They come after the family-12 kinds, in that order, with one item for each kind found in the Attempt's evaluated looks. A campaign that ran `observe` also lists `observe_gate_not_enforced` and `uncalibrated_point_estimates` once for the whole campaign, with `round: null` and `attempt_id: null`, before every other family-13 item. These two campaign items do not depend on any Attempt: they appear even when every round closed `unplanned`, or when a linked run opened no Attempt. A `statistical` campaign has no campaign items. The family-12 kinds keep their keys, with these differences:
-
-- `focus_selection_bias` appears for each measured Attempt of a round whose policy has `fresh_parent: false`, whatever `global` is.
-- `completion_regression` is never reported, because the cohort measures every finalist over the whole corpus.
-- `provenance_drift` has the keys `kind`, `round`, `attempt_id`, `measurement_id` and `cases`. It appears for a finalist of a round with a cohort only when there are cases to list, and only under `reported` provenance with a recorded list of changed parts. Here `measurement_id` is the finalist's current cohort member id. `cases` lists the corpus cases outside the Attempt's measured set (F and C) whose cohort rows used a part the Attempt changed.
-- `components_changed_by_condition` draws an Attempt's `sides` from `candidate`, `parent` and `cohort_finalist`, in that order. The Champion's cohort member has its own item with `attempt_id: null` and `sides: ["cohort_champion"]`, after every Attempt item of its round.
-
-None of them changes a statistic, a decision or an exit code.
+Current rounds carry `final`, not the historical `cohort` report; see the [current fields and example](#final-measurement-reports-family-14). Read removed-family evidence with `2.0.0b9` and its matching CLI documentation.
 
 #### Final-measurement reports (family 14)
 
@@ -607,10 +536,11 @@ An entry has `mode`, `global`, `members`, `contrasts`, `selection`, `next_baseli
 - `ordinal`: the entry's place in the round's list, from 1. It is the `KK` of its member ids, `m-rNN-final-KK-aMM`.
 - `stability`: `stable` or `unstable`, as the final measurement was bound. `champion_side` is then `stored` or `fresh`.
 - `stored_measurement_id`: under `stable`, the stored Champion measurement every contrast of the entry reads, which is the round's baseline; `null` under `unstable`.
-- `members`: under `unstable` the Champion member comes first, `m-rNN-final-KK-champion`; under `stable` there is none.
+- `members`: current measurement ids with `role` (`champion` or `finalist`) and `attempt_id` (`null` for the Champion). Under `unstable` the Champion comes first, `m-rNN-final-KK-champion`; under `stable` there is none. Until a member's completion is recorded, `complete`, `point`, `missing` and `critical` are `null`. A completed member has its score, missing-pair count and critical-failure flag; an incomplete finalist has `complete: false`, `point: null` and `missing` above zero. Rebound ids end in `@e<k>`.
 - `contrasts`: each has `attempt_id`, `point`, `lower`, `level`, `pairing`, `accepted`, `reason`, `unavailable`, `exact`, `removed_pairs`, `removed_cases` and `condition_changed_in_place`. Reasons are `global_off`, `global_point_improved`, `global_bound_positive`, `critical_failure`, `final_incomplete`, `global_point_not_improved` or `global_bound_not_positive`. The two removal counts are `0` for a fresh comparison. `unavailable` is `null`, `bound_not_requested_in_observe_mode`, `final_incomplete` or `insufficient_repeats`.
 - `selection`: shown on the round's last entry only, once the round selects. The reasons are `finalist_selected`, `no_accepted_finalist`, `global_point_not_improved` and `global_bound_not_positive`.
-- `listed`: the rows of the latest `final_incomplete` listing that belong to this entry's members.
+- `next_baseline_measurement_id`: the selected measurement once the round closes `promoted` or `retained`; otherwise `null`. Later scheduled refreshes appear in `settings.baseline_refresh.performed`.
+- `listed`: rows of the round's latest `final_incomplete` listing whose measurement ids match this entry's current members. Each has `measurement_id`, `case_id`, `sample_id`, `retry_ordinal` and `owner`. The suspension lists at most 256 rows; stderr gives the total count. The listing stays after repair and is `[]` when no matching rows were listed.
 - `condition_changed_in_place`: true when an accepted `continue` came after binding, or, under `stable`, when the finalist was measured in another condition epoch than the stored measurement.
 
 Three top-level blocks are added:
@@ -629,7 +559,7 @@ Three top-level blocks are added:
 
 The `status` document's `actions` list names the final-measurement steps `RunFinalStage`, `BindFinalMember` and `CompleteFinalMember` where a family-13 status names `RunCohortStage`, `BindCohortMember` and `CompleteCohortMember`.
 
-The top-level `caveats` list uses family 13's kinds with these changes:
+The top-level `caveats` list includes the [shared method caveats](running-campaigns.md#shared-method-caveats-in-15), with these additional fields and kinds:
 
 - `champion_not_contemporaneous`, `{kind, round: null, attempt_id: null}`, is listed once for the whole campaign when it ran `stable`, after the two `observe` campaign items.
 - `exact_contrast`, `{kind, round, attempt_id}`, appears for an Attempt whose look or final contrast was exact.

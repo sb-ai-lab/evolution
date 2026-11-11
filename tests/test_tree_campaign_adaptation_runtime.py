@@ -40,7 +40,7 @@ def test_recover_editor_workspace_refuses_wrong_parent_and_published_attempt(tmp
 @pytest.mark.parametrize(
     "failure_errno, error_code", [(5, "io_failure"), (28, "storage_capacity_exhausted")]
 )
-@pytest.mark.parametrize("boundary", ["stage_copy", "fsync_tree"])
+@pytest.mark.parametrize("boundary", ["stage_copy", "fsync_directory"])
 def test_editor_workspace_recovery_maps_storage_errors(
     tmp_path, monkeypatch, failure_errno, error_code, boundary
 ):

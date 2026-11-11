@@ -204,6 +204,7 @@ EXPECTED_V16: Final[Mapping[str, str]] = MappingProxyType(
     {
         **EXPECTED_V15,
         "evaluation.repeats_per_question": "expected an integer >= 1, at least 2 in statistical mode or with measured_noise; 1 is recommended for point mode",
+        "evaluation.focus_repeats_per_question": "expected an integer greater than repeats_per_question, only with gate.mode 'point' and gate.fresh_parent true; optional, absent means repeats_per_question",
         "baseline_refresh_after_rounds": "expected an integer >= 0; 0 is recommended",
         "gate": "expected mode, stability, focus, causal, provenance, fresh_parent, global, execution_noise and verification; stages is optional; confidence also requires statistics and permits optional bound_fallback",
         "gate.mode": "expected exactly 'point', 'confidence', 'unfiltered' or 'statistical'; 'point' is recommended",

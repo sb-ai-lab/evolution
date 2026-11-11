@@ -72,6 +72,7 @@ from evolution.tree.execution.journal_identity import (
     effective_scorer_identity,
     scorer_binding,
 )
+from evolution.tree.gate_scope import DEFAULT_MIN_CLAIM_CASES
 from evolution.tree.storage.envelope import is_identifier
 
 if TYPE_CHECKING:
@@ -1062,7 +1063,12 @@ class AdaptationIdentityV1:
 
     @staticmethod
     def _validate_selection(value: Any) -> None:
-        data = _closed(value, "focus_cases representatives_per_case context_page_size")
+        fields = "focus_cases representatives_per_case context_page_size"
+        if isinstance(value, Mapping) and "min_claim_cases" in value:
+            fields += " min_claim_cases"
+        data = _closed(value, fields)
+        if "min_claim_cases" in data:
+            _positive(data["min_claim_cases"])
         if not (type(data["focus_cases"]) is int and 1 <= data["focus_cases"] <= 64):
             raise IdentityError("invalid_identity_integer")
         if not (
@@ -1157,6 +1163,10 @@ class AdaptationIdentityV1:
 
         pairs = self.to_payload().get("family_membership", [])
         return MappingProxyType({case_id: family for case_id, family in pairs})
+
+    @property
+    def min_claim_cases(self) -> int:
+        return int(self.to_payload()["selection"].get("min_claim_cases", DEFAULT_MIN_CLAIM_CASES))
 
     @property
     def provenance_labels(self) -> Mapping[str, tuple[str, ...]]:
@@ -1529,6 +1539,20 @@ def observe_case_repeats(
     ):
         return None
     return [[index, 2] for index in sorted(causal)]
+
+
+def focus_case_repeats(policy: CampaignPolicyV11, focus: Sequence[int]) -> list[list[int]] | None:
+    """b18: the `/16` Candidate's and fresh Parent's focus cases at R_focus.
+
+    `evaluation.focus_repeats_per_question` schedules each focus case repeats
+    `1..R_focus`; causal cases keep `repeats_per_question`. Absent, or with an
+    empty focus, the measurement keeps today's identity.
+    """
+
+    count = getattr(policy, "focus_repeats_per_question", None)
+    if count is None or not focus:
+        return None
+    return [[index, count] for index in sorted(focus)]
 
 
 def case_subset_for(identity: CampaignIdentityV1, case_ids: Iterable[str]) -> tuple[int, ...]:

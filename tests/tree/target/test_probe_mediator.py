@@ -471,7 +471,7 @@ async def test_sealed_helpers_wait_for_long_and_queued_calls_under_operation_dea
     from evolution.tree.roles.reflection_role_helpers import install_probe_helper
     from evolution.tree.roles.reflector_contracts import ProbeAccess
 
-    with ProbeHTTPServer(delay=0.2) as target:
+    with ProbeHTTPServer(delay=1.0) as target:
         events: list[dict[str, object]] = []
         owner = session(
             tmp_path,
@@ -488,14 +488,14 @@ async def test_sealed_helpers_wait_for_long_and_queued_calls_under_operation_dea
             deadline_at=time.monotonic() + 1200,
         )
         # Accelerate only the real client's socket timeout: its old 60-second
-        # cutoff becomes 0.1 s, below both the active call and queued completion.
-        # The 1200-second campaign budget becomes 2 s. Actual HTTP/queueing and
+        # cutoff becomes 0.5 s, still below the 1 s active call and queued completion.
+        # The 1200-second campaign budget becomes 10 s. Actual HTTP/queueing and
         # sealed launcher execution remain real, without a 90-second test.
         runner = tmp_path / "accelerated_socket.py"
         runner.write_text("""import runpy, sys, urllib.request
 original = urllib.request.OpenerDirector.open
 def accelerated(self, request, data=None, timeout=None):
-    return original(self, request, data=data, timeout=timeout / 600)
+    return original(self, request, data=data, timeout=timeout / 120)
 urllib.request.OpenerDirector.open = accelerated
 sys.argv = sys.argv[1:]
 runpy.run_path(sys.argv[0], run_name="__main__")
@@ -515,7 +515,7 @@ runpy.run_path(sys.argv[0], run_name="__main__")
                     )
                 )
             replies = await asyncio.wait_for(
-                asyncio.gather(*(p.communicate() for p in processes)), 5
+                asyncio.gather(*(p.communicate() for p in processes)), 15
             )
             results = [json.loads(stdout) for stdout, _stderr in replies]
             assert all(result.get("status") == 200 for result in results), results

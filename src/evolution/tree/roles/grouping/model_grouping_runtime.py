@@ -137,11 +137,18 @@ class ModelGroupingOutcome:
     initial map requests sent, the reduce state (``none``, ``done``,
     ``skipped`` or ``invalid``), provider attempts across every logical
     request, and protocol-repair requests.
+
+    ``full_descriptions`` (family 15 only, ADR-0057): the whole label and
+    description of every model group whose descriptions-map entry the fit
+    trimmed or dropped, keyed by the group number the admitted result uses.
+    The campaign journals each as a full-description record before
+    `grouping_finished`; an empty mapping journals none.
     """
 
     grouped: AdmittedGrouping
     fallback: FallbackOutcome | None
     calls: dict[str, Any]
+    full_descriptions: Mapping[int, Mapping[str, str]] = dataclasses.field(default_factory=dict)
 
 
 def split_prompt(prompt: str) -> tuple[str, str]:
@@ -658,6 +665,7 @@ def admit_model_groups(
     log: AttemptLog,
     calls: dict[str, Any],
     describe_fields: bool = False,
+    family15: bool = False,
 ) -> ModelGroupingOutcome:
     """Admit the model's groups, or the fallback that replaces them.
 
@@ -673,6 +681,10 @@ def admit_model_groups(
     groups cover none of ``failing`` is recorded as scope ``all``, since no
     admitted model group covers a failing observation. Families 9-13 pass
     ``False`` and keep their outcome.
+
+    ``family15`` (a `/16` run, ADR-0057) projects each model group's
+    description whole, trims with the family-15 trimmed form and admits
+    descriptions up to `FAMILY15_DESCRIPTION_CHARS`.
     """
 
     for group in groups:
@@ -693,6 +705,11 @@ def admit_model_groups(
     predicates: tuple[tuple[str, Callable[[str], bool]], ...] = (("oracle_leak", oracle_needle),)
     if describe_fields:
         predicates += (("secret_detected", forbidden_secret),)
+    full: dict[int, Mapping[str, str]] = {}
+
+    def collect(mapping: Mapping[int, Mapping[str, str]]) -> None:
+        full.update(mapping)
+
     try:
         grouped, outcome = project(
             registry,
@@ -704,6 +721,8 @@ def admit_model_groups(
             on_trim=lambda counts: log.record({"phase": "grouping_trimmed", **counts}),
             describe_fields=describe_fields,
             fields_screens=(oracle_needle, forbidden_secret),
+            family15=family15,
+            on_full_descriptions=collect if family15 else None,
         )
     except ValueError:
         if fallback is not None and fallback[0] == "all":
@@ -718,8 +737,10 @@ def admit_model_groups(
             forbidden_string_predicates=predicates,
             describe_fields=describe_fields,
             fields_screens=(oracle_needle, forbidden_secret),
+            family15=family15,
+            on_full_descriptions=collect if family15 else None,
         )
-    return ModelGroupingOutcome(grouped, outcome, calls)
+    return ModelGroupingOutcome(grouped, outcome, calls, full)
 
 
 async def run_model_grouping(

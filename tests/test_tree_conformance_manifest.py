@@ -475,3 +475,10 @@ def test_builder_inventory_keeps_workflow_boundary(tmp_path):
         ("seed_root", "./seed", "manifest_dir", base / "seed"),
         ("artifacts.dependency_paths[0]", "uv.lock", "seed_root", base / "seed" / "uv.lock"),
     ]
+
+
+@pytest.mark.parametrize("document", [[1], None, "x", [("seed_root", "a")]])
+def test_builder_rejects_a_non_mapping_document(tmp_path, document):
+    with pytest.raises(ManifestError) as caught:
+        tree.conformance_manifest(document, base=prepare_base(tmp_path))
+    assert (caught.value.code, caught.value.detail) == ("bad_type", "$")

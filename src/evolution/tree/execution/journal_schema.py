@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import hashlib
 import re
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from math import isfinite
 from typing import Any
 
@@ -17,6 +18,7 @@ from evolution.tree.storage.envelope import (
     _integer,
     _keys,
     _require,
+    secret_match,
 )
 
 SCHEMA_VERSION = 1
@@ -59,6 +61,53 @@ def components_digest(components: Mapping[str, Any]) -> str:
     from evolution.tree.execution.journal_identity import canonical_json
 
     return hashlib.sha256(canonical_json(components)).hexdigest()
+
+
+def screen_components(
+    components: Mapping[str, Any], secrets: Sequence[str]
+) -> tuple[dict[str, Any], int]:
+    """Omit component IDs containing a run secret, counting each entry once."""
+
+    screened = {
+        key: value
+        for key, value in components.items()
+        if secret_match({key: None}, secrets) is None
+    }
+    return screened, len(components) - len(screened)
+
+
+def declaration_digest(components: Mapping[str, Any], withheld: int) -> str:
+    """Bind withheld counts while preserving declarations of unscreened maps."""
+
+    if withheld == 0:
+        return components_digest(components)
+    from evolution.tree.execution.journal_identity import canonical_json
+
+    return hashlib.sha256(
+        canonical_json({"components": components, "components_withheld": withheld})
+    ).hexdigest()
+
+
+@dataclass(frozen=True)
+class PublishedMap:
+    """A screened component declaration and its persisted identity."""
+
+    components: dict[str, Any]
+    withheld: int
+    digest: str
+
+    def payload(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {"components_digest": self.digest, "components": self.components}
+        if self.withheld > 0:
+            payload["components_withheld"] = self.withheld
+        return payload
+
+
+def publish_components(components: Mapping[str, Any], secrets: Sequence[str]) -> PublishedMap:
+    """Screen a map before computing the declaration digest and payload."""
+
+    screened, withheld = screen_components(components, secrets)
+    return PublishedMap(screened, withheld, declaration_digest(screened, withheld))
 
 
 #: The keys a family-12 row may carry about what ran it.
@@ -148,14 +197,19 @@ def _validate_payload(event: str, p: dict[str, Any]) -> None:
     if event == "components_declared":
         from evolution.tree.execution.wire_v2 import validate_instance_components
 
-        _keys(p, {"components_digest", "components"})
+        _keys(p, {"components_digest", "components"}, {"components_withheld"})
         # `{}` is a declared (empty) map, distinct from declaring none.
         _require(isinstance(p["components"], dict))
         try:
             validate_instance_components(p["components"])
         except (ValueError, TypeError):
             _require(False)
-        _require(p["components_digest"] == components_digest(p["components"]))
+        if "components_withheld" in p:
+            _integer(p["components_withheld"], minimum=1)
+        _require(
+            p["components_digest"]
+            == declaration_digest(p["components"], p.get("components_withheld", 0))
+        )
         return
     if event == "operation_interrupted":
         _keys(p, {"operation"})

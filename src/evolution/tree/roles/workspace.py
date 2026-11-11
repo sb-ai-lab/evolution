@@ -452,9 +452,9 @@ def project(
     """Admit, capture and privately copy one Candidate for an actor to edit.
 
     `tmp_root` places the private projection under a caller-chosen directory
-    (`TemporaryDirectory(dir=tmp_root)`) instead of the platform default; a
-    Reflector's read-only projection (/11) wants this to keep every
-    private copy of one run under the run directory.
+    (`TemporaryDirectory(dir=tmp_root)`) instead of the platform default. The
+    campaign passes none, so the Reflector's and the Editors' projections both
+    use the default temporary directory (`TMPDIR`, else `/tmp`).
 
     `visible` (family 14, F0 R64) makes the projection sparse: only
     `visible_capture(capture, visible)` is materialized. The capture itself

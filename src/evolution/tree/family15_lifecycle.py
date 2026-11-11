@@ -103,16 +103,50 @@ class Family15Lifecycle:
             self.groupings[p["grouping_id"]] = Family15Grouping(
                 p["grouping_id"], p["round"], p["baseline_binding"], p["policy_digest"]
             )
+        elif event == "grouping_full_description":
+            p = envelope.payload
+            grouping = self.groupings[p["grouping_id"]]
+            self.groupings[p["grouping_id"]] = replace(
+                grouping,
+                descriptions={**grouping.descriptions, p["group"]: record},
+            )
         elif event in ("grouping_finished", "grouping_failed"):
             p = envelope.payload
             grouping = self.groupings[p["grouping_id"]]
             self.groupings[p["grouping_id"]] = (
-                replace(grouping, status="finished")
+                replace(
+                    grouping,
+                    status="finished",
+                    full_descriptions_digest=p.get("full_descriptions_digest"),
+                )
                 if event == "grouping_finished"
                 else replace(
                     grouping, status="failed", code=p["code"], error_class=p.get("error_class")
                 )
             )
+
+    def full_description(self, p: Mapping[str, Any], record: Family15Record) -> Callable[[], None]:
+        """A full-description record (ADR-0057): it names the started grouping,
+        and one group of one grouping is recorded at most once.
+
+        The record is only a copy of a description the model formed: the
+        grouping's admitted result is `grouping_finished`'s, and a record
+        whose grouping never finished is ignored on resume. `remember` keeps
+        it on its grouping.
+        """
+
+        grouping_id = p["grouping_id"]
+        grouping = self.groupings.get(grouping_id)
+        _durable_reference._refuse(
+            grouping is not None and grouping.status == "started",
+            "a full-description record names no started grouping",
+        )
+        assert grouping is not None
+        _durable_reference._refuse(
+            p["group"] not in grouping.descriptions,
+            "a group's full description is recorded once",
+        )
+        return lambda: None
 
     def checkpoint(
         self, event: str, p: Mapping[str, Any], record: Family15Record
@@ -305,6 +339,33 @@ class Family15Lifecycle:
     def rule(
         self, event: str, p: dict[str, Any], op: str | None, seq: int, envelope: Envelope
     ) -> Callable[[], None] | None:
+        if event == "grouping_finished":
+            grouping = self.groupings.get(p["grouping_id"])
+            _durable_reference._refuse(
+                grouping is not None and grouping.status == "started",
+                "full descriptions name no started grouping",
+            )
+            assert grouping is not None
+            entries = [
+                {
+                    "group": number,
+                    "label": r.payload["label"],
+                    "description": r.payload["description"],
+                }
+                for number, r in sorted(grouping.descriptions.items())
+            ]
+            expected = hashlib.sha256(canonical_json(entries)).hexdigest() if entries else None
+            _durable_reference._refuse(
+                p.get("full_descriptions_digest") == expected,
+                "full descriptions differ from the terminal binding",
+            )
+            used = set(p["result"]["assignments"])
+            _durable_reference._refuse(
+                all(entry["group"] in used for entry in entries),
+                "full description names no assigned group",
+            )
+        if event == "grouping_full_description":
+            return self.full_description(p, self.record(envelope))
         if event in GROUPING_CHECKPOINTS:
             return self.checkpoint(event, p, self.record(envelope))
         if event == "check_shadowed":

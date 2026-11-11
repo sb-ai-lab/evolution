@@ -21,7 +21,7 @@ from evolution.tree.artifacts.artifact_errors import (
     ArtifactUnsafeError,
 )
 from evolution.tree.artifacts.artifact_ledger import inspect_ledger
-from evolution.tree.artifacts.artifact_policy import ArtifactPolicyV1
+from evolution.tree.artifacts.artifact_policy import ArtifactPolicyV1, scan_tree
 from evolution.tree.artifacts.artifacts import ArtifactStore, SelectionDecision
 from evolution.tree.execution.candidate_integrity import ArtifactError
 from tests.tree.artifacts.test_artifact_policy import seed, write
@@ -529,3 +529,89 @@ def test_a_stopped_store_closes_open_operations_and_repairs_nothing_else(tmp_pat
     with resume(run) as store:  # repeated recovery appends nothing
         assert len(events(store)) == after
         assert store.last_recovery.actions == ()
+
+
+# -- B3: per-attempt workspace copies are not fsynced ---------------------------
+
+
+def _tear(workspace):
+    """Simulate lost page cache: truncate one file, zero another."""
+    files = sorted(p for p in workspace.rglob("*") if p.is_file())
+    assert len(files) >= 2
+    files[0].write_bytes(b"")
+    files[1].write_bytes(b"\0" * max(1, files[1].stat().st_size))
+
+
+def test_workspace_copies_are_not_fsynced(tmp_path, monkeypatch):
+    from evolution.tree.artifacts import artifact_copy
+
+    tree_calls, dir_calls = [], []
+    real_tree, real_dir = artifact_copy.fsync_tree, module.fsync_directory
+    monkeypatch.setattr(
+        artifact_copy, "fsync_tree", lambda root: (tree_calls.append(root), real_tree(root))[1]
+    )
+    if hasattr(module, "fsync_tree"):  # a re-export must be spied on as well
+        monkeypatch.setattr(
+            module, "fsync_tree", lambda root: (tree_calls.append(root), real_tree(root))[1]
+        )
+    monkeypatch.setattr(
+        module, "fsync_directory", lambda path: (dir_calls.append(path), real_dir(path))[1]
+    )
+    run, src = tmp_path / "run", seed(tmp_path)
+    with create(run, src) as store:
+        parent = store.champion()
+        tree_calls.clear()
+        dir_calls.clear()
+        workspace = store.materialize_candidate("a1")
+        assert tree_calls == []
+        assert dir_calls == [workspace.parent]
+        dir_calls.clear()
+        store.restore_candidate_workspace(
+            "a1", parent_id=parent.artifact_id, parent_digest=parent.digest
+        )
+        assert tree_calls == []
+        assert dir_calls == [workspace.parent]
+        write(workspace, "skills/SKILL.md", b"better")
+        store.seal("a1")
+        assert tree_calls, "publication still fsyncs the published tree"
+
+
+def test_torn_ready_workspace_is_restored_from_parent(tmp_path):
+    run, _ = crash(tmp_path, "workspace:after_workspace_ready")
+    _tear(workspace_of(run))
+    with ArtifactStore.resume(
+        run, POLICY, version_resolver=VR, recover_editor_workspaces=frozenset({"a1"})
+    ) as store:
+        # Kept for an Editor that re-runs: no recovery action, still ready.
+        assert store.ledger.state.workspaces["a1"] == "ready"
+        assert store.last_recovery.actions == ()
+        assert store.last_recovery.removed_workspaces == ()
+        parent = store.champion()
+        restored = store.restore_candidate_workspace(
+            "a1", parent_id=parent.artifact_id, parent_digest=parent.digest
+        )
+        scan = scan_tree(restored, POLICY)
+        assert (scan.candidate_digest, scan.dependency_digest) == (
+            parent.digest,
+            parent.dependency_digest,
+        )
+        assert store.ledger.state.workspaces["a1"] == "ready"
+
+
+def test_torn_ready_workspace_is_abandoned_at_recovery(tmp_path):
+    run, _ = crash(tmp_path, "workspace:after_workspace_ready")
+    _tear(workspace_of(run))
+    with resume(run) as store:
+        assert records(store)[-1].payload["reason"] == "unsealed_at_recovery"
+        assert not workspace_of(run).exists()
+
+
+def test_torn_sealing_workspace_is_never_published(tmp_path):
+    run, _ = crash(tmp_path, "seal:after_started")
+    _tear(workspace_of(run))
+    with resume(run) as store:
+        assert events(store)[-2:] == ["operation_interrupted", "candidate_abandoned"]
+        assert records(store)[-1].payload["reason"] == "seal_not_published"
+        assert store.last_recovery.actions == ("abandoned_seal_not_published",)
+        assert not (run / "artifacts/candidates/a1").exists()
+        assert not workspace_of(run).exists()

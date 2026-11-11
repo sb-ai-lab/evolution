@@ -128,7 +128,8 @@ def layer_one(selection: AffectedSelection, exam: Sequence[str]) -> tuple[str, .
 
 
 def parent_mode(
-    baseline: Mapping[str, Sequence[SampleProvenance]], known: Mapping[str, Mapping[str, Any]]
+    baseline: Mapping[str, Sequence[SampleProvenance]],
+    known: Mapping[str, tuple[Mapping[str, Any], int]],
 ) -> tuple[str, str | None, str | None]:
     """The mode the baseline rows indicate: `(mode, parent digest, fallback)` (§4.4)."""
 
@@ -146,6 +147,8 @@ def parent_mode(
     assert digest is not None
     if digest not in known:
         return "component", digest, "components_unavailable"
+    if known[digest][1] > 0:
+        return "component", digest, "components_withheld"
     return "component", digest, None
 
 
@@ -199,11 +202,12 @@ def select_affected(
     kind: str,
     corpus_ids: Sequence[str],
     baseline: Mapping[str, Sequence[SampleProvenance]],
-    known: Mapping[str, Mapping[str, Any]],
+    known: Mapping[str, tuple[Mapping[str, Any], int]],
     changes: TreeChanges,
     labels: Mapping[str, Sequence[str]],
     candidate_map: Mapping[str, Any] | None,
     inspection_failed: bool,
+    candidate_withheld: int = 0,
 ) -> AffectedSelection:
     """The affected cases of one Attempt (G2 spec §4.3, §4.4); see the plan's precedence."""
 
@@ -219,7 +223,13 @@ def select_affected(
     assert digest is not None
     return _bounded(
         _by_components(
-            corpus_ids, baseline, changes, known[digest], candidate_map, inspection_failed
+            corpus_ids,
+            baseline,
+            changes,
+            known[digest][0],
+            candidate_map,
+            inspection_failed,
+            candidate_withheld,
         ),
         corpus_ids,
     )
@@ -269,6 +279,7 @@ def _by_components(
     parent_map: Mapping[str, Any],
     candidate_map: Mapping[str, Any] | None,
     inspection_failed: bool,
+    candidate_withheld: int,
 ) -> AffectedSelection:
     """Component mode (§4.3, §4.4): a declared identifier wins over the path reading.
 
@@ -292,6 +303,8 @@ def _by_components(
     }
     changed_files = set(changes.changed)
     parts = tuple(sorted(changed_components | changed_files))
+    if candidate_withheld > 0:
+        return _all_cases("component", parts, corpus_ids, "components_withheld")
     if set(parent_map) != set(candidate_map):
         return _all_cases("component", parts, corpus_ids, "component_added_or_removed")
     sources = {
@@ -364,9 +377,12 @@ def baseline_provenance(records: Sequence[Any]) -> dict[str, tuple[SampleProvena
     return {case_id: tuple(samples) for case_id, samples in rows.items()}
 
 
-def _declared(records: Sequence[Any]) -> dict[str, Mapping[str, Any]]:
+def _declared(records: Sequence[Any]) -> dict[str, tuple[Mapping[str, Any], int]]:
     return {
-        str(record.payload["components_digest"]): record.payload["components"]
+        str(record.payload["components_digest"]): (
+            record.payload["components"],
+            record.payload.get("components_withheld", 0),
+        )
         for record in records
         if record.event == "components_declared"
     }
@@ -377,15 +393,15 @@ def known_maps(
     baseline: Mapping[str, Sequence[SampleProvenance]],
     run_id: str,
     source_records: Callable[[str], Sequence[Any] | None],
-) -> dict[str, Mapping[str, Any]]:
-    """The maps journaled in this run that the baseline's rows can name (§4.4).
+) -> dict[str, tuple[Mapping[str, Any], int]]:
+    """The `(components, withheld)` declarations the baseline's rows can name (§4.4).
 
     The baseline's own declarations, and for imported rows those of the source
     measurement when it is a measurement of this run. A map that only another
     run journaled is not known here: `components_unavailable`.
     """
 
-    known: dict[str, Mapping[str, Any]] = {}
+    known: dict[str, tuple[Mapping[str, Any], int]] = {}
     for _measurement_id, records in _declaring_sources(
         "", baseline_records, baseline, run_id, source_records
     ):
@@ -501,7 +517,7 @@ def baseline_inputs(
     baseline_records: Sequence[Any],
     run_id: str,
     source_records: Callable[[str], Sequence[Any] | None],
-) -> tuple[dict[str, tuple[SampleProvenance, ...]], dict[str, Mapping[str, Any]]]:
+) -> tuple[dict[str, tuple[SampleProvenance, ...]], dict[str, tuple[Mapping[str, Any], int]]]:
     """The baseline half of a selection's inputs: `(baseline, known)` (§4.4).
 
     The one reading the campaign and the audit both call, each with its own

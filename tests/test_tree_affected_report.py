@@ -573,3 +573,51 @@ def test_grouping_fallback_reasons_follow_the_family():
     assert family9_only
     for reason in family9_only:
         _refused14([_fallback(reason)], model_grouping=True, confidence=True, final=True)
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("family", [15, 16])
+@pytest.mark.parametrize("side", ["parent", "candidate"])
+async def test_audit_rederives_withheld_selection(tmp_path, monkeypatch, family, side):
+    from evolution.tree.campaign_projections import _check_affected_cases_selected
+    from tests.test_tree_b18_secret_components import _withheld_selection_run
+
+    context, selected = await _withheld_selection_run(tmp_path, monkeypatch, family, side)
+    _check_affected_cases_selected(context, selected)
+    from evolution.tree.campaign_projections import verify_evidence
+
+    assert verify_evidence(context.run_root)["mismatches"] == []
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("family", [15, 16])
+@pytest.mark.parametrize("side", ["parent", "candidate"])
+async def test_audit_refuses_subset_with_withheld_map(tmp_path, monkeypatch, family, side):
+    from dataclasses import replace
+
+    from evolution.tree.campaign_projections import (
+        _check_affected_cases_selected,
+        _PreconditionFailed,
+    )
+    from evolution.tree.campaign_schema import campaign_family_for
+    from evolution.tree.storage.envelope import Envelope
+    from tests.test_tree_b18_secret_components import _withheld_selection_run
+
+    context, selected = await _withheld_selection_run(tmp_path, monkeypatch, family, side)
+    forged = selected.to_payload()
+    forged["payload"].update(cases=[0], fallback_reason=None)
+    wrong = Envelope.from_payload(forged, family=campaign_family_for(family - 1))
+    changed = replace(
+        context, records=tuple(wrong if row is selected else row for row in context.records)
+    )
+    with pytest.raises(_PreconditionFailed, match="selection differs from its re-derivation"):
+        _check_affected_cases_selected(changed, wrong)
+
+    if side == "parent":
+        forged["payload"].update(cases=[0, 1], fallback_reason="inspection_failed")
+        wrong = Envelope.from_payload(forged, family=campaign_family_for(family - 1))
+        changed = replace(
+            context, records=tuple(wrong if row is selected else row for row in context.records)
+        )
+        with pytest.raises(_PreconditionFailed, match="inspection that was never due"):
+            _check_affected_cases_selected(changed, wrong)

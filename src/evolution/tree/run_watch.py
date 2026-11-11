@@ -168,6 +168,10 @@ def _campaign_created_line(payload: Mapping[str, Any]) -> str:
         )
         if repeats is not None:
             text += f" × {repeats} repeats"
+            assert isinstance(evaluation, Mapping)
+            focus = evaluation.get("focus_repeats_per_question")
+            if focus is not None:
+                text += f" (focus × {focus})"
     return text
 
 

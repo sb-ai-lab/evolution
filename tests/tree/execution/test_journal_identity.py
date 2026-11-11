@@ -548,7 +548,7 @@ def test_a_nonuniform_schedule_without_case_repeats_is_still_refused():
         ([[1, 1]], {"b": 2}),  # count not above R
         ([[1, 2], [1, 3]], {"b": 2}),  # index named twice
         ([[1, 2], [0, 2]], {"a": 2, "b": 2}),  # unsorted
-        ([[0, 2], [1, 2]], {"a": 2, "b": 2}),  # every case listed: no base R
+        ([[0, 2], [1, 3]], {"a": 2, "b": 3}),  # every case listed with different counts
         ([[2, 2]], {"b": 2}),  # index outside case_subset
         ([[1, 3]], {"b": 2}),  # the schedule does not follow the count
         ("x", {"b": 2}),
@@ -558,6 +558,12 @@ def test_a_nonuniform_schedule_without_case_repeats_is_still_refused():
 def test_a_malformed_case_repeats_is_refused(value, counts):
     with pytest.raises(IdentityError, match="invalid_case_repeats"):
         RunIdentityV1.from_payload(_repeats_payload(value, counts))
+
+
+def test_case_repeats_may_list_every_case_with_one_count():
+    # b18: a /16 Attempt whose cases are all focus cases lists every case.
+    identity = RunIdentityV1.from_payload(_repeats_payload([[0, 3], [1, 3]], {"a": 3, "b": 3}))
+    assert identity.to_payload()["case_repeats"] == [[0, 3], [1, 3]]
 
 
 def test_an_identity_without_case_repeats_keeps_its_bytes():

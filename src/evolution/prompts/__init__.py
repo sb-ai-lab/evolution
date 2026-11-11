@@ -70,16 +70,21 @@ __all__ = [
     "SESSION_SYSTEM_ORACLE",
     "SESSION_PROMPT",
     "TREE_AGENT_EDITOR_SYSTEM",
+    "TREE_AGENT_EDITOR_SYSTEM_V2",
     "TREE_EDITOR_SYSTEM",
     "TREE_EDITOR_SYSTEM_V2",
+    "TREE_EDITOR_SYSTEM_V3",
     "TREE_AGENT_REFLECTOR_SYSTEM",
     "TREE_REFLECTOR_SYSTEM",
     "TREE_AGENT_REFLECTOR_SYSTEM_V3",
+    "TREE_AGENT_REFLECTOR_SYSTEM_V4",
     "TREE_REFLECTOR_SYSTEM_V3",
     "TREE_REFLECTOR_SYSTEM_V4",
     "TREE_REFLECTOR_SYSTEM_V5",
+    "TREE_REFLECTOR_SYSTEM_V6",
     "TREE_GROUPING_MODEL_SYSTEM",
     "TREE_GROUPING_MODEL_V2_SYSTEM",
+    "TREE_GROUPING_MODEL_V3_SYSTEM",
     "TREE_AGENT_GROUPER_SYSTEM",
 ]
 
@@ -140,19 +145,30 @@ def clear_cache() -> None:
 
 # Markdown files end with a newline. The editor's pre-existing system text did not.
 TREE_AGENT_EDITOR_SYSTEM = load_prompt("tree_agent_editor").removesuffix("\n")
+#: `/16` agent-CLI Editor default (b18, #399, ADR-0061): the V1 text plus one
+#: paragraph that tells the Editor to reconcile a new rule with the files it
+#: changes. `/15` keeps `TREE_AGENT_EDITOR_SYSTEM` (its digest is in the `/15`
+#: identity).
+TREE_AGENT_EDITOR_SYSTEM_V2 = load_prompt("tree_agent_editor_v2").removesuffix("\n")
 TREE_EDITOR_SYSTEM = load_prompt("tree_editor").removesuffix("\n")
 TREE_EDITOR_SYSTEM_V2 = load_prompt("tree_editor_v2").removesuffix("\n")
+#: `/16` chat Editor default (b18, #399, ADR-0061): V2 plus one paragraph that
+#: tells the Editor to reconcile a new rule with the files it changes. `/15`
+#: keeps `TREE_EDITOR_SYSTEM`; V2 stays packaged unchanged.
+TREE_EDITOR_SYSTEM_V3 = load_prompt("tree_editor_v3").removesuffix("\n")
 TREE_AGENT_REFLECTOR_SYSTEM = load_prompt("tree_agent_reflector").removesuffix("\n")
 TREE_REFLECTOR_SYSTEM = load_prompt("tree_reflector").removesuffix("\n")
 #: Current campaign default (ADR-0022): frames a selected group's description
 #: as the grouping stage's investigation question, not a causal verdict.
 TREE_AGENT_REFLECTOR_SYSTEM_V3 = load_prompt("tree_agent_reflector_v3").removesuffix("\n")
+TREE_AGENT_REFLECTOR_SYSTEM_V4 = load_prompt("tree_agent_reflector_v4").removesuffix("\n")
 TREE_REFLECTOR_SYSTEM_V3 = load_prompt("tree_reflector_v3").removesuffix("\n")
 #: `/16` chat only (#318, ADR-0048): V3 plus the corrected-result contract of
 #: an in-role checked `finish_reflection` and the `case_id`/`case_handle`
 #: distinction. `/15` keeps V3 byte for byte.
 TREE_REFLECTOR_SYSTEM_V4 = load_prompt("tree_reflector_v4").removesuffix("\n")
 TREE_REFLECTOR_SYSTEM_V5 = load_prompt("tree_reflector_v5").removesuffix("\n")
+TREE_REFLECTOR_SYSTEM_V6 = load_prompt("tree_reflector_v6").removesuffix("\n")
 #: The packaged default system prompt of a `/10` model grouping role and a
 #: `/15` Chat Grouper using `model_grouping/1`; a declared
 #: `system_prompt` file wins over it. Its digest is bound into the adaptation
@@ -161,8 +177,16 @@ TREE_GROUPING_MODEL_SYSTEM = load_prompt("tree_grouping_model").removesuffix("\n
 #: `/16` chat Grouper only (b16, ADR-0055): the packaged default of protocol
 #: `model_grouping/2`, a portion tool session ending in `finish_portion` and a
 #: batched reduce, split on its `## Reduce` line. `/15` keeps
-#: `TREE_GROUPING_MODEL_SYSTEM` byte for byte.
+#: `TREE_GROUPING_MODEL_SYSTEM` byte for byte. Groupings formed under 2.0.0b17
+#: seal `_v3` instead (ADR-0057): `_v2` stays packaged for runs formed under
+#: b16 and the first wave.
 TREE_GROUPING_MODEL_V2_SYSTEM = load_prompt("tree_grouping_model_v2").removesuffix("\n")
+#: `/16` chat Grouper only (b17, ADR-0057): `_v2` plus the two group-text
+#: rules -- a group's texts stand alone (no `o<n>`/`c<n>`/`s<n>` references,
+#: cards, variants or other groups; the expectation in full) and stay short
+#: (prose targets per key; the bounds are ceilings). Same protocol
+#: `model_grouping/2`, answer schema and tools; requests only, no code checks.
+TREE_GROUPING_MODEL_V3_SYSTEM = load_prompt("tree_grouping_model_v3").removesuffix("\n")
 #: Family 14 only (ADR-0034, A§4): the packaged default system prompt of a
 #: `/15` `grouper.kind: agent_cli`; a declared `system_prompt` file wins over
 #: it. Its digest is bound into the Grouper identity (`prompt_sha256`). Slice

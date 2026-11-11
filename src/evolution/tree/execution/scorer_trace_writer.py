@@ -117,15 +117,22 @@ def _write_all(fd: int, data: bytes | memoryview) -> None:
         remaining = remaining[written:]
 
 
+class _BufferReadFault(OSError):
+    """A failed read of a scratch buffer, kept apart from a failed pack write."""
+
+
 def _chunks(source: bytes | TraceStream, length: int) -> Iterator[bytes | memoryview]:
     offset = 0
     while offset < length:
         if isinstance(source, bytes):
             chunk: bytes | memoryview = memoryview(source)[offset : offset + _CHUNK]
         else:
-            chunk = os.pread(source.fileno(), min(_CHUNK, length - offset), offset)
+            try:
+                chunk = os.pread(source.fileno(), min(_CHUNK, length - offset), offset)
+            except OSError as exc:
+                raise _BufferReadFault(exc.errno, exc.strerror) from exc
             if not chunk:
-                raise OSError(errno.EIO, "trace buffer ended early")
+                raise _BufferReadFault(errno.EIO, "trace buffer ended early")
         offset += len(chunk)
         yield chunk
 
@@ -303,7 +310,10 @@ class PackedTraceWriter:
         sections: Sequence[tuple[str, bytes | TraceStream]],
     ) -> PackedRecord:
         header = {"format": PACK_FORMAT, **fields}
-        declared = [(name, *_describe(source)) for name, source in sections]
+        try:
+            declared = [(name, *_describe(source)) for name, source in sections]
+        except OSError as exc:  # only a scratch buffer can fault here; nothing is written yet
+            raise self._fault(exc, "buffer") from exc
         if sections:
             header["sections"] = [list(item) for item in declared]
         line = _encode_header(header)
@@ -320,7 +330,7 @@ class PackedTraceWriter:
             _write_all(fd, b"\n")
             _fsync(fd)
         except OSError as exc:
-            fault = self._fault(exc, "append")
+            fault = self._fault(exc, "buffer" if isinstance(exc, _BufferReadFault) else "append")
             try:
                 _truncate(fd, start)
                 _fsync(fd)
@@ -400,7 +410,7 @@ class PackedTraceWriter:
                 self._close(directory)
             try:
                 for _ in range(2):
-                    with tempfile.TemporaryFile(dir=self.trace_root, buffering=0) as temporary:
+                    with tempfile.TemporaryFile(buffering=0) as temporary:
                         fd = os.dup(temporary.fileno())
                         try:
                             stream = TraceStream(fd, "r+")
@@ -411,6 +421,7 @@ class PackedTraceWriter:
                         stream.location = trace_location(
                             self.trace_root, self.trace_root / self._name()
                         )
+                        stream.scratch = True
                         streams.append(stream)
             except OSError as exc:
                 raise self._fault(exc, "buffer") from exc

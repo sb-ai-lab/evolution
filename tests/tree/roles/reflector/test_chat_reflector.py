@@ -38,6 +38,8 @@ from evolution.tree.roles.reflector_contracts import (
 )
 from evolution.tree.roles.seals import chat_reflector_identity, seal_prompt
 from evolution.tree.roles.workspace import discard, freeze_projection, project
+from tests.strict_history import holds
+from tests.strict_history import measures as _measures
 from tests.tree.roles.reflector.test_reflect_brief import _CHAMPION, _corpus
 from tests.tree.roles.reflector.test_reflect_evidence import _snapshot, rep
 
@@ -189,6 +191,31 @@ def test_identity_is_the_declared_configuration(tmp_path: Path) -> None:
 
     assert reflector.identity == chat_reflector_identity(reflector.section, reflector.prompt)
     assert reflector.identity.kind == "chat"
+
+
+@pytest.mark.parametrize("family15", [False, True])
+async def test_read_file_text_shape_depends_on_family(tmp_path, reflect_request, family15):
+    from dataclasses import replace
+
+    from tests.test_tree_chat_role_retry import RETRY
+
+    reflector, client = _reflector(
+        tmp_path,
+        [
+            _response("list_files"),
+            _response("read_file", {"path": "skills/SKILL.md"}),
+            _response("finish_reflection", {"groups": [], "declined": True}),
+        ],
+        retry=RETRY,
+    )
+    reflector = replace(reflector, family15=family15, role_resilience=True)
+    assert (await reflector.reflect(reflect_request)).status == "declined"
+    messages = client.calls[2]["messages"]
+    output = json.loads(
+        [message["content"] for message in messages if message["role"] == "tool"][-1]
+    )
+    assert output["content"] == "seed\n"
+    assert ("line_numbered_content" in output) is (not family15)
 
 
 def test_the_tools_are_the_five_read_only_ones() -> None:
@@ -760,3 +787,139 @@ async def test_reflector_opening_states_probe_adjusted_limits(tmp_path, reflect_
     assert (sentence in opening) is family15
     if family15:
         assert opening.endswith(sentence)
+
+
+# --------------------------------------------------------------------------
+# `/16`: a broken tool call is retained as `{}` (ADR-0061, b18 Part A)
+# --------------------------------------------------------------------------
+
+
+def _v16_reflector(tmp_path: Path, client: Any) -> ChatReflector:
+    from dataclasses import replace
+
+    from tests.tree.roles.test_chat_loop_reflector_golden import _reflector as _golden
+
+    return replace(_golden(tmp_path, client, role_resilience=True), family15=True)
+
+
+@pytest.fixture
+def no_sleep(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def instant(_: float) -> None:
+        return None
+
+    monkeypatch.setattr("evolution.tree.roles.editor.chat_editor.asyncio.sleep", instant)
+
+
+@pytest.mark.parametrize("mode", ["http_400", "error_body"])
+async def test_v16_chat_reflector_survives_strict_provider(
+    tmp_path: Path, reflect_request: ReflectRequest, mode: str, no_sleep: None
+) -> None:
+    from tests.strict_history import StrictScriptedClient
+    from tests.tree.roles.test_chat_loop_broken_calls_golden import BROKEN, _reflector_script
+    from tests.tree.roles.test_chat_loop_reflector_golden import _CapturingClient
+
+    inner = _CapturingClient(_reflector_script("truncated"))
+    strict = StrictScriptedClient(inner, mode)  # type: ignore[arg-type]
+    reflector = _v16_reflector(tmp_path, strict)
+
+    result = await reflector.reflect(reflect_request)
+
+    assert result.status == "declined", result.note
+    assert strict.refusals == []
+    assert not inner.script
+    log = _log_lines(reflector)
+    (repair,) = [e for e in log if e["phase"] == "protocol_repair_requested"]
+    name, arguments = BROKEN["truncated"]
+    assert repair["error"] == "tool arguments are not JSON"
+    assert repair["replaced_calls"] == [{"id": "call", "name": name, **_measures(arguments)}]
+
+
+async def test_v16_reflector_role_log_keeps_original_arguments_only_in_model_response(
+    tmp_path: Path, reflect_request: ReflectRequest
+) -> None:
+    """The run secret and the original broken text reach `model_response` only.
+
+    The broken `finish_reflection` holds a run secret, so the leak screen of
+    the Reflector's result admission would refuse it; its arguments are not
+    one JSON object, so it never reaches that screen and is repaired instead.
+    """
+
+    from dataclasses import replace
+
+    from tests.tree.roles.reflector.test_chat_reflector_repair import admission
+    from tests.tree.roles.test_chat_loop_reflector_golden import _CapturingClient
+
+    marker = "broken-call-marker-7f3a"
+    broken = '{"groups": [{"root_cause": "' + marker + " " + SECRET + '", "evidence_ids": ['
+    call = SimpleNamespace(
+        id="call",
+        type="function",
+        function=SimpleNamespace(name="finish_reflection", arguments=broken),
+    )
+    turn = SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(tool_calls=[call]))])
+    client = _CapturingClient(
+        [
+            _response("list_files"),
+            turn,
+            _response("finish_reflection", {"groups": [], "declined": True}),
+        ]
+    )
+    reflector = _v16_reflector(tmp_path, client)
+    request = replace(reflect_request, result_admission=admission())
+
+    result = await reflector.reflect(request)
+
+    assert result.status == "declined", result.note
+    log = _log_lines(reflector)
+    responses = [e for e in log if e["phase"] == "model_response"]
+    redacted = broken.replace(SECRET, "[REDACTED]")
+    assert [c["arguments"] for e in responses for c in e["calls"] if c["id"] == "call"][1] == (
+        redacted
+    )
+    (repair,) = [e for e in log if e["phase"] == "protocol_repair_requested"]
+    assert repair["replaced_calls"] == [
+        {"id": "call", "name": "finish_reflection", **_measures(broken)}
+    ]
+    path = Path(reflector.log_root) / f"{request.reflection_id}.jsonl"
+    assert SECRET not in path.read_text(encoding="utf-8")
+    assert holds(responses, redacted)  # the checks below can see the text
+    for entry in log:
+        if entry["phase"] != "model_response":
+            assert not holds(entry, marker) and not holds(entry, SECRET), entry["phase"]
+            assert not holds(entry, redacted), entry["phase"]
+    for body in client.bodies:
+        assert not holds(body, marker) and not holds(body, SECRET)
+        assert not holds(body, redacted) and not holds(body, broken)
+    assert not holds(result.__dict__, marker) and not holds(result.__dict__, SECRET)
+
+
+@pytest.mark.parametrize("family15", [False, True])
+async def test_v16_read_evidence_at_record_end_returns_empty(tmp_path, reflect_request, family15):
+    from dataclasses import replace
+
+    from tests.test_tree_chat_role_retry import RETRY
+
+    catalog = render_reflect_catalog(reflect_request.evidence)
+    record = next(item for item in catalog if item.kind == "observation")
+    assert not record.content.endswith("\n")
+    reflector, client = _reflector(
+        tmp_path,
+        [
+            _response("list_files"),
+            _response(
+                "read_evidence",
+                {"evidence_id": record.evidence_id, "offset": len(record.content)},
+            ),
+            _response("finish_reflection", {"groups": [], "declined": True}),
+        ],
+        retry=RETRY,
+    )
+    reflector = replace(reflector, family15=family15, role_resilience=True)
+    assert (await reflector.reflect(reflect_request)).status == "declined"
+    output = json.loads(
+        [m["content"] for m in client.calls[2]["messages"] if m["role"] == "tool"][-1]
+    )
+    if family15:
+        assert output["content"] == "" and output["next_offset"] is None
+    else:
+        assert "record boundary" in output["error"]

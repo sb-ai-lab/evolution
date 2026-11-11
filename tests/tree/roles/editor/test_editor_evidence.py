@@ -1418,6 +1418,29 @@ def test_a_malformed_reason_projects_none_rather_than_raising(tmp_path: Path) ->
     assert observation.turns[0].reason is None
 
 
+@pytest.mark.parametrize("text", ["", "evidence.", "evidence\n", '{"a": "é"}'])
+def test_v16_evidence_end_is_valid_without_trailing_newline(text):
+    from evolution.tree.roles.editor.chat_editor import _evidence_chunk
+
+    assert _evidence_chunk(text, len(text), family15=True) == ("", None)
+
+
+def test_v15_evidence_end_without_newline_keeps_boundary_refusal():
+    from evolution.tree.roles.editor.chat_editor import ToolError, _evidence_chunk
+
+    with pytest.raises(ToolError, match="record boundary"):
+        _evidence_chunk("evidence.", 9)
+    assert _evidence_chunk("evidence\n", 9) == ("", None)
+
+
+@pytest.mark.parametrize("family15", [False, True])
+def test_evidence_offset_inside_a_record_is_still_refused(family15):
+    from evolution.tree.roles.editor.chat_editor import ToolError, _evidence_chunk
+
+    with pytest.raises(ToolError, match="record boundary"):
+        _evidence_chunk("first line\nsecond.", 3, family15=family15)
+
+
 @pytest.mark.parametrize("family15", [False, True])
 def test_editor_read_evidence_past_end_names_range_only_in_v16(family15):
     from evolution.tree.roles.editor.chat_editor import ToolError, _evidence_chunk

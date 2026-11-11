@@ -272,10 +272,11 @@ def _check_case_repeats(
     An index names a case of the identity's case set: a `case_subset` entry,
     or a corpus index without one; the schedule lists its cases in that order
     (corpus order, which `validate_corpus` confirms against the corpus). R is
-    the common repeat count of the unlisted cases, at least one of which must
-    exist. Every unlisted case has exactly repeats `1..R`, every listed case
-    exactly `1..count` with `count > R`, and a repeat's requested seed is the
-    same on every case, as in a uniform schedule.
+    the common repeat count of the unlisted cases. Every unlisted case has
+    exactly repeats `1..R`, every listed case exactly `1..count` with
+    `count > R`, and a repeat's requested seed is the same on every case, as in
+    a uniform schedule. b18: a selector may list every case (a `/16` Attempt
+    whose cases are all focus cases) only with one common count.
     """
 
     cases = list(groups)
@@ -285,12 +286,16 @@ def _check_case_repeats(
         raise IdentityError("invalid_case_repeats")
     listed = {cases[position[index]]: count for index, count in pairs}
     unlisted = [groups[case_id] for case_id in cases if case_id not in listed]
+    base: Mapping[int, int | None]
     if not unlisted:
-        raise IdentityError("invalid_case_repeats")
-    base = unlisted[0]
-    repeats = len(base)
-    if any(group != base for group in unlisted) or set(base) != set(range(1, repeats + 1)):
-        raise IdentityError("invalid_case_repeats")
+        if len(set(listed.values())) != 1:
+            raise IdentityError("invalid_case_repeats")
+        base, repeats = {}, 0
+    else:
+        base = unlisted[0]
+        repeats = len(base)
+        if any(group != base for group in unlisted) or set(base) != set(range(1, repeats + 1)):
+            raise IdentityError("invalid_case_repeats")
     seeds = dict(base)
     for case_id, count in listed.items():
         group = groups[case_id]

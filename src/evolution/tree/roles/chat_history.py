@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from typing import Any
 
 CONTINUATION_FIELDS = ("reasoning", "reasoning_content", "reasoning_details")
@@ -120,3 +122,98 @@ def message_units(messages: list[dict[str, Any]]) -> list[list[dict[str, Any]]]:
         units.append([message, *results])
         index += 1 + len(ids)
     return units
+
+
+def _refuse_constant(name: str) -> Any:
+    raise ValueError(f"{name} is not JSON")
+
+
+def strict_json(raw: str) -> Any:
+    """`json.loads` that refuses `NaN`, `Infinity` and `-Infinity` (ValueError).
+
+    A literal such as `1e400` overflows to `inf` inside `json.loads` without a
+    constant callback, so it is accepted as a float, as `json.loads` decides it.
+    """
+    try:
+        return json.loads(raw, parse_constant=_refuse_constant)
+    except RecursionError as exc:
+        raise ValueError("JSON nesting is too deep") from exc
+
+
+def is_object_arguments(raw: object) -> bool:
+    """True when `raw` is a string holding exactly one strict JSON object."""
+    if not isinstance(raw, str):
+        return False
+    try:
+        return isinstance(strict_json(raw), dict)
+    except ValueError:
+        return False
+
+
+@dataclass(frozen=True)
+class ReplacedCall:
+    """A retained tool call whose arguments were replaced by `{}`."""
+
+    id: str
+    name: str
+    characters: int
+    sha256: str
+
+    def to_record(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "name": self.name,
+            "characters": self.characters,
+            "sha256": self.sha256,
+        }
+
+
+def _raw_text(raw: Any) -> str:
+    """The measured text: the string itself, else its JSON encoding (`null` if absent)."""
+    if isinstance(raw, str):
+        return raw
+    try:
+        return json.dumps(raw)
+    except (TypeError, ValueError):
+        return str(raw)
+
+
+def retained_message(
+    assistant: dict[str, Any],
+) -> tuple[dict[str, Any], tuple[ReplacedCall, ...]]:
+    """Retain `assistant` with every non-object tool call's arguments set to `{}`.
+
+    Only `function.arguments` of broken calls changes; ids, names, order and all
+    other fields (including opaque continuations) are kept. The input is not
+    mutated. Without broken calls the input object itself is returned.
+    """
+    calls = assistant.get("tool_calls")
+    if not isinstance(calls, list):
+        return assistant, ()
+    retained: list[Any] = []
+    replaced: list[ReplacedCall] = []
+    for call in calls:
+        function = call.get("function") if isinstance(call, dict) else None
+        raw = function.get("arguments") if isinstance(function, dict) else None
+        if is_object_arguments(raw):
+            retained.append(call)
+            continue
+        # Defensive only: `assistant_message`/`_tool_call` refuse non-string
+        # arguments, so they never reach this branch on the modern path.
+        text = _raw_text(raw)
+        name = function.get("name") if isinstance(function, dict) else None
+        call_id = call.get("id") if isinstance(call, dict) else None
+        replaced.append(
+            ReplacedCall(
+                id=call_id if isinstance(call_id, str) else "",
+                name=name if isinstance(name, str) else "",
+                characters=len(text),
+                sha256=hashlib.sha256(text.encode()).hexdigest(),
+            )
+        )
+        fixed = dict(call) if isinstance(call, dict) else {}
+        fixed["function"] = {**(function if isinstance(function, dict) else {}), "arguments": "{}"}
+        retained.append(fixed)
+    if not replaced:
+        return assistant, ()
+    return {**assistant, "tool_calls": retained}, tuple(replaced)

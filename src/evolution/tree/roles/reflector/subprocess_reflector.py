@@ -4,13 +4,17 @@
 check (here on `request.reflection_id`), the same pre- and post-run
 `CommandBinding.verify()`, the same private stderr sink opened by
 `open_private_file`'s proof, the same spawn (`start_new_session=True`, a pipe
-each way), the same `_exchange`/cancellation/kill protocol, and the same
-five-way failure classification -- all imported from `subprocess_editor`
-rather than copied, so the two kinds' process handling stays one
-implementation. Only the request document, the result shape and the result
-line's key set differ: `reflect_request/1` instead of `edit_request/1`, and
-`{"status", "groups", "note"}` (`status` one of `reflected`/`declined`/
+each way), the same `_exchange`/cancellation/kill protocol, the same stderr
+capture and the same five-way failure classification -- all imported from
+`subprocess_editor` rather than copied, so the two kinds' process handling
+stays one implementation. Only the request document, the result shape and the
+result line's key set differ: `reflect_request/1` instead of `edit_request/1`,
+and `{"status", "groups", "note"}` (`status` one of `reflected`/`declined`/
 `failed`) instead of the editor's `{"status", "note"}`.
+
+With a probe, stderr is instead a pipe drained to EOF through the run's and the
+probe's secret redaction: only that path streams into the log while the program
+runs, and a failing log surfaces as an exception there.
 
 The workspace a Reflector reads is never the live Candidate: the caller
 projects a read-only copy (`editor_workspace.project` + `freeze_projection`,
@@ -35,6 +39,8 @@ from evolution.tree.roles.editor.subprocess_editor import (  # noqa: PLC2701
     MAX_NOTE_BYTES,
     _exchange,
     _open_private_log,
+    _SecretStream,
+    _StderrCapture,
     _terminate_group,
     _terminate_shielded,
 )
@@ -83,6 +89,8 @@ class SubprocessReflector:
     #: The accepted hygiene findings' instance digests (PDR-0010), as for
     #: `SubprocessEditor`; empty by default.
     admitted_hygiene: frozenset[str] = field(default=frozenset(), kw_only=True)
+    #: The run's secret set: the stderr log is redacted with it.
+    secrets: tuple[str, ...] = field(default=(), kw_only=True)
     identity: ReflectorIdentity = field(init=False)
 
     def __post_init__(self) -> None:
@@ -142,6 +150,8 @@ class SubprocessReflector:
             return ReflectResult(
                 "failed", (), bounded_note(f"workspace_changed {exc}"), code="workspace_changed"
             )
+        capture = None if request.probe is not None else _StderrCapture(stderr, self.secrets)
+        release = stderr.close if capture is None else capture.finish
         try:
             process = await asyncio.create_subprocess_exec(
                 *self.binding.spawn_argv(),
@@ -149,17 +159,20 @@ class SubprocessReflector:
                 env=dict(self.binding.child_env),
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE if request.probe is not None else stderr,
+                stderr=asyncio.subprocess.PIPE if capture is None else capture.child_stderr,
                 start_new_session=True,
             )
         except BaseException:
-            stderr.close()
+            release()
             raise
         try:
             try:
                 stdout, oversized = (
                     await _probe_exchange(
-                        process, document, stderr, probe_log_secrets(request.probe)
+                        process,
+                        document,
+                        stderr,
+                        (*self.secrets, *probe_log_secrets(request.probe)),
                     )
                     if request.probe is not None
                     else await _exchange(process, document)
@@ -171,7 +184,7 @@ class SubprocessReflector:
                 await _terminate_group(process)
                 raise
         finally:
-            stderr.close()
+            release()
         result = _classify(process.returncode, stdout, oversized)
         if helpers is not None:
             try:
@@ -298,43 +311,6 @@ def _result_line(line: str) -> ReflectResult:
     return ReflectResult(status, tuple(groups), note)
 
 
-class _SecretStream:
-    """Bounded overlap with union masking, including truncated final prefixes."""
-
-    def __init__(self, secrets: Sequence[str]) -> None:
-        self.secrets = tuple(secret.encode() for secret in secrets if secret)
-        self.overlap = max((len(secret) for secret in self.secrets), default=1) - 1
-        self.pending = b""
-        self.mask = bytearray()
-        self.redacting = False
-
-    def feed(self, chunk: bytes, *, final: bool = False) -> bytes:
-        self.pending += chunk
-        self.mask.extend(b"\0" * len(chunk))
-        for secret in self.secrets:
-            start = 0
-            while (start := self.pending.find(secret, start)) >= 0:
-                self.mask[start : start + len(secret)] = b"\1" * len(secret)
-                start += 1
-            if final:
-                for length in range(1, min(len(secret), len(self.pending) + 1)):
-                    if self.pending.endswith(secret[:length]):
-                        self.mask[-length:] = b"\1" * length
-        count = len(self.pending) if final else max(0, len(self.pending) - self.overlap)
-        output = bytearray()
-        for index in range(count):
-            if self.mask[index]:
-                if not self.redacting:
-                    output.extend(b"[REDACTED]")
-                self.redacting = True
-            else:
-                self.redacting = False
-                output.append(self.pending[index])
-        self.pending = self.pending[count:]
-        del self.mask[:count]
-        return bytes(output)
-
-
 async def _redact_stderr(
     stream: asyncio.StreamReader, sink: IO[bytes], secrets: Sequence[str]
 ) -> None:
@@ -363,10 +339,13 @@ async def _probe_exchange(
     assert process.stderr is not None
     exchange = asyncio.create_task(_exchange(process, document))
     drain = asyncio.create_task(_redact_stderr(process.stderr, stderr, secrets))
-    combined = asyncio.gather(exchange, drain)
     try:
-        # Keep every pipe flowing until process-group termination completes.
-        await asyncio.shield(combined)
+        # Keep every pipe flowing until process-group termination completes:
+        # `wait` leaves both tasks running when this task is cancelled.
+        await asyncio.wait({exchange, drain}, return_when=asyncio.FIRST_EXCEPTION)
+        for task in (exchange, drain):
+            if task.done():
+                task.result()
         return exchange.result()
     except asyncio.CancelledError as cancellation:
         await _terminate_shielded(process, cancellation)
@@ -379,5 +358,3 @@ async def _probe_exchange(
             if not task.done():
                 task.cancel()
         await asyncio.gather(exchange, drain, return_exceptions=True)
-        if combined.done() and not combined.cancelled():
-            combined.exception()

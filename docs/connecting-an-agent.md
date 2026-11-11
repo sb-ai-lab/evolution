@@ -1,8 +1,10 @@
 # Connecting your agent
 
-A Target Service lets Evolution run your agent against a particular version of its files. Evolution supplies the files and case inputs; your backend creates the agent session and returns its observed behavior. You keep control of the agent runtime, provider and tools.
+A Target Service lets Evolution run your agent against a particular version of its files. You bring an agent runtime, the editable skills or prompts it reads, evaluation cases and a scorer. Evolution supplies a snapshot of those files and the case inputs; your backend runs the agent and returns what happened. You keep control of its provider and tools.
 
-Run the [Quickstart](../QUICKSTART.md) first. Then use the packaged `TargetServer` library instead of reimplementing the HTTP protocol. The library handles request IDs, replay, identity checks and snapshot creation. Your backend implements the agent-specific callbacks.
+Run the [Quickstart](../QUICKSTART.md) first to see the complete offline flow. To connect your own agent, implement a small Python backend that loads the supplied snapshot, opens a case, runs each turn and closes its resources. The packaged `TargetServer` handles the HTTP protocol, request IDs, replay, identity checks and snapshot creation. The [complete offline backend](target-server.md#a-complete-offline-backend) gives you a working callback example to adapt.
+
+The crucial step is reading instructions from `LoadedTree.root` in `backend.load(tree)`. Evolution creates a different snapshot for each version it tests. If your agent keeps reading files from your original checkout, every comparison runs the same instructions, even after an edit. [Load the files Evolution gives you](#load-the-files-evolution-gives-you) shows the read.
 
 ## The integration you are building
 
@@ -153,7 +155,7 @@ Use bounded provider calls and clean up sessions reliably. Backend callbacks are
 
 ## Report what the agent used
 
-The scaffold's manifest declares `"provenance": {"kind": "reported"}` under `campaign.gate`. With it, the campaign measures a Candidate only on the cases its edit can reach, and it learns those cases from your Target. Each turn reports the parts of the loaded tree that were in the agent's context, in `TurnResult.provenance`. The campaign keeps the union of a sample's turns. When an edit changes a part, it measures the cases whose baseline samples used that part, plus every case whose provenance is unknown.
+The scaffold's manifest declares `"provenance": {"kind": "reported"}` under `campaign.gate`. This narrows the Attempt's initial gate measurement to cases the edit can reach; a finalist still receives verification across the training corpus. Each turn reports the parts of the loaded tree that were in the agent's context, in `TurnResult.provenance`. The campaign keeps the union of a sample's turns. When an edit changes a part, the gate measures the cases whose baseline samples used that part, plus every case whose provenance is unknown.
 
 ### What goes into `used`
 
@@ -165,9 +167,11 @@ List every part of the loaded tree that was in the agent's context during the tu
 
 Write each file as a path relative to the tree root, the same path you read under `tree.root`, for example `skills/deposits.md`. Do not use absolute paths. Report `[]` only for a turn whose context held no file of the tree.
 
-Report the turn's context, not your guess about what the answer depended on. A case whose baseline samples did not report a file counts as unaffected by an edit to that file, so the campaign does not measure that case for the edit. If the file was in the agent's prompt anyway, the edit can change that case's answer without the gate seeing it. Reporting too much only costs measurement time.
+Report the turn's context, not your guess about what the answer depended on. A case whose baseline samples did not report a file counts as unaffected by an edit to that file, so the gate does not measure that case for the edit. If the file was in the agent's prompt anyway, the edit can change that case's answer without the gate seeing it. Reporting too much only costs measurement time.
 
 Set `provenance` on every turn, including turns that end `target_failed` or `candidate_failed`. One turn without it makes its whole sample unknown.
+
+Keep run secrets out of these identifiers. If any entry in the sample's `used` union contains a run secret, Evolution omits the whole union and records `provenance_overflow: true`. The sample's provenance is unknown, so its case counts as affected. It does not keep just the public entries, because that could hide a dependency.
 
 ### Example: a shared prompt and one skill file per topic
 
@@ -186,13 +190,17 @@ reply = BackendReply(TurnResult(
 
 Build `used` from the files your loader actually put into the context, rather than from a hand-written table per topic, so the report stays correct when the loader changes. If a conversation switches topic, each turn reports the skill files in its own context.
 
-With these reports, an edit to `skills/deposits.md` measures only the text cases about deposits. The voice copy is a separate file, so an edit to `voice_skills/deposits.md` measures only the voice cases about deposits. An edit to `prompt/prompts.yaml` measures every case, because every case had that file in context.
+With these reports, the initial gate measures only the text cases about deposits for an edit to `skills/deposits.md`. The voice copy is a separate file, so an edit to `voice_skills/deposits.md` sends only the voice cases about deposits to the gate. An edit to `prompt/prompts.yaml` sends every case to the gate, because every case had that file in context.
 
 ### Name parts of a file with `components()`
 
-A path names a whole file. If one file holds a section for each topic, an edit to any section changes the file, and every case that used it is measured again. To narrow this, implement `components()` on the instance. It names parts of the agent's context, such as `prompt/prompts.yaml#deposits`, with a hash of the text the agent renders for each part and the files each part is built from. A turn then lists those component identifiers in `used` instead of the file path, and the campaign measures only the cases that used a component whose hash changed.
+A path names a whole file. If one file holds a section for each topic, an edit to any section changes the file, and the gate measures every case that used it. To narrow this, implement `components()` on the instance. It names parts of the agent's context, such as `prompt/prompts.yaml#deposits`, with a hash of the text the agent renders for each part and the files each part is built from. A turn then lists those component identifiers in `used` instead of the file path, and the gate measures cases that used a component whose hash changed, plus cases whose provenance is unknown.
 
 Every file the editor may change must then appear in some component's `sources` or in some baseline turn's `used`. An edit to a file that is in neither measures every case, with the fallback `unaccounted_path`. A Target must also render the same component map for the same tree. The format, the limits and that rule are in [The optional `components()` callback](target-server.md#the-optional-components-callback). Start with file paths, and add components when most edits change a file that every case uses.
+
+Keep run secrets out of component IDs and `sources` paths too. Evolution omits an ID that contains a run secret from every published map, including the Candidate inspection, and records the number omitted as `components_withheld` only when positive. If either the baseline or Candidate map has withheld components, every case counts as affected, with fallback reason `components_withheld`. The omitted ID does not by itself make every sample's provenance unknown; a sample that reports it in `used` has a secret in its union and becomes unknown under the rule above. This protection applies to both `/15` and `/16`, including a secret inside an ID or equal to a real component name, without replacement tokens.
+
+When anything is withheld, stderr and the process log show one warning per measurement or inspection with counts of samples and omitted components, never their values. A secret in a component's `sources` path is still refused by the journal guard and ends the run `persistence_failed`; use paths that contain no secrets.
 
 ### What happens without a report
 

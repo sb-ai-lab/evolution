@@ -427,6 +427,11 @@ def render_reflect_opening(
                 "together and poses an investigation question. It is not a causal verdict; "
                 "verify it against the evidence."
             )
+        if brief.min_claim_cases is not None:
+            lines.append(
+                f"Smallest claim that sets the focus: {brief.min_claim_cases} case(s), "
+                "counted across all hypotheses."
+            )
         if brief.document_ids is not None:
             lines.append(
                 "Optional documentation is reference data. Use list_documents and read_document with explicit offsets; document_ids never establish case behavior."
@@ -535,6 +540,7 @@ class AdaptiveReflectBrief:
     #: `render_reflect_opening` can still name family expansion for a
     #: singleton-claim fallback whose portion carries no family member.
     families_expand: bool = False
+    min_claim_cases: int | None = None
     version: str = "reflect_brief/2"
 
     @property
@@ -564,6 +570,7 @@ def build_adaptive_reflect_brief(
     cycle: int = 1,
     limits: Mapping[str, int] = REFLECT_LIMITS_V1,
     focus_cases: int = 16,
+    min_claim_cases: int | None = None,
     compact_history: Mapping[str, Any] | None = None,
     group_text_chars: int | None = 512,
 ) -> AdaptiveReflectBrief:
@@ -713,6 +720,7 @@ def build_adaptive_reflect_brief(
         frozenset(row.evidence_id for row in records if row.failing),
         document_ids,
         families_expand=inputs.families_configured,
+        min_claim_cases=min_claim_cases,
         version=version,
     )
 

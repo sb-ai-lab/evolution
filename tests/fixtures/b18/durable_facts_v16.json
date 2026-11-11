@@ -1,0 +1,111 @@
+{
+  "decisions": [
+    [
+      "comparison_completed",
+      "passed",
+      "passed"
+    ],
+    [
+      "global_comparison_completed",
+      "passed",
+      "passed"
+    ],
+    [
+      "selection_decided",
+      null,
+      "automatic"
+    ],
+    [
+      "round_closed",
+      "promoted",
+      null
+    ],
+    [
+      "campaign_finished",
+      "completed",
+      "rounds_exhausted"
+    ]
+  ],
+  "events": {
+    "affected_cases_selected": 1,
+    "attempt_closed": 1,
+    "attempt_input_frozen": 1,
+    "attempt_opened": 1,
+    "attempt_sealed": 1,
+    "auxiliary_payload_declared": 7,
+    "baseline_bound": 1,
+    "baseline_complete": 1,
+    "campaign_created": 1,
+    "campaign_finished": 1,
+    "candidate_completion_bound": 1,
+    "candidate_completion_completed": 1,
+    "candidate_gate_sealed": 1,
+    "comparison_bound": 1,
+    "comparison_completed": 1,
+    "connection_preflight_finished": 1,
+    "connection_preflight_started": 1,
+    "editor_finished": 1,
+    "editor_started": 1,
+    "final_measurement_bound": 1,
+    "finalists_bound": 1,
+    "focus_portion_selected": 1,
+    "gate_measurement_completed": 1,
+    "gate_scope_selected": 1,
+    "global_comparison_completed": 1,
+    "grouping_finished": 1,
+    "grouping_started": 1,
+    "measurement_bound": 2,
+    "reflection_finished": 1,
+    "reflection_started": 1,
+    "round_closed": 1,
+    "selection_decided": 1,
+    "stage_opened": 2
+  },
+  "ledger": {
+    "promotion_committed": 1
+  },
+  "measurements": {
+    "m-r00-champion": {
+      "imports": 0,
+      "paid": 2,
+      "scores": [
+        [
+          "01",
+          "{\"score\": 0.0}"
+        ],
+        [
+          "01",
+          "{\"score\": 1.0}"
+        ]
+      ]
+    },
+    "m-r01-a01": {
+      "imports": 0,
+      "paid": 2,
+      "scores": [
+        [
+          "01",
+          "{\"score\": 1.0}"
+        ],
+        [
+          "01",
+          "{\"score\": 1.0}"
+        ]
+      ]
+    },
+    "m-r01-a01-completion": {
+      "imports": 2,
+      "paid": 0,
+      "scores": [
+        [
+          "01",
+          "{\"score\": 1.0}"
+        ],
+        [
+          "01",
+          "{\"score\": 1.0}"
+        ]
+      ]
+    }
+  }
+}

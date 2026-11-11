@@ -308,7 +308,7 @@ from evolution.tree.execution.journal_recovery import recovery_plan
 from evolution.tree.execution.journal_schema import (
     S1_FAMILY,
     Lifecycle,
-    components_digest,
+    declaration_digest,
     ordinal_limit,
 )
 from evolution.tree.execution.sample_outcomes import SampleOutcome, disposition_for
@@ -5306,7 +5306,8 @@ def _check_gate_scope_selected(context: _Evidence, record: Envelope) -> None:
     evaluable = None
     corpus_order: list[str] = []
     assert state is not None
-    membership = context.adaptation_identity(before=index).family_membership
+    adaptation = context.adaptation_identity(before=index)
+    membership = adaptation.family_membership
     baseline_id = str(state.baseline_measurement_id)
     repeats = context.policy_for(baseline_id).repeats
     corpus_order = [str(case["case_id"]) for case in context.identity_for(baseline_id).corpus_cases]
@@ -5326,6 +5327,7 @@ def _check_gate_scope_selected(context: _Evidence, record: Envelope) -> None:
         family_membership=membership,
         corpus_order=corpus_order,
         evaluable_cases=evaluable,
+        min_claim_cases=adaptation.min_claim_cases,
     )
     if payload["source"] != expected.source or payload["cases"] != list(expected.cases):
         raise _PreconditionFailed("the gate scope differs from the prior reflection")
@@ -9312,7 +9314,7 @@ def _check_candidate_inspected(context: _Evidence, record: Envelope) -> None:
     if components is None:
         if declared:
             raise _PreconditionFailed("the inspection declared a map the record says is absent")
-    elif components_digest(components) not in declared:
+    elif declaration_digest(components, payload.get("components_withheld", 0)) not in declared:
         raise _PreconditionFailed("the inspection journal never declared the recorded map")
 
 
@@ -9408,6 +9410,7 @@ def _check_affected_cases_selected(context: _Evidence, record: Envelope) -> None
         changes=changes,
         labels=context.adaptation_identity(before=index).provenance_labels,
         candidate_map=attempt.inspected_components,
+        candidate_withheld=attempt.inspected_withheld,
         inspection_failed=claimed,
     )
     if expected.payload(int(payload["round"]), attempt_id, kind, corpus_ids) != dict(payload):

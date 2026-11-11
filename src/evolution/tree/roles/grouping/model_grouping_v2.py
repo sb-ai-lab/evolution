@@ -430,6 +430,9 @@ async def run_model_grouping_v2(
             fallback,
             describe_fields=True,
             family14=True,
+            # `model_grouping/2` runs only in family 15 (ADR-0055): whole
+            # descriptions and the family-15 bounds (ADR-0057).
+            family15=True,
             failing=failing,
             policy_identity=policy_identity,
             fallback_features=fallback_features,

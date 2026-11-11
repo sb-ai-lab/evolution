@@ -1,14 +1,18 @@
 # Your first Evolution campaign
 
-This guide takes you from a checkout to a completed campaign and its selected files. It uses the packaged example: no API key, external agent or downloaded dataset is needed. The example makes a predictable edit so you can learn the workflow before connecting a real agent.
+[English](QUICKSTART.md) · [Russian](QUICKSTART.ru.md)
 
-Commands below use a POSIX shell and Python 3.11.3 or newer. You need two terminals: one for the Target Service and one for the campaign. Run both from the same directory and activate the same Python environment.
+This guide takes you from a public checkout to a completed campaign and its selected files. The example uses a deterministic reference agent and scripted roles: it needs no API key, model calls, external agent or downloaded dataset. It checks that the campaign workflow runs; it does not measure how well a real agent performs.
+
+Commands below use Bash or Zsh and Python 3.11.3 or newer. You need two terminals: one for the Target Service and one for the campaign. Run both from the same directory and activate the same Python environment.
 
 ## 1. Install the beta
 
-From the repository root on `main`:
+Clone the public repository, then install the beta from that checkout:
 
 ```bash
+git clone https://github.com/sb-ai-lab/evolution.git
+cd evolution
 python -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
@@ -16,12 +20,12 @@ python -m pip install -e ".[tree]"
 evo --version
 ```
 
-For this checkout, the last command should print `evo 2.0.0b16`. The `[tree]` extra installs the dependencies used by tree campaigns. Installation may download dependencies; running the example makes no LLM calls.
+For the documented beta checkout, the last command should print `evo 2.0.0b18`. The `[tree]` extra installs the dependencies used by tree campaigns. Installation may download dependencies. If the version differs, use the documentation for the version you checked out before continuing.
 
 If your team gives you a wheel instead, create and activate a fresh environment, then install that exact file:
 
 ```bash
-python -m pip install "/absolute/path/to/evo_skills-2.0.0b16-py3-none-any.whl[tree]"
+python -m pip install "/absolute/path/to/evo_skills-2.0.0b18-py3-none-any.whl[tree]"
 evo --version
 ```
 
@@ -61,7 +65,7 @@ evo-target serve ./demo/manifest.json
 
 Wait for a JSON line containing `"status": "listening"`. Leave this terminal running. The default address is `http://127.0.0.1:8765`.
 
-This service is the example agent. For each message, it replies with the first line of the loaded `skills/SKILL.md`, followed by the message. It does not call a model. In a real integration, your own backend runs the agent in its place.
+This service is the example agent. For each message, it replies with the first line of the loaded `skills/SKILL.md`, followed by the message. In a real integration, your own backend runs the agent in its place.
 
 ## 4. Check the connection and run the campaign
 
@@ -72,7 +76,7 @@ source .venv/bin/activate
 evo tree conformance --manifest ./demo/manifest.json
 ```
 
-Conformance checks that the service follows the target protocol, including loading the requested files and handling sessions correctly. Its JSON report should contain `"ok": true` and an empty `leaked` list. It checks the integration, not the quality of the agent's answers.
+Conformance checks that the service follows the target protocol, including loading the requested files and handling sessions correctly. Its JSON report should contain `"ok": true` and an empty `leaked` list.
 
 Now run the campaign:
 
@@ -111,7 +115,7 @@ cat ./demo/seed/skills/SKILL.md
 cat ./demo/run-1/artifacts/champions/v1/skills/SKILL.md
 ```
 
-The selected copy starts with `IMPROVED`; the original seed does not change. The sample scorer explicitly rewards this marker, so this proves that the wiring works. It is not evidence that the sample skill would help a real agent.
+The selected copy starts with `IMPROVED`; the original seed does not change. The sample scorer rewards this marker, so the result checks file flow and selection, not real-agent quality.
 
 You may see a `continue:` message after success. It explains how to start a successor campaign; it is not an error and requires no action to finish this example.
 

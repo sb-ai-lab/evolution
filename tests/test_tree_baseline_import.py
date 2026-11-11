@@ -847,3 +847,41 @@ def test_an_overflowed_source_row_imports_as_unknown():
     ).rows[0]
     assert "provenance" not in row and "provenance_overflow" not in row
     assert row["components_digest"] == components_digest(MAP)
+
+
+async def test_import_of_screened_row_is_unknown(tmp_path: Path) -> None:
+    from evolution.tree.affected_cases import baseline_provenance
+    from tests.test_tree_campaign_measurement import screened_union_measurement
+
+    rig, winner = await screened_union_measurement(tmp_path)
+    target = _completion_target(rig)
+    admitted = import_sealed(
+        rig.run_root,
+        CAMPAIGN_RUN_ID,
+        winner.measurement_id,
+        target,
+        expected_identity_digest=winner.identity.digest,
+        primary=PRIMARY,
+    )
+    assert admitted.imported == 3
+    for row in admitted.rows:
+        assert "provenance" not in row and "provenance_overflow" not in row
+        assert row["components_digest"] == components_digest(MAP)
+    completion = Measurement.declare(
+        run_root=rig.run_root,
+        campaign_run_id=CAMPAIGN_RUN_ID,
+        measurement_id="m-r01-completion",
+        identity=target,
+        corpus=rig.cases,
+        secrets=("run-secret",),
+    )
+    completion.create(imported=admitted.rows)
+    try:
+        imported = [record for record in completion.records() if record.event == "sample_imported"]
+        assert len(imported) == 3
+        assert all("provenance" not in record.payload for record in imported)
+        baseline = baseline_provenance(completion.records())
+        assert len(baseline["case-01"]) == 3
+        assert all(sample.used is None for sample in baseline["case-01"])
+    finally:
+        completion.close()

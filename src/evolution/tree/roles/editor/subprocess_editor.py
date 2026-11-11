@@ -11,11 +11,13 @@ What core hands the program is exactly the request document: the redacted
 `edit_brief/1` payload C1 hashes, the workspace path, the writable set and the
 deadline. No `private`, no `oracle`, no target address, no provider secret --
 the child environment is `minimal_child_env(allow=allowed_env)`, sealed at bind
-time. Stderr is redirected to a private `<log_root>/<attempt_id>.stderr` file
-and never enters the note or any journal payload; that sink is opened by the
-one open-and-verify `editor_workspace` uses for the attempt transcript, so an
-entry planted at the predictable pathname is `failed`/`workspace_changed`
-before the child is spawned rather than a blocked open or a diverted stream.
+time. Stderr goes to an anonymous temporary file and, once the program has
+ended, is copied through the run's secret redaction into a private
+`<log_root>/<attempt_id>.stderr` file, so that log is not live. It never enters
+the note or any journal payload; the log is opened by the one open-and-verify
+`editor_workspace` uses for the attempt transcript, so an entry planted at the
+predictable pathname is `failed`/`workspace_changed` before the child is
+spawned rather than a blocked open or a diverted stream.
 
 Through family 13 the workspace path is the real Attempt workspace, which the
 program edits in place. In family 14 (`EditRequest.projection`, F0 R65) it is
@@ -48,6 +50,8 @@ import contextlib
 import json
 import os
 import signal
+import tempfile
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import IO, Any
@@ -82,6 +86,8 @@ MAX_NOTE_BYTES = 4096
 KILL_GRACE_SECONDS = 5.0
 
 _DRAIN_CHUNK_BYTES = 1 << 16
+#: The whole log when no temporary file could be created for the child's stderr.
+_STDERR_NOT_CAPTURED = b"[evolution] stderr was not captured: no temporary file\n"
 _STATUSES = frozenset({"edited", "declined", "failed"})
 
 #: Family 14's admission caps for the `command` Editor (H11 routine choice 6):
@@ -109,6 +115,8 @@ class SubprocessEditor:
     #: accepted (PDR-0010); empty by default, so the point-of-use re-check below
     #: refuses exactly what it refused before a decision existed.
     admitted_hygiene: frozenset[str] = field(default=frozenset(), kw_only=True)
+    #: The run's secret set: the stderr log is redacted with it.
+    secrets: tuple[str, ...] = field(default=(), kw_only=True)
     identity: EditorIdentity = field(init=False)
 
     def __post_init__(self) -> None:
@@ -234,9 +242,11 @@ class SubprocessEditor:
     async def _run(self, document: bytes, stderr: IO[bytes]) -> EditResult:
         """Spawn the program, exchange the document and its result line, and classify.
 
-        `stderr` is closed here, after the child has exited, whatever happens.
+        `stderr` is filled and closed here, after the child has exited,
+        whatever happens.
         """
 
+        capture = _StderrCapture(stderr, self.secrets)
         try:
             process = await asyncio.create_subprocess_exec(
                 *self.binding.spawn_argv(),
@@ -244,11 +254,11 @@ class SubprocessEditor:
                 env=dict(self.binding.child_env),
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
-                stderr=stderr,
+                stderr=capture.child_stderr,
                 start_new_session=True,
             )
         except BaseException:
-            stderr.close()
+            capture.finish()
             raise
         try:
             try:
@@ -260,9 +270,8 @@ class SubprocessEditor:
                 await _terminate_group(process)
                 raise
         finally:
-            # The child holds its own dup of the descriptor; this closes ours,
-            # after the process has exited, so no pipe or file is left open.
-            stderr.close()
+            # Termination has run, so this copy has the program's last words.
+            capture.finish()
         return _classify(process.returncode, stdout, oversized)
 
     def _admit(self, log_root: Path) -> None:
@@ -347,6 +356,108 @@ async def _read_stdout(process: asyncio.subprocess.Process) -> tuple[bytes, bool
     while await stream.read(_DRAIN_CHUNK_BYTES):
         pass
     return b"".join(chunks), True
+
+
+class _SecretStream:
+    """Bounded overlap with union masking, including truncated final prefixes."""
+
+    def __init__(self, secrets: Sequence[str]) -> None:
+        # A secret read from the environment may hold surrogate escapes.
+        self.secrets = tuple(
+            secret.encode("utf-8", "surrogateescape") for secret in secrets if secret
+        )
+        self.overlap = max((len(secret) for secret in self.secrets), default=1) - 1
+        self.pending = b""
+        self.mask = bytearray()
+        self.redacting = False
+
+    def feed(self, chunk: bytes, *, final: bool = False) -> bytes:
+        self.pending += chunk
+        self.mask.extend(b"\0" * len(chunk))
+        for secret in self.secrets:
+            start = 0
+            while (start := self.pending.find(secret, start)) >= 0:
+                self.mask[start : start + len(secret)] = b"\1" * len(secret)
+                start += 1
+            if final:
+                for length in range(1, min(len(secret), len(self.pending) + 1)):
+                    if self.pending.endswith(secret[:length]):
+                        self.mask[-length:] = b"\1" * length
+        count = len(self.pending) if final else max(0, len(self.pending) - self.overlap)
+        output = bytearray()
+        for index in range(count):
+            if self.mask[index]:
+                if not self.redacting:
+                    output.extend(b"[REDACTED]")
+                self.redacting = True
+            else:
+                self.redacting = False
+                output.append(self.pending[index])
+        self.pending = self.pending[count:]
+        del self.mask[:count]
+        return bytes(output)
+
+
+class _StderrCapture:
+    """A child's stderr held in an anonymous file, then redacted into the log.
+
+    The child writes to the file itself, so no pipe is left for a surviving
+    background process to hold open: the exit and the deadline behave as if
+    stderr were the log. The copy is synchronous, so a cancellation cannot
+    interrupt it.
+    """
+
+    def __init__(self, log: IO[bytes], secrets: Sequence[str]) -> None:
+        self._log = log
+        self._secrets = secrets
+        self._scratch: IO[bytes] | None
+        try:
+            self._scratch = tempfile.TemporaryFile(buffering=0)
+        except Exception:
+            # The result must not depend on stderr capture, so the program
+            # still runs, with its stderr discarded.
+            self._scratch = None
+            with contextlib.suppress(Exception):
+                log.write(_STDERR_NOT_CAPTURED)
+
+    @property
+    def child_stderr(self) -> IO[bytes] | int:
+        """The `stderr=` value for the spawn."""
+
+        return asyncio.subprocess.DEVNULL if self._scratch is None else self._scratch
+
+    def finish(self) -> None:
+        """Copy to the log and close both files.
+
+        Any `Exception` is swallowed, because the role's outcome must not depend
+        on capture; a `BaseException` still propagates, after the closes.
+        """
+
+        try:
+            with contextlib.suppress(Exception):
+                if self._scratch is not None:
+                    self._copy(self._scratch.fileno())
+        finally:
+            for file in (self._scratch, self._log):
+                if file is not None:
+                    with contextlib.suppress(Exception):
+                        file.close()
+
+    def _copy(self, scratch: int) -> None:
+        # The child shares this file's offset: a surviving background process
+        # writes at it, so read by position and leave it where it is. The size
+        # is taken once, so a process still writing cannot keep this running;
+        # what it writes after this point is never in the log.
+        redactor = _SecretStream(self._secrets)
+        size = os.fstat(scratch).st_size
+        offset = 0
+        while offset < size:
+            chunk = os.pread(scratch, min(_DRAIN_CHUNK_BYTES, size - offset), offset)
+            if not chunk:
+                break
+            self._log.write(redactor.feed(chunk))
+            offset += len(chunk)
+        self._log.write(redactor.feed(b"", final=True))
 
 
 async def _terminate_group(process: asyncio.subprocess.Process) -> None:

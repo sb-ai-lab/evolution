@@ -646,8 +646,10 @@ async def test_runtime_dispatches_v2_by_protocol_and_family(tmp_path: Path) -> N
     reg = registry(spread_rows())
     view, _ = fake_view(reg)
     reader = view.open_operation("group-op1", set(view._handlers))
+    # b17 seals the packaged `_v3` prompt for a `model_grouping/2` identity
+    # (ADR-0057); the runtime splits it on its `## Reduce` line as before.
     runtime = _runtime(
-        sec, protocol="model_grouping/2", prompt=prompts.TREE_GROUPING_MODEL_V2_SYSTEM
+        sec, protocol="model_grouping/2", prompt=prompts.TREE_GROUPING_MODEL_V3_SYSTEM
     )
     model = Model()
     sink = Sink()
@@ -666,9 +668,9 @@ async def test_runtime_dispatches_v2_by_protocol_and_family(tmp_path: Path) -> N
     )
     assert outcome.fallback is None and model.kinds() == ["preflight", "portion"]
     assert [o.portion_id for o, _, _ in sink.portions] == ["p1"]
-    # The v2 map system prompt is the `_v2` file's map part.
+    # The v2 map system prompt is the `_v3` file's map part.
     system = model.exchanges[1]["body"]["messages"][0]["content"]
-    assert system == prompts.TREE_GROUPING_MODEL_V2_SYSTEM.split("\n## Reduce")[0].strip()
+    assert system == prompts.TREE_GROUPING_MODEL_V3_SYSTEM.split("\n## Reduce")[0].strip()
 
     # Without checkpoints, adoption or provenance the path still runs.
     plain = Model()

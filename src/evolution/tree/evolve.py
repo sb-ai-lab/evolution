@@ -134,7 +134,7 @@ from urllib.parse import urlsplit
 from evolution.prompts import (
     TREE_AGENT_GROUPER_SYSTEM,
     TREE_GROUPING_MODEL_SYSTEM,
-    TREE_GROUPING_MODEL_V2_SYSTEM,
+    TREE_GROUPING_MODEL_V3_SYSTEM,
 )
 from evolution.tree.artifacts.attestation import PromotionCapableAdapter
 from evolution.tree.baseline_import import BaselineImport, BaselineSourceUnavailable
@@ -1706,6 +1706,9 @@ def _adaptive_config(
         "representatives_per_case": selection.representatives_per_case,
         "context_page_size": selection.context_page_size,
     }
+    runtime_selection = SelectionRuntimeConfig(**selection_identity)
+    if selection.min_claim_cases is not None:
+        selection_identity["min_claim_cases"] = selection.min_claim_cases
     family_identity: dict[str, object] = {"kind": families.kind}
     if families.path is not None:
         family_identity["path"] = families.path
@@ -1753,7 +1756,7 @@ def _adaptive_config(
         custom_command=command,
         custom_timeout_seconds=timeout,
         custom_config=config,
-        selection=SelectionRuntimeConfig(**selection_identity),
+        selection=runtime_selection,
         families=family_identity,
         reflection_metadata=reflection_metadata,
         model_grouping=model_grouping,
@@ -1899,8 +1902,9 @@ def _model_grouping_identity(
     written as `null`: a Grouper that declares its key keeps its identity.
 
     `family15` (a `/16` chat Grouper, b16 spec §11, ADR-0055) records
-    `model_grouping/2`, seals the packaged `_v2` prompt and adds each declared
-    portion key. Without it the payload keeps its `/15` bytes.
+    `model_grouping/2`, seals the packaged prompt -- `_v3` from 2.0.0b17
+    (ADR-0057), `_v2` before it -- and adds each declared portion key. Without
+    it the payload keeps its `/15` bytes.
     """
 
     payload: dict[str, Any] = {
@@ -1922,7 +1926,7 @@ def _model_grouping_identity(
         "retry": section.retry.to_payload(),
         "prompt_sha256": _sealed_prompt(
             section.system_prompt,
-            TREE_GROUPING_MODEL_V2_SYSTEM if family15 else TREE_GROUPING_MODEL_SYSTEM,
+            TREE_GROUPING_MODEL_V3_SYSTEM if family15 else TREE_GROUPING_MODEL_SYSTEM,
             code=code,
             field_path=field_path,
         ).sha256,

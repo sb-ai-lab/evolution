@@ -10,6 +10,7 @@ import pytest
 
 from evolution.tree.execution.json_pointer import MISSING, pointer_value
 from evolution.tree.roles.grouping.reflect_grouping import (
+    FAMILY15_DESCRIPTION_CHARS,
     MAX_REGISTRY_RECORDS,
     FieldFeature,
     GroupingAdmissionError,
@@ -688,3 +689,144 @@ def test_fields_texts_check_every_member_even_when_the_first_is_visible():
     )
     (group,) = result.neighborhoods
     assert group.member_ids == ("e0", "e1") and group.description is None
+
+
+# b17 wave 2 (ADR-0057): family 15 bounds a description by the description
+# template at the header-field bounds, derived in one place; family 14 keeps
+# 512 and the derived constant never drifts from the template.
+def _one_group_result(reg, description):
+    return GroupingResult(
+        reg.digest,
+        (0, None),
+        descriptions={0: {"label": "l", "description": description}},
+    )
+
+
+def test_family15_admission_bound_is_the_template_at_the_field_bounds():
+    from evolution.tree.roles.grouping.reflect_grouping import (
+        DESCRIPTION_FIELD_CHARS,
+        DESCRIPTION_FIELD_PREFIXES,
+        FAMILY15_DESCRIPTION_CHARS,
+    )
+
+    # The derived constant is the template with each field at its bound.
+    template = "\n".join(
+        f"{prefix}{'x' * DESCRIPTION_FIELD_CHARS}" for prefix in DESCRIPTION_FIELD_PREFIXES
+    )
+    assert FAMILY15_DESCRIPTION_CHARS == 1568 == len(template)
+    reg = build_registry("b" * 64, [record("a#1", "a", 1, failing=True), record("a#2", "a", 2)])
+
+    # The longest describable text is accepted ...
+    admitted = admit_grouping_result(
+        reg,
+        _one_group_result(reg, template),
+        policy_identity="p",
+        description_chars=FAMILY15_DESCRIPTION_CHARS,
+    )
+    assert admitted.neighborhoods[0].description.description == template
+    # ... one character more is not ...
+    with pytest.raises(GroupingAdmissionError, match="invalid_description"):
+        admit_grouping_result(
+            reg,
+            _one_group_result(reg, template + "x"),
+            policy_identity="p",
+            description_chars=FAMILY15_DESCRIPTION_CHARS,
+        )
+    # ... the label bound does not move ...
+    with pytest.raises(GroupingAdmissionError, match="invalid_description"):
+        admit_grouping_result(
+            reg,
+            GroupingResult(
+                reg.digest,
+                (0, None),
+                descriptions={0: {"label": "l" * 129, "description": template}},
+            ),
+            policy_identity="p",
+            description_chars=FAMILY15_DESCRIPTION_CHARS,
+        )
+    # ... and the default stays 512, so family 14 refuses what family 15 takes.
+    with pytest.raises(GroupingAdmissionError, match="invalid_description"):
+        admit_grouping_result(reg, _one_group_result(reg, template), policy_identity="p")
+    admitted = admit_grouping_result(
+        reg,
+        _one_group_result(reg, "x" * 512),
+        policy_identity="p",
+        description_chars=FAMILY15_DESCRIPTION_CHARS,
+    )
+    assert admitted.neighborhoods[0].description.description == "x" * 512
+
+
+def test_stored_family15_descriptions_readmit_unchanged_across_the_upgrade():
+    """A stored b16/first-wave result holds descriptions of at most 512; it
+    re-admits under the family-15 bound byte for byte (spec §3.2)."""
+
+    reg = build_registry("b" * 64, [record("a#1", "a", 1, failing=True), record("a#2", "a", 2)])
+    stored = GroupingResult(
+        reg.digest,
+        (0, None),
+        descriptions={
+            0: {
+                "label": "Wrong rule",
+                "description": "Observed: fm\nExpected: eb\nQuestion: q?",
+            }
+        },
+    )
+    upgraded = admit_grouping_result(
+        reg,
+        stored,
+        policy_identity="p",
+        description_chars=1568,
+    )
+    before = admit_grouping_result(reg, stored, policy_identity="p")
+    assert upgraded.neighborhoods[0].description == before.neighborhoods[0].description
+    assert upgraded.result.descriptions == before.result.descriptions
+
+
+def test_family15_fields_bound_keeps_a_key_that_512_cuts():
+    """A `fields` description is bounded like a model description (ADR-0057):
+    a key that 512 cuts fits whole under the family-15 bound."""
+
+    feature = FieldFeature("x", "observation", "/x", "")
+    key = "k" * 1000
+    reg = b17_fields_registry([{"x": key}])
+
+    family14 = builtin_grouping(
+        reg, (feature,), policy_identity="p", describe=True, description_chars=512
+    )
+    cut = family14.neighborhoods[0].description.description
+    assert len(cut) <= 512 and "…[cut]" in cut
+    assert key not in cut
+
+    family15 = builtin_grouping(
+        reg,
+        (feature,),
+        policy_identity="p",
+        describe=True,
+        description_chars=FAMILY15_DESCRIPTION_CHARS,
+    )
+    text = family15.neighborhoods[0].description.description
+    assert "…[cut]" not in text and key in text
+    assert text.endswith("What do they have in common, and why do they fail?")
+    assert len(text) <= FAMILY15_DESCRIPTION_CHARS
+
+
+def test_family15_fields_bound_cuts_at_1568_not_512():
+    feature = FieldFeature("x", "observation", "/x", "")
+    key = "k" * 2000
+    reg = b17_fields_registry([{"x": key}])
+    result = builtin_grouping(
+        reg,
+        (feature,),
+        policy_identity="p",
+        describe=True,
+        description_chars=FAMILY15_DESCRIPTION_CHARS,
+    )
+    text = result.neighborhoods[0].description.description
+    prefix = "1 failing observation in 1 case share "
+    question = ". What do they have in common, and why do they fail?"
+    # The key is cut to the room the bound leaves: prefix + room + question.
+    assert len(text) == FAMILY15_DESCRIPTION_CHARS
+    assert "…[cut]" in text
+    assert len(text) > 512
+    assert text.startswith(prefix + 'x="k')
+    assert text.endswith(question)

@@ -582,6 +582,7 @@ class AgentCliGrouper:
                         fallback,
                         describe_fields=self.family15,
                         family14=True,
+                        family15=self.family15,
                         failing=frozenset(failing),
                         policy_identity=policy_identity,
                         fallback_features=None

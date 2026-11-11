@@ -78,6 +78,7 @@ REFLECTION_REASONS: Final[dict[tuple[str, str], FailureClass]] = {
     # The Grouper's same-named failure stays content and falls back.
     ("input_too_large", "input_too_large"): "unknown",
     ("reported", "agent_error"): "unknown",
+    ("reported", "program_failed"): "unknown",
     ("reported", "unclassified"): "unknown",
     ("timeout", "timeout"): "unknown",
     ("control_collision", "control_collision"): "unknown",
@@ -116,6 +117,14 @@ _REPORTED_REFLECTOR: Final = {
     "agent_error": "agent_error",
 }
 
+#: The `code`s of a subprocess Reflector program's failure (ADR-0023 amendment).
+_REFLECTOR_PROGRAM_CODES: Final = frozenset(
+    {"exit_status", "result_too_large", "bad_result", "no_result", "program_failed"}
+)
+#: The first family whose schema admits the Reflector reason `program_failed`
+#: (`/16`; not imported, because `campaign_schema` imports this module).
+REFLECTION_PROGRAM_REASON_FAMILY: Final = 15
+
 _REPORTED_EDITOR: Final = {
     "provider_exhausted": "provider_exhausted",
     "provider_rejected": "provider_rejected",
@@ -145,12 +154,19 @@ def _error_key(error_class: str) -> str:
     return "exception" if error_class.startswith("exception:") else error_class
 
 
-def reflection_reason(error_class: str, code: str | None) -> str | None:
-    """The family-10 `reason` of a reflection terminal, or None for a lifecycle terminal."""
+def reflection_reason(
+    error_class: str, code: str | None, *, family_version: int = 14
+) -> str | None:
+    """The family-10 `reason` of a reflection terminal, or None for a lifecycle terminal.
+
+    A subprocess program's failure codes are named `program_failed` from
+    `REFLECTION_PROGRAM_REASON_FAMILY`; earlier families keep `unclassified`."""
     if error_class in LIFECYCLE_ERRORS:
         return None
     key = _error_key(error_class)
     if key == "reported":
+        if code in _REFLECTOR_PROGRAM_CODES and family_version >= REFLECTION_PROGRAM_REASON_FAMILY:
+            return "program_failed"
         return _REPORTED_REFLECTOR.get(code or "", "unclassified")
     return key
 

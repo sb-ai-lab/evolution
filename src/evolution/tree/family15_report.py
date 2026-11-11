@@ -155,6 +155,7 @@ def scenario_cost(
     stages: str = "single",
     focus_cases: int | None = None,
     focus_passed: bool | None = None,
+    focus_repeats: int | None = None,
 ) -> dict[str, Any]:
     """No-retry, complete-scoring scenario, not a forecast of reaching final.
 
@@ -162,11 +163,17 @@ def scenario_cost(
     finalist set; do not multiply the shared all-attempts cost by its members.
     """
     total, gate = train_cases * repeats, affected_cases * repeats
+    # b18: focus cases measured at `focus_repeats` on the Candidate and fresh Parent.
+    if focus_repeats is not None:
+        if focus_cases is None or not 0 <= focus_cases <= affected_cases:
+            raise ValueError("focus repeats require the declared focus size")
+        gate += focus_cases * (focus_repeats - repeats)
+    reused = affected_cases * repeats
     if stages == "focus_first" and not (gate_passed if focus_passed is None else focus_passed):
         if focus_cases is None or not 0 <= focus_cases <= affected_cases:
             raise ValueError("focus-first rejection requires its declared focus size")
-        gate = focus_cases * repeats
-    final = (total if verification == "fresh" else total - gate) if gate_passed else 0
+        gate = focus_cases * (repeats if focus_repeats is None else focus_repeats)
+    final = (total if verification == "fresh" else total - reused) if gate_passed else 0
     champion = (
         total * (int(finalists > 0) if round_stop == "all_attempts" else finalists)
         if stability == "unstable" and gate_passed
@@ -556,8 +563,11 @@ def _add_external_facts(
                 affected = (
                     None
                     if profile is None
-                    else len(profile["candidate"]["identity"]["schedule"]) // policy.repeats
+                    else len(
+                        {row["case_id"] for row in profile["candidate"]["identity"]["schedule"]}
+                    )
                 )
+                focus_repeats = getattr(policy, "focus_repeats_per_question", None)
                 scoped = profile is not None and getattr(
                     context.policy_for(profile["candidate"]["measurement_id"]), "focus_first", False
                 )
@@ -589,8 +599,9 @@ def _add_external_facts(
                         focus_passed=focus_passed if scoped else None,
                         stages="focus_first" if scoped else "single",
                         focus_cases=len(profile["scopes"][0]["declared_cases"])
-                        if profile is not None and scoped
+                        if profile is not None and (scoped or focus_repeats is not None)
                         else None,
+                        focus_repeats=focus_repeats,
                         finalists=sum(a.outcome == "finalist" for a in state.attempts.values()),
                     )
                 )

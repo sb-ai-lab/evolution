@@ -436,3 +436,41 @@ async def test_v16_plan_delete_missing_lists_nearest(tmp_path):
     errors = [r for r in _log_lines(editor) if r.get("phase") == "plan_correction_requested"]
     assert len(errors) == 1 and errors[0]["category"] == "plan_delete_missing"
     assert "nearest existing paths: skills/SKILL.md" in errors[0]["error"]
+
+
+@pytest.mark.parametrize(
+    "bad",
+    ['{"path":7,"content":"x"}', '{ "content" : "x" }'],
+)
+async def test_v16_editor_object_arguments_repaired_for_schema_keep_their_string(tmp_path, bad):
+    """ADR-0061: object arguments repaired by `_expect` are never rewritten."""
+
+    from dataclasses import replace
+
+    from tests.test_tree_chat_role_retry import _resilient_editor
+
+    client = _CapturingClient(
+        [
+            _response("list_files"),
+            _response("write_file", bad),
+            _plan("skills/SKILL.md"),
+            _write("skills/SKILL.md", "x\n"),
+            _response("finish_edit", '{"summary":"d"}'),
+        ]
+    )
+    editor = replace(_resilient_editor(tmp_path, client), family15=True, plan_correction=True)
+    assert (await editor.edit(_request(_ws(tmp_path)))).status == "edited"
+    (repair,) = [e for e in _log_lines(editor) if e["phase"] == "protocol_repair_requested"]
+    assert (repair["category"], repair["error"]) == ("invalid_arguments", "invalid tool arguments")
+    assert "replaced_calls" not in repair
+    history = client.calls[-1]["messages"]
+    retained = next(m for m in history if m["role"] == "assistant" and m.get("tool_calls"))
+    assert retained["tool_calls"][0]["function"]["arguments"] == bad
+    correction = next(
+        m["content"]
+        for m in history
+        if m["role"] == "user" and "Correction details: " in str(m["content"])
+    )
+    assert "were removed from the conversation history" not in correction
+    details = json.loads(correction.split("Correction details: ", 1)[1])
+    assert details["received_calls"][0]["arguments"]["preview"] == bad

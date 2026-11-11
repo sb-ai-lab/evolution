@@ -1145,7 +1145,14 @@ def _validate_structure_v12(obj: Mapping[str, Any]) -> None:
     ]
     evaluation = obj.get("evaluation")
     if isinstance(evaluation, Mapping):
-        sections.append((evaluation, _EVALUATION_KEYS, "evaluation", _EVALUATION_KEYS))
+        sections.append(
+            (
+                evaluation,
+                _EVALUATION_KEYS,
+                "evaluation",
+                _EVALUATION_KEYS | {"focus_repeats_per_question"},
+            )
+        )
     if isinstance(gate, Mapping):
         sections.append((gate, gate_keys, "gate", gate_keys | {"bound_fallback", "stages"}))
         for key, keys in (
@@ -1266,6 +1273,17 @@ def _parse_v12(payload: Mapping[str, Any]) -> dict[str, Any]:
         else None
     )
     context_limit = _MAX_EDITOR_CONTEXT_BYTES if context_max_bytes is None else context_max_bytes
+    fresh_parent = _bool(gate["fresh_parent"], "gate.fresh_parent")
+    focus_repeats = None
+    if "focus_repeats_per_question" in evaluation:
+        focus_repeats = _positive_int(
+            evaluation["focus_repeats_per_question"], "evaluation.focus_repeats_per_question"
+        )
+        # b18 first version: the fresh Parent measures the focus with the
+        # Candidate, and only the point gate compares their per-case means.
+        # The `case_repeats` selector lists counts above R only.
+        if mode != "point" or not fresh_parent or focus_repeats <= repeats:
+            raise PolicyError("bad_value", "evaluation.focus_repeats_per_question")
     return {
         "rounds": rounds,
         "attempts_per_round": attempts,
@@ -1281,10 +1299,11 @@ def _parse_v12(payload: Mapping[str, Any]) -> dict[str, Any]:
         "context_max_bytes": context_max_bytes,
         "_regression_margin": None,
         "gate_provenance": MappingProxyType(_parse_provenance(gate)),
-        "fresh_parent": _bool(gate["fresh_parent"], "gate.fresh_parent"),
+        "fresh_parent": fresh_parent,
         "global_layer": False,
         "gate_mode": mode,
         "repeats_per_question": repeats,
+        "focus_repeats_per_question": focus_repeats,
         "focus_confidence": focus_confidence,
         "causal_confidence": causal_confidence,
         "causal_tolerance": tolerance,
@@ -1319,6 +1338,9 @@ class CampaignPolicyV12(CampaignPolicyV11):
     #: None means absent: old /16 payloads and digests must not gain a key.
     bound_fallback: Literal["point"] | None
     stages: Literal["focus_first"] | None
+    #: b18: focus-case repeats of an Attempt's Candidate and fresh Parent;
+    #: None means absent, so a policy without it keeps its payload and digest.
+    focus_repeats_per_question: int | None
     reflector_context: str | None
     context_max_bytes: int | None
 
@@ -1375,9 +1397,12 @@ class CampaignPolicyV12(CampaignPolicyV11):
             gate["stages"] = self.stages
         if self.bound_fallback is not None:
             gate["bound_fallback"] = self.bound_fallback
+        evaluation: dict[str, Any] = {"repeats_per_question": self.repeats}
+        if self.focus_repeats_per_question is not None:
+            evaluation["focus_repeats_per_question"] = self.focus_repeats_per_question
         result = self._payload_around(
             {
-                "evaluation": {"repeats_per_question": self.repeats},
+                "evaluation": evaluation,
                 "round_stop": self.round_stop,
                 "baseline_refresh_after_rounds": self.baseline_refresh_after_rounds,
             },

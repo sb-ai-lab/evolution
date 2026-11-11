@@ -12,8 +12,16 @@ from typing import Any
 import pytest
 from openai.types.chat import ChatCompletionMessage
 
-from evolution.tree.roles.chat_history import assistant_message, message_units, tool_exchange
-from evolution.tree.roles.editor.chat_editor import EditFailure, _compact_messages
+from evolution.tree.roles.chat_history import (
+    ReplacedCall,
+    assistant_message,
+    is_object_arguments,
+    message_units,
+    retained_message,
+    strict_json,
+    tool_exchange,
+)
+from evolution.tree.roles.editor.chat_editor import EditFailure, _compact_messages, _text_summary
 from evolution.tree.roles.reflector_contracts import ProbeAccess, ReflectRequest
 from evolution.tree.storage.redaction import safe_record
 from tests.tree.roles.editor.test_chat_editor import (
@@ -592,3 +600,165 @@ async def test_reasoning_only_assistant_is_not_silently_discarded(native_role) -
         "content": None,
         "reasoning_content": "opaque-only",
     }
+
+
+# --- b18 A1: object-argument predicate and retained-message normalizer ---
+
+_BROKEN_ARGUMENTS = {
+    "dsml": (
+        '<｜DSML｜function_calls><｜DSML｜invoke name="list_files">'
+        "</｜DSML｜invoke></｜DSML｜function_calls>"
+    ),
+    "truncated": '{"path": "a',
+    "empty": "",
+    "array": "[]",
+    "string": '"x"',
+    "null": "null",
+    "nan": '{"path": "skills/SKILL.md", "start_line": NaN}',
+    # call scenarios of the A0 goldens: the broken argument strings they use
+    "skipped_broken": '{"path": "a',
+    "unknown_tool_broken": '{"x"',
+}
+
+
+@pytest.mark.parametrize("constant", ["NaN", "Infinity", "-Infinity"])
+@pytest.mark.parametrize("shape", ["{}", '{{"a": {}}}', "[{}]", '{{"a": [1, {}]}}'])
+def test_strict_json_rejects_non_finite_constants(constant: str, shape: str) -> None:
+    text = constant if shape == "{}" else shape.format(constant)
+    with pytest.raises(ValueError):
+        strict_json(text)
+
+
+def test_strict_json_decides_float_overflow_like_json_loads() -> None:
+    # `json.loads` turns 1e400 into inf without calling parse_constant, so it is
+    # accepted as a float: strict_json follows json.loads here.
+    assert strict_json("1e400") == float("inf")
+    assert strict_json('{"a": 1.5}') == {"a": 1.5}
+
+
+@pytest.mark.parametrize("kind", list(_BROKEN_ARGUMENTS))
+def test_is_object_arguments_table_broken(kind: str) -> None:
+    assert is_object_arguments(_BROKEN_ARGUMENTS[kind]) is False
+
+
+@pytest.mark.parametrize("raw", ["{}", '{"a": 1}', '{ "a" : {"b": [true, null]} }', ' {"a":1}\n'])
+def test_is_object_arguments_table_objects(raw: str) -> None:
+    assert is_object_arguments(raw) is True
+
+
+@pytest.mark.parametrize("raw", [None, {}, ["a"], 1, b"{}"])
+def test_is_object_arguments_non_str(raw: object) -> None:
+    assert is_object_arguments(raw) is False
+
+
+_VALID = ' {\n  "path" :  "a.md",\t"start_line": 1 }  '
+
+
+def _call(call_id: str, name: str, arguments: Any) -> dict[str, Any]:
+    return {"id": call_id, "type": "function", "function": {"name": name, "arguments": arguments}}
+
+
+def _canonical(value: Any) -> str:
+    return json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+
+
+def _message(calls: list[dict[str, Any]]) -> dict[str, Any]:
+    return {
+        "role": "assistant",
+        "content": "thinking out loud",
+        "refusal": None,
+        "reasoning": "r",
+        "reasoning_content": "rc",
+        "reasoning_details": [{"type": "reasoning.encrypted", "signature": "opaque=="}],
+        "tool_calls": calls,
+    }
+
+
+def _three() -> dict[str, Any]:
+    return _message(
+        [
+            _call("c1", "read_file", _VALID),
+            _call("c2", "list_files", _BROKEN_ARGUMENTS["dsml"]),
+            _call("c3", "no_such_tool", "[]"),
+        ]
+    )
+
+
+def test_retained_message_replaces_only_broken_calls() -> None:
+    original = _three()
+    snapshot = copy.deepcopy(original)
+    result, replaced = retained_message(original)
+    assert original == snapshot  # not mutated
+    assert [call["function"]["arguments"] for call in result["tool_calls"]] == [_VALID, "{}", "{}"]
+    expected = copy.deepcopy(snapshot)
+    for call in expected["tool_calls"][1:]:
+        call["function"]["arguments"] = "{}"
+    assert _canonical(result) == _canonical(expected)
+    assert list(result) == list(snapshot)
+    assert [call["id"] for call in result["tool_calls"]] == ["c1", "c2", "c3"]
+    assert [call["function"]["name"] for call in result["tool_calls"]] == [
+        "read_file",
+        "list_files",
+        "no_such_tool",
+    ]
+    assert result["reasoning_details"] == snapshot["reasoning_details"]
+    assert len(replaced) == 2
+
+
+def test_retained_message_reports_replaced_calls() -> None:
+    original = _three()
+    _, replaced = retained_message(original)
+    assert all(isinstance(item, ReplacedCall) for item in replaced)
+    records = [item.to_record() for item in replaced]
+    for record, (call_id, name, raw) in zip(
+        records,
+        [("c2", "list_files", _BROKEN_ARGUMENTS["dsml"]), ("c3", "no_such_tool", "[]")],
+        strict=True,
+    ):
+        summary = _text_summary(raw)
+        assert summary is not None
+        assert record == {
+            "id": call_id,
+            "name": name,
+            "characters": summary["characters"],
+            "sha256": summary["sha256"],
+        }
+    assert list(records[0]) == ["id", "name", "characters", "sha256"]
+
+
+def test_retained_message_without_broken_calls_is_identity() -> None:
+    for message in (
+        _message([_call("c1", "read_file", _VALID), _call("c2", "list_files", "{}")]),
+        {"role": "assistant", "content": "plain"},
+        {"role": "assistant", "content": None, "tool_calls": None},
+    ):
+        result, replaced = retained_message(message)
+        assert replaced == ()
+        assert _canonical(result) == _canonical(message)
+
+
+def test_retained_message_non_str_arguments_keeps_id_and_name() -> None:
+    message = _message([_call("c1", "read_file", {"a": 1}), {"id": "c2", "type": "function"}])
+    result, replaced = retained_message(message)
+    assert [call["function"]["arguments"] for call in result["tool_calls"]] == ["{}", "{}"]
+    assert [call["id"] for call in result["tool_calls"]] == ["c1", "c2"]
+    assert result["tool_calls"][0]["function"]["name"] == "read_file"
+    # a non-str raw is measured as its json.dumps text (None, if absent, as "null")
+    assert [item.characters for item in replaced] == [len('{"a": 1}'), len("null")]
+
+
+_DEEP = ["[" * 100000, '{"a":' * 100000]
+
+
+@pytest.mark.parametrize("raw", _DEEP)
+def test_deep_nesting_is_invalid_arguments(raw: str) -> None:
+    with pytest.raises(ValueError):
+        strict_json(raw)
+    assert is_object_arguments(raw) is False
+
+
+def test_retained_message_replaces_deeply_nested_arguments() -> None:
+    message = _message([_call("c1", "read_file", _DEEP[1]), _call("c2", "list_files", "{}")])
+    result, replaced = retained_message(message)
+    assert [call["function"]["arguments"] for call in result["tool_calls"]] == ["{}", "{}"]
+    assert [item.id for item in replaced] == ["c1"]

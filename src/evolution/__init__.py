@@ -1,3 +1,3 @@
 """Evolution: Procedural memory management framework for LLM agents."""
 
-__version__ = "2.0.0b16"
+__version__ = "2.0.0b18"

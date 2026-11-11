@@ -9,9 +9,10 @@ testing nothing:
 
 * **a vacuous sweep.** If discovery breaks and finds no modules, importing all of
   them trivially succeeds. The module count is asserted against a floor;
-* **a rotting exclusion list.** The only excluded modules are executable wrappers
-  that ``sys.exit`` at module scope. Each is asserted to still exist, so an
-  exclusion that outlives its module fails instead of quietly widening.
+* **a rotting exclusion list.** Executable wrappers that ``sys.exit`` at module
+  scope and the distribution-excluded GUI subtree each have a narrowly tested reason not to be
+  imported. The wrapper modules must still exist, and the GUI exception must
+  match the package exclusions, so neither exception can quietly widen.
 
 What this does **not** yet cover, stated so the gate is not over-read: the plan
 also wants the sweep run inside a venv with only the core wheel installed, which
@@ -25,6 +26,7 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 from typing import Any
 
@@ -47,21 +49,38 @@ EXECUTABLE_WRAPPERS = (
     "evolution.eval._guard_scripts.destructive_wrapper",
 )
 
+#: Modules outside the distribution are not part of the installed import surface.
+DISTRIBUTION_EXCLUDED = ("evolution.gui",)
+
 #: A floor, not a target. The tree held 107 modules when this landed; the check
 #: exists so a discovery bug cannot make an empty sweep look green.
 MINIMUM_MODULES = 80
 
 _PROBE = """
-import importlib, json, pkgutil, sys
+import importlib, json, sys
+from pathlib import Path
 sys.path.insert(0, {src!r})
 import evolution
 
 excluded = set({excluded!r})
-names = sorted(m.name for m in pkgutil.walk_packages(evolution.__path__, prefix="evolution."))
+distribution_excluded = tuple({distribution_excluded!r})
+package = Path({src!r}) / "evolution"
+names = []
+for source in package.rglob("*.py"):
+    parts = source.relative_to(package).with_suffix("").parts
+    if parts[-1] == "__init__":
+        parts = parts[:-1]
+    if parts:
+        names.append("evolution." + ".".join(parts))
+names.sort()
 failures = {{}}
 missing = {{}}
+source_only = []
 for name in names:
     if name in excluded:
+        continue
+    if any(name == root or name.startswith(root + ".") for root in distribution_excluded):
+        source_only.append(name)
         continue
     try:
         importlib.import_module(name)
@@ -78,10 +97,17 @@ for name in names:
         failures[name] = type(exc).__name__ + ": " + str(exc)[:200]
 
 foreign = sorted({{m.split(".")[0] for m in sys.modules if m.split(".")[0] in {foreign!r}}})
+private_imports = sorted(
+    name
+    for name in sys.modules
+    if any(name == root or name.startswith(root + ".") for root in distribution_excluded)
+)
 print("<<<" + json.dumps({{
     "discovered": names,
     "failures": failures,
     "missing_dependency": missing,
+    "distribution_excluded": source_only,
+    "excluded_source_imports": private_imports,
     "foreign_roots_loaded": foreign,
 }}) + ">>>")
 """
@@ -102,6 +128,7 @@ def sweep() -> dict[str, Any]:
             _PROBE.format(
                 src=str(SRC),
                 excluded=list(EXECUTABLE_WRAPPERS),
+                distribution_excluded=list(DISTRIBUTION_EXCLUDED),
                 foreign=list(FOREIGN_ROOTS),
             ),
         ],
@@ -118,14 +145,12 @@ def sweep() -> dict[str, Any]:
 
 
 def test_every_product_module_imports(sweep: dict[str, Any]) -> None:
-    """Every module imports, or names a dependency an extra declares.
+    """Every swept product module imports, or names a dependency an extra declares.
 
     The sweep runs wherever the suite runs, including CI, which installs the
-    core and nothing else. The GUI views then fail on ``streamlit`` -- which is
-    correct behaviour for an optional extra, not a defect, and demanding an
-    empty failure map made this gate red on a machine that was doing everything
-    right. Anything else still fails, and the extras claim is checked below
-    rather than assumed.
+    core and nothing else. Distribution-excluded modules are not swept because no
+    installed product can contain them; all remaining failures are defects, and
+    the extras claim is checked below rather than assumed.
     """
     assert sweep["failures"] == {}
 
@@ -144,6 +169,28 @@ def test_every_optional_import_is_backed_by_a_declared_extra(sweep: dict[str, An
     }
 
     assert undeclared == {}
+
+
+def test_excluded_modules_are_not_imported_by_the_source_sweep(sweep: dict[str, Any]) -> None:
+    """Excluded source modules are outside the installed import surface."""
+    gui_modules = {
+        module
+        for module in sweep["discovered"]
+        if module == "evolution.gui" or module.startswith("evolution.gui.")
+    }
+
+    assert DISTRIBUTION_EXCLUDED == ("evolution.gui",)
+    assert set(sweep["distribution_excluded"]) == gui_modules
+    assert sweep["excluded_source_imports"] == []
+
+    if (SRC / "evolution" / "gui").is_dir():
+        config = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))
+        assert (
+            "src/evolution/gui" in config["tool"]["hatch"]["build"]["targets"]["wheel"]["exclude"]
+        )
+        assert (
+            "/src/evolution/gui" in config["tool"]["hatch"]["build"]["targets"]["sdist"]["exclude"]
+        )
 
 
 def test_no_foreign_runtime_is_reachable(sweep: dict[str, Any]) -> None:

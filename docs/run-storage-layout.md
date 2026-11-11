@@ -24,10 +24,12 @@ For a tree campaign, start with [the v2 run directory](#the-v2-run-directory) or
 ├─ connection-logs/        family 14 preflight traces
 ├─ logs/                   family 15 and evaluation process logs
 ├─ .grouping/              temporary custom-grouping helpers
-└─ .reflections/           temporary, read-only Parent copies for reflection
+└─ .reflections/           legacy read-only Parent copies; current releases use temporary storage
 ```
 
 Family 15 (`/16`) also stores immutable comparison inputs under `artifacts/auxiliary/<content_digest>/` and inherited diagnostics under `diagnostic-imports/<bundle_digest>/`. The ledger and its committed records, rather than a path alone, establish what was admitted.
+
+Scorer stream buffers and the Reflector's frozen copy of the Parent, with its probe and reader helpers, are scratch files in the default temporary directory (`TMPDIR`, else `/tmp`), outside the run directory. The Reflector's copy is removed as soon as the call returns; a crash can leave a copy to remove manually.
 
 `artifacts/` copies and temporary reflection copies are read-only. If you intentionally remove a completed run directory, make it writable first as described in [move, copy or delete a run directory](running-campaigns.md#move-copy-or-delete-a-run-directory).
 
@@ -73,3 +75,9 @@ Scorer traces can contain unredacted request or output data. `evo tree trace --m
 ## Safe movement and retention
 
 Copy a completed run with its complete directory tree so journals, ledger, measurements, artifacts, and traces remain together. Keep owner-only permissions on run data. Before resuming, use the same directory and command after repairing the external cause. A changed manifest, target, seed, or other bound input can require a new or linked run instead of a resume.
+
+## Family 15 role-check diagnostics
+
+Family-15 `reflection_failed` with `error_class: oracle_leak`, `grouping_failed` with `code: oracle_leak`, and `attempt_closed` with `reason: seal_refused` and `code: oracle_leak` can carry optional `leak: {case_id, oracle_pointer?}`. The pointer is omitted above 1,024 UTF-8 bytes or when it contains a run secret. A non-oracle `reflection_failed` can instead carry `detail: {category, path?}` from final admission or a chat Reflector's last semantic rejection before `turns_exhausted`. Categories and paths use the [closed grammar](manifest-v2.md#a-16-chat-reflector-corrects-its-answer). These fields survive replay and audit but never enter role inputs, Reflector history, attempt feedback or Editor briefs. Family 14 refuses them; `2.0.0b11` readers also refuse them in family 15.
+
+A `/16` chat Editor's private JSONL log adds `plan_normalized` (turn, path, declared verb or null, recorded verb) and `plan_correction_requested` (turn, closed category, error text). `protocol_repair_requested` also gains a closed category in `/16`. The text remains private and redacted for run secrets; `watch` reads only the last allowed category and prints its log path. The journal gains no Editor error text or new event. See [Editor plan rules](manifest-v2.md#correctable-editor-plans-in-16).

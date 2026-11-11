@@ -19,7 +19,9 @@ ROOT = Path(__file__).parents[1]
 CORE_DOCS = (
     "AGENTS.md",
     "README.md",
+    "README.ru.md",
     "QUICKSTART.md",
+    "QUICKSTART.ru.md",
     "CONTRIBUTING.md",
     "SECURITY.md",
     "CHANGELOG.md",
@@ -45,6 +47,7 @@ CORE_DOCS = (
     "docs/child-process-environment.md",
     "docs/prompts_examples.md",
 )
+LOCALIZED_DOCS = frozenset({"README.ru.md", "QUICKSTART.ru.md"})
 CYRILLIC = re.compile(r"[\u0400-\u04ff]")
 LINK = re.compile(r"(?<!!)\[[^\]]+\]\(([^)]+)\)")
 FENCE = re.compile(r"^\s*(```|~~~)")
@@ -75,6 +78,20 @@ def _tracked_files() -> set[str]:
         capture_output=True,
     ).stdout
     return {item.decode() for item in output.split(b"\0") if item}
+
+
+def _owned_markdown(tracked: set[str]) -> set[str]:
+    # Direct child distributions maintain their own documentation inventory.
+    distributions = {
+        path.removesuffix("pyproject.toml")
+        for path in tracked
+        if path.count("/") == 1 and path.endswith("/pyproject.toml")
+    }
+    return {
+        path
+        for path in tracked
+        if path.endswith(".md") and not any(path.startswith(root) for root in distributions)
+    }
 
 
 def _markdown_classifications() -> dict[str, str]:
@@ -112,7 +129,7 @@ def test_live_document_manifest_is_explicit_and_tracked(relative: str) -> None:
 
 
 def test_every_tracked_markdown_file_has_one_classification() -> None:
-    tracked_markdown = {path for path in _tracked_files() if path.endswith(".md")}
+    tracked_markdown = _owned_markdown(_tracked_files())
     classifications = _markdown_classifications()
 
     assert set(classifications) == tracked_markdown
@@ -159,7 +176,7 @@ def test_live_prose_is_english_and_paragraphs_are_single_line(relative: str) -> 
             continue
         if fenced:
             continue
-        if not re.match(r"^(?: {4}|\t)", line):
+        if relative not in LOCALIZED_DOCS and not re.match(r"^(?: {4}|\t)", line):
             prose_without_code = re.sub(r"`[^`]*`", "", line)
             assert not CYRILLIC.search(prose_without_code), (
                 f"{relative}:{number}: non-English prose"
@@ -614,3 +631,37 @@ def test_the_b12_role_check_surface_is_documented() -> None:
         and "`plan_correction/1`" in section
         and "rebase" in section
     )
+
+
+def test_localized_entry_guides_preserve_commands_and_language_routes() -> None:
+    for localized in LOCALIZED_DOCS:
+        english = localized.replace(".ru.md", ".md")
+        original = (ROOT / english).read_text(encoding="utf-8")
+        translated = (ROOT / localized).read_text(encoding="utf-8")
+        assert localized in CORE_DOCS
+        assert _markdown_classifications()[localized] == "maintained_documentation"
+        assert CYRILLIC.search(translated)
+        assert f"]({localized})" in original
+        assert f"]({english})" in translated
+        fences = r"^```[^\n]*\n(.*?)^```"
+        assert re.findall(fences, original, re.M | re.S) == re.findall(
+            fences, translated, re.M | re.S
+        ), f"{localized}: translated command/example blocks differ"
+
+
+def test_nested_distributions_own_their_markdown() -> None:
+    tracked = {
+        "pyproject.toml",
+        "README.md",
+        "docs/usage.md",
+        "extension/pyproject.toml",
+        "extension/README.md",
+        "extension/docs/guide.md",
+        "docs/examples/package/pyproject.toml",
+        "docs/examples/package/README.md",
+    }
+    assert _owned_markdown(tracked) == {
+        "README.md",
+        "docs/usage.md",
+        "docs/examples/package/README.md",
+    }

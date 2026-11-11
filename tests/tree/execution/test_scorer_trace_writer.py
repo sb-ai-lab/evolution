@@ -9,6 +9,7 @@ import os
 import stat
 import subprocess
 import sys
+import tempfile
 import textwrap
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -918,3 +919,260 @@ def test_root_parent_sync_never_follows_symlinked_components(
         with pytest.raises(ScorerTraceStorageFault):
             pack.append_request("try", b"{}")
     assert list(target.iterdir()) == []
+
+
+def _spy_temporary_file(monkeypatch, *, force_dir=None, error=None):
+    import evolution.tree.execution.scorer_trace_writer as module
+
+    original = module.tempfile.TemporaryFile
+    seen: list[object] = []
+
+    def temporary(*args, **kwargs):
+        seen.append(kwargs.get("dir"))
+        if error is not None:
+            raise error
+        if force_dir is not None:
+            kwargs["dir"] = force_dir
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(module.tempfile, "TemporaryFile", temporary)
+    return seen
+
+
+def test_stream_buffers_use_default_temporary_directory(tmp_path: Path, monkeypatch) -> None:
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    monkeypatch.setattr(tempfile, "tempdir", str(scratch))
+    seen = _spy_temporary_file(monkeypatch)
+    root = tmp_path / "scorer-traces"
+    with writer(root) as pack:
+        pack.append_request("try", b"{}")
+        with pack.streams() as (stdout, stderr):
+            assert seen == [None, None]
+            for stream in (stdout, stderr):
+                assert os.fstat(stream.fileno()).st_mode & 0o777 == 0o600
+            assert sorted(os.listdir(root)) == ["m.pack"]
+
+
+def test_pack_bytes_do_not_depend_on_buffer_location(tmp_path: Path, monkeypatch) -> None:
+    packs = []
+    for label in ("b17", "default"):
+        root = tmp_path / label / "scorer-traces"
+        with monkeypatch.context() as patch:
+            _spy_temporary_file(patch, force_dir=root if label == "b17" else None)
+            with writer(root) as pack:
+                pack.append_request(ID_A, request_bytes(ID_A, "c1"))
+                with pack.streams() as (stdout, stderr):
+                    stdout.write(STDOUT_A)
+                    stderr.write(STDERR_B)
+                    pack.append_output(ID_A, stdout, stderr, status="completed", returncode=0)
+        packs.append((root / "m.pack").read_bytes())
+    assert packs[0] == packs[1]
+
+
+@pytest.mark.parametrize(
+    ("number", "code", "remedy"),
+    [
+        (errno.ENOSPC, "storage_capacity_exhausted", "free space or inodes in the temporary"),
+        (errno.EIO, "journal_unavailable", "check the temporary directory"),
+    ],
+)
+def test_buffer_fault_names_temporary_directory(
+    tmp_path: Path, monkeypatch, number: int, code: str, remedy: str
+) -> None:
+    _spy_temporary_file(monkeypatch, error=OSError(number, "x"))
+    with writer(tmp_path / "scorer-traces") as pack:
+        with pytest.raises(ScorerTraceStorageFault) as caught:
+            with pack.streams():
+                pytest.fail("should not reach scoring")
+    assert caught.value.code == code
+    assert "(buffer)" in caught.value.detail
+    assert remedy in caught.value.detail
+    assert "temporary directory (TMPDIR, else /tmp)" in caught.value.detail
+
+
+def test_non_buffer_fault_text_unchanged(tmp_path: Path, monkeypatch) -> None:
+    module = importlib.import_module("evolution.tree.execution.scorer_trace_writer")
+
+    def fail(fd, data):
+        raise OSError(errno.ENOSPC, "full")
+
+    monkeypatch.setattr(module, "_write", fail)
+    with writer(tmp_path / "scorer-traces") as pack:
+        with pytest.raises(ScorerTraceStorageFault) as caught:
+            pack.append_request("try", b"{}")
+    assert "free space or inodes on the run directory's filesystem" in caught.value.detail
+    assert "temporary directory" not in caught.value.detail
+
+
+@pytest.mark.parametrize(
+    ("number", "code", "remedy"),
+    [
+        (
+            errno.ENOSPC,
+            "storage_capacity_exhausted",
+            "free space or inodes in the temporary directory (TMPDIR, else /tmp)",
+        ),
+        (errno.EIO, "journal_unavailable", "check the temporary directory (TMPDIR, else /tmp)"),
+    ],
+)
+def test_buffer_write_fault_names_temporary_directory(
+    tmp_path: Path, monkeypatch, number: int, code: str, remedy: str
+) -> None:
+    import evolution.tree.execution.scorer_traces as shared
+
+    def fail(*_args):
+        raise OSError(number, "x")
+
+    with writer(tmp_path / "scorer-traces") as pack:
+        pack.append_request("try", b"{}")
+        with pytest.raises(ScorerTraceStorageFault) as caught:
+            with pack.streams() as (stdout, _stderr):
+                monkeypatch.setattr(shared, "_raw_write", fail)
+                stdout.write(b"output")
+    assert caught.value.code == code
+    assert "(write)" in caught.value.detail
+    assert remedy in caught.value.detail
+    assert "run directory" not in caught.value.detail
+
+
+def test_directory_layout_stream_write_fault_names_run_directory(
+    tmp_path: Path, monkeypatch
+) -> None:
+    import evolution.tree.execution.scorer_traces as shared
+
+    def fail(*_args):
+        raise OSError(errno.ENOSPC, "full")
+
+    stream = shared.open_trace_stream(tmp_path / "stdout", "scorer-traces/try/stdout")
+    monkeypatch.setattr(shared, "_raw_write", fail)
+    try:
+        with pytest.raises(ScorerTraceStorageFault) as caught:
+            stream.write(b"output")
+    finally:
+        monkeypatch.undo()
+        stream.close()
+    assert caught.value.code == "storage_capacity_exhausted"
+    assert caught.value.detail == (
+        "scorer trace scorer-traces/try/stdout: ENOSPC (write); "
+        "free space or inodes on the run directory's filesystem and run the same command again"
+    )
+
+
+@pytest.mark.parametrize("failure", ["eio", "ended_early"])
+def test_buffer_read_fault_during_append_names_temporary_directory(
+    tmp_path: Path, monkeypatch, failure: str
+) -> None:
+    module = importlib.import_module("evolution.tree.execution.scorer_trace_writer")
+    root = tmp_path / "scorer-traces"
+    original = os.pread
+    calls = 0
+
+    def flaky(fd, length, offset):
+        nonlocal calls
+        calls += 1
+        if calls < 3:  # hashing both buffers succeeds; the copy into the pack fails
+            return original(fd, length, offset)
+        if failure == "eio":
+            raise OSError(errno.EIO, "secret path /sensitive")
+        return b""
+
+    with writer(root) as pack:
+        pack.append_request("try", b"{}")
+        before = (root / "m.pack").read_bytes()
+        with pack.streams() as (stdout, stderr):
+            stdout.write(b"output")
+            stderr.write(b"errors")
+            with monkeypatch.context() as patch:
+                patch.setattr(module.os, "pread", flaky)
+                with pytest.raises(ScorerTraceStorageFault) as caught:
+                    pack.append_output("try", stdout, stderr, status="completed", returncode=0)
+        assert (root / "m.pack").read_bytes() == before
+        assert caught.value.code == "journal_unavailable"
+        assert "(buffer)" in caught.value.detail
+        assert "check the temporary directory (TMPDIR, else /tmp)" in caught.value.detail
+        assert "run directory" not in caught.value.detail
+        assert "sensitive" not in caught.value.detail
+        with pytest.raises(ScorerTraceStorageFault) as again:
+            pack.append_request("later", b"{}")
+        assert again.value is caught.value
+
+
+@pytest.mark.parametrize("failing", ["fstat", "pread"])
+def test_buffer_describe_fault_names_temporary_directory(
+    tmp_path: Path, monkeypatch, failing: str
+) -> None:
+    module = importlib.import_module("evolution.tree.execution.scorer_trace_writer")
+    root = tmp_path / "scorer-traces"
+
+    def fail(*_args):
+        raise OSError(errno.EIO, "secret path /sensitive")
+
+    with writer(root) as pack:
+        pack.append_request("try", b"{}")
+        before = (root / "m.pack").read_bytes()
+        with pack.streams() as (stdout, stderr):
+            stdout.write(b"output")
+            with monkeypatch.context() as patch:
+                if failing == "fstat":
+                    original = os.fstat
+                    scratch = stdout.fileno()
+
+                    def fstat(fd):
+                        if fd == scratch:
+                            raise OSError(errno.EIO, "secret path /sensitive")
+                        return original(fd)
+
+                    patch.setattr(module.os, "fstat", fstat)
+                else:
+                    patch.setattr(module.os, "pread", fail)
+                with pytest.raises(ScorerTraceStorageFault) as caught:
+                    pack.append_output("try", stdout, stderr, status="completed", returncode=0)
+        assert (root / "m.pack").read_bytes() == before
+        assert caught.value.code == "journal_unavailable"
+        assert "(buffer)" in caught.value.detail
+        assert "check the temporary directory (TMPDIR, else /tmp)" in caught.value.detail
+        assert "run directory" not in caught.value.detail
+        assert "sensitive" not in caught.value.detail
+        with pytest.raises(ScorerTraceStorageFault) as again:
+            pack.append_request("later", b"{}")
+        assert again.value is caught.value
+
+
+@pytest.mark.parametrize(
+    ("number", "remedy"),
+    [
+        (errno.ENOSPC, "free space or inodes on the run directory's filesystem"),
+        (errno.EIO, "check the filesystem"),
+    ],
+)
+def test_pack_write_fault_during_buffered_append_stays_append(
+    tmp_path: Path, monkeypatch, number: int, remedy: str
+) -> None:
+    module = importlib.import_module("evolution.tree.execution.scorer_trace_writer")
+    root = tmp_path / "scorer-traces"
+    original = module._write
+    count = 0
+
+    def flaky(fd, data):
+        nonlocal count
+        count += 1
+        if count == 1:  # the header is written; the first section copy then fails
+            return original(fd, data)
+        raise OSError(number, "secret path /sensitive")
+
+    with writer(root) as pack:
+        pack.append_request("try", b"{}")
+        before = (root / "m.pack").read_bytes()
+        with pack.streams() as (stdout, stderr):
+            stdout.write(b"output")
+            stderr.write(b"errors")
+            with monkeypatch.context() as patch:
+                patch.setattr(module, "_write", flaky)
+                with pytest.raises(ScorerTraceStorageFault) as caught:
+                    pack.append_output("try", stdout, stderr, status="completed", returncode=0)
+        assert (root / "m.pack").read_bytes() == before
+    assert "(append)" in caught.value.detail
+    assert remedy in caught.value.detail
+    assert "temporary directory" not in caught.value.detail
+    assert "sensitive" not in caught.value.detail

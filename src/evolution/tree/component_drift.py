@@ -25,7 +25,7 @@ from evolution.tree.affected_cases import (
     declaring_measurements,
     parent_mode,
 )
-from evolution.tree.execution.journal_schema import components_digest
+from evolution.tree.execution.journal_schema import declaration_digest
 
 if TYPE_CHECKING:
     from evolution.tree.campaign_schema import AttemptState, CampaignSnapshot
@@ -63,7 +63,7 @@ def candidate_reference(attempt: AttemptState) -> DriftReference | None:
     return DriftReference(
         "candidate",
         attempt.candidate_digest,
-        components_digest(attempt.inspected_components),
+        declaration_digest(attempt.inspected_components, attempt.inspected_withheld),
         attempt.inspected_epoch,
     )
 
@@ -76,7 +76,7 @@ def parent_reference(
 ) -> DriftReference | None:
     if not checked_selection(attempt):
         return None
-    _mode, digest, _fallback = parent_mode(baseline, {d: {} for d in declaring})
+    _mode, digest, _fallback = parent_mode(baseline, {d: ({}, 0) for d in declaring})
     assert digest is not None  # a checked selection had no fallback
     epochs = [int(snapshot.measurements[mid]["epoch"]) for mid in declaring[digest]]
     return DriftReference("parent", attempt.parent_digest, digest, max(epochs))
@@ -125,7 +125,7 @@ def champion_reference(
     declaring = declaring_measurements(
         baseline_id, baseline_records, baseline, snapshot.run_id, source_records
     )
-    _mode, digest, fallback = parent_mode(baseline, {d: {} for d in declaring})
+    _mode, digest, fallback = parent_mode(baseline, {d: ({}, 0) for d in declaring})
     if digest is None or fallback is not None:
         return None
     if snapshot.family_version == 15:

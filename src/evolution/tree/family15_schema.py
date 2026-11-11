@@ -41,6 +41,7 @@ from evolution.tree.execution.journal_identity import RunIdentityV1, canonical_j
 from evolution.tree.execution.journal_schema import (
     _validate_payload as validate_measurement_payload,
 )
+from evolution.tree.roles.grouping.reflect_grouping import FAMILY15_DESCRIPTION_CHARS
 from evolution.tree.roles.role_failures import REFLECTION_DETAIL_CATEGORIES, REFLECTION_DETAIL_PATH
 from evolution.tree.storage.envelope import (
     Envelope,
@@ -994,7 +995,17 @@ def _completion(p: dict[str, Any]) -> None:
     )
     # E authenticates complete original gate coverage and recomputes admission
     # under destination conditions. Changed conditions can leave gate slots owed.
-    _need(source_slots.keys() <= dest_slots.keys(), "completion covers the sealed gate schedule")
+    # b18: a gate with `case_repeats` (`/16` focus repeats) may leave its focus
+    # repeats past the completion's per-case horizon behind; nothing else.
+    horizon: dict[str, int] = {}
+    for case_id, repeat in dest_slots:
+        horizon[case_id] = max(horizon.get(case_id, 0), repeat)
+    owed = {
+        key
+        for key in source_slots
+        if "case_repeats" not in source["identity"] or key[1] <= horizon.get(key[0], key[1])
+    }
+    _need(owed <= dest_slots.keys(), "completion covers the sealed gate schedule")
     dest_by_sample = {(slot["case_id"], slot["sample_id"]): slot for slot in dest_slots.values()}
     imported: set[tuple[str, int]] = set()
     origins: set[str] = set()
@@ -1205,6 +1216,11 @@ _EVENT_FIELDS: Final = {
     # admitted.
     "grouping_portion_finished": "grouping_id portion_id plan_digest input_digest requests",
     "grouping_batch_finished": "grouping_id level index plan_digest input_digest merges skipped requests",
+    # b17 (ADR-0057): one full-description record per model group whose
+    # descriptions-map entry the fit trimmed or dropped, written before the
+    # grouping's `grouping_finished`, which binds them by one digest. It
+    # names the grouping and the group number the recorded result uses.
+    "grouping_full_description": "grouping_id group label description",
 }
 #: The checkpoint events of a family-15 grouping (b16 §9).
 GROUPING_CHECKPOINTS: Final = frozenset({"grouping_portion_finished", "grouping_batch_finished"})
@@ -1472,6 +1488,18 @@ def _checkpoint(event: str, p: dict[str, Any]) -> None:
 def _event_details(event: str, p: dict[str, Any]) -> None:
     if event in GROUPING_CHECKPOINTS:
         _checkpoint(event, p)
+        return
+    if event == "grouping_full_description":
+        # b17 (ADR-0057): the whole label and description of one model group,
+        # bounded exactly as a descriptions map entry is under family 15.
+        _identifier(p["grouping_id"])
+        _need(isinstance(p["group"], int) and not isinstance(p["group"], bool))
+        _need(0 <= p["group"] <= 32767)
+        _need(isinstance(p["label"], str) and len(p["label"]) <= 128)
+        _need(
+            isinstance(p["description"], str)
+            and len(p["description"]) <= FAMILY15_DESCRIPTION_CHARS
+        )
         return
     if event in {
         "comparison_bound",
@@ -1764,6 +1792,12 @@ class Family15Grouping:
     ``code`` and ``error_class``. ``portions`` maps a portion id, ``batches``
     a ``(level, index)``, to its checkpoint record; ``plan_digest`` is the one
     plan every portion and batch checkpoint of the grouping names.
+
+    ``descriptions`` (b17, ADR-0057) maps a group number to the grouping's
+    full-description record for it; ``full_descriptions_digest`` is the one
+    digest its `grouping_finished` binds them by, `None` when it wrote none.
+    A grouping that was interrupted before its terminal keeps its records
+    but no digest, so nothing reads them.
     """
 
     grouping_id: str
@@ -1776,12 +1810,15 @@ class Family15Grouping:
     plan_digest: str | None = None
     portions: Mapping[str, Family15Record] = field(default_factory=dict)
     batches: Mapping[tuple[int, str], Family15Record] = field(default_factory=dict)
+    descriptions: Mapping[int, Family15Record] = field(default_factory=dict)
+    full_descriptions_digest: str | None = None
 
     def __post_init__(self) -> None:
         _need(self.status in {"started", "finished", "failed"})
         for name, event in (
             ("portions", "grouping_portion_finished"),
             ("batches", "grouping_batch_finished"),
+            ("descriptions", "grouping_full_description"),
         ):
             records = MappingProxyType(dict(getattr(self, name)))
             for record in records.values():

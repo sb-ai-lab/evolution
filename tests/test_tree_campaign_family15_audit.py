@@ -746,7 +746,7 @@ def test_every_closed_family15_delta_has_explicit_e_dispatch():
     from evolution.tree.family15_audit import EVENTS
     from evolution.tree.family15_schema import _EVENT_FIELDS
 
-    assert EVENTS == frozenset(_EVENT_FIELDS)
+    assert EVENTS == frozenset(_EVENT_FIELDS) | {"grouping_finished"}
 
 
 @pytest.mark.parametrize(

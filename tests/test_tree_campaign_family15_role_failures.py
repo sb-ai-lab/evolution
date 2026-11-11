@@ -683,6 +683,21 @@ async def test_a_subprocess_reflector_null_extra_key(tmp_path, monkeypatch, fami
         assert failed[0]["error_class"] == "invalid_result"
 
 
+@pytest.mark.parametrize(("family", "reason"), [(14, "unclassified"), (15, "program_failed")])
+async def test_a_subprocess_reflector_program_failure_names_its_reason_by_family(
+    tmp_path, monkeypatch, family, reason
+):
+    run, _ = await campaign_run(
+        family,
+        tmp_path,
+        monkeypatch,
+        campaign={"rounds": 1},
+        reflector="print('not a diagnosis')\n",
+    )
+    (failed,) = payloads(run, "reflection_failed")
+    assert (failed["error_class"], failed["reason"]) == ("reported", reason)
+
+
 async def test_subprocess_empty_secret_key_is_refused_before_normalization(tmp_path, monkeypatch):
     from tests.test_tree_campaign_family15_delivery import public_run
 

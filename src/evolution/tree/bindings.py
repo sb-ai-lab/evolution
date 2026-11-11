@@ -13,14 +13,16 @@ from evolution.eval.child_env import _RUNTIME_ENV_KEYS, minimal_child_env
 from evolution.llm.agent_backend import CURATED_ENV_NAMES, agent_tool_for
 from evolution.prompts import (
     TREE_AGENT_EDITOR_SYSTEM,
+    TREE_AGENT_EDITOR_SYSTEM_V2,
     TREE_AGENT_REFLECTOR_SYSTEM,
     TREE_AGENT_REFLECTOR_SYSTEM_V3,
+    TREE_AGENT_REFLECTOR_SYSTEM_V4,
     TREE_EDITOR_SYSTEM,
-    TREE_EDITOR_SYSTEM_V2,
+    TREE_EDITOR_SYSTEM_V3,
     TREE_REFLECTOR_SYSTEM,
     TREE_REFLECTOR_SYSTEM_V3,
     TREE_REFLECTOR_SYSTEM_V4,
-    TREE_REFLECTOR_SYSTEM_V5,
+    TREE_REFLECTOR_SYSTEM_V6,
 )
 from evolution.tree.execution.command_binding import CommandBinding
 from evolution.tree.execution.config import CommandSection, EnvironmentSection
@@ -486,6 +488,7 @@ def build_editor(
             binding=binding,
             log_root=Path(run_dir) / "editor-logs",
             admitted_hygiene=admitted_hygiene,
+            secrets=tuple(secrets),
         )
     log_root = Path(run_dir) / "editor-logs"
     if isinstance(section, ChatEditorSection):
@@ -507,7 +510,7 @@ def build_editor(
             section=section,
             credentials=ChatCredentials(api_key=api_key, proxy_url=proxy_url),
             prompt=_sealed_prompt(
-                section.system_prompt, TREE_EDITOR_SYSTEM_V2 if family15 else TREE_EDITOR_SYSTEM
+                section.system_prompt, TREE_EDITOR_SYSTEM_V3 if family15 else TREE_EDITOR_SYSTEM
             ),
             log_root=log_root,
             secrets=tuple(secrets),
@@ -527,7 +530,10 @@ def build_editor(
         family15=family15,
         section=section,
         program=sealed,
-        prompt=_sealed_prompt(section.system_prompt, TREE_AGENT_EDITOR_SYSTEM),
+        prompt=_sealed_prompt(
+            section.system_prompt,
+            TREE_AGENT_EDITOR_SYSTEM_V2 if family15 else TREE_AGENT_EDITOR_SYSTEM,
+        ),
         child_env=child_env,
         log_root=log_root,
         secrets=tuple(secrets),
@@ -845,7 +851,7 @@ def build_reflector(
 
     role = section.role
     chat_prompt = (
-        TREE_REFLECTOR_SYSTEM_V5
+        TREE_REFLECTOR_SYSTEM_V6
         if family15 and result_repair
         else TREE_REFLECTOR_SYSTEM_V4
         if result_repair
@@ -854,7 +860,11 @@ def build_reflector(
         else TREE_REFLECTOR_SYSTEM
     )
     agent_prompt = (
-        TREE_AGENT_REFLECTOR_SYSTEM_V3 if model_grouping_family else TREE_AGENT_REFLECTOR_SYSTEM
+        TREE_AGENT_REFLECTOR_SYSTEM_V4
+        if family15
+        else TREE_AGENT_REFLECTOR_SYSTEM_V3
+        if model_grouping_family
+        else TREE_AGENT_REFLECTOR_SYSTEM
     )
     log_root = Path(run_dir) / "reflector-logs"
     if isinstance(role, CommandSection):
@@ -862,7 +872,10 @@ def build_reflector(
             role, seed_root=seed_root, run_dir=run_dir, name="reflector", environ=environ
         )
         return SubprocessReflector(
-            binding=binding, log_root=log_root, admitted_hygiene=admitted_hygiene
+            binding=binding,
+            log_root=log_root,
+            admitted_hygiene=admitted_hygiene,
+            secrets=tuple(secrets),
         )
     if isinstance(role, ChatEditorSection):
         api_key = (

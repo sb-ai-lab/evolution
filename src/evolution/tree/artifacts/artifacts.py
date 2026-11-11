@@ -22,7 +22,6 @@ from uuid import uuid4
 from evolution.lineage.state_io import fsync_directory
 from evolution.tree.artifacts.artifact_copy import (
     check_destination_parent,
-    fsync_tree,
     map_os_error,
     publish,
     remove_tree,
@@ -591,7 +590,6 @@ class ArtifactStore:
                     parent.root, parent_scan, self._policy, self._staging, freeze=False
                 )
                 staging_root = staged.root
-                fsync_tree(staged.root)
                 remove_tree(workspace)
                 os.replace(staged.root, workspace)
                 staging_root = None
@@ -639,7 +637,6 @@ class ArtifactStore:
                     parent.root, parent_scan, self._policy, self._staging, freeze=False
                 )
                 staging_root = staged.root
-                fsync_tree(staged.root)
                 os.replace(staged.root, workspace)
                 staging_root = None
                 fsync_directory(workspace.parent)

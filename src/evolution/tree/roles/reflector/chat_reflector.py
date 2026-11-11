@@ -961,6 +961,7 @@ class _ReflectSession:
                 arguments,
                 max_payload_bytes=self.section.budgets.max_payload_bytes,
                 nearest_paths=effective_nearest_paths(self.section) if self.family15 else None,
+                raw_only=self.family15,
             )
             return output
         if name == "list_evidence":
@@ -982,7 +983,9 @@ class _ReflectSession:
             )
             if record is None:
                 raise ToolError("unknown evidence ID")
-            content, following_offset = _evidence_chunk(record.content, offset)
+            content, following_offset = _evidence_chunk(
+                record.content, offset, family15=self.family15
+            )
             return {
                 "id": record.evidence_id,
                 "content": content,

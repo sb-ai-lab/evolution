@@ -1,5 +1,7 @@
 """Family-15 role settings, refusals, privacy and frozen-input upgrades."""
 
+from contextlib import contextmanager
+
 import pytest
 
 from evolution.tree import campaign as campaign_module
@@ -173,7 +175,46 @@ def b17_reflector(document, section):
     document["reflector"] = {**common, **section}
 
 
-def b17_provider(*, refuse=True, all_refused=False):
+#: A DeepSeek-style markup call (#399): `arguments` that are not JSON at all.
+DSML = (
+    '<｜DSML｜function_calls><｜DSML｜invoke name="list_files">'
+    "</｜DSML｜invoke></｜DSML｜function_calls>"
+)
+
+
+def broken_first_answer(body):
+    """The first session answer of a role, holding a broken call (b18 §3).
+
+    The Editor answers with DSML, the Reflector with a valid call followed by
+    a skipped broken one, a Grouper portion with `NaN` in its arguments.
+    """
+    from tests import fake_chat_server as fake
+
+    calls = {
+        "b17-editor": [("call-dsml", "list_files", DSML)],
+        "b17-reflector": [
+            ("call-first", "list_files", "{}"),
+            ("call-skipped", "read_file", '{"path": "a'),
+        ],
+        "b17-grouper": [("call-nan", "finish_portion", '{"groups": NaN}')],
+    }[body["model"]]
+    answer = fake.tool_call("list_files")
+    answer["choices"][0]["message"]["tool_calls"] = [
+        {"id": id_, "type": "function", "function": {"name": name, "arguments": raw}}
+        for id_, name, raw in calls
+    ]
+    return answer
+
+
+def b17_provider(*, refuse=True, all_refused=False, strict=None, broken_first=False):
+    """The b17 chat roles' provider; b18 adds a strict mode and broken first answers.
+
+    `strict` is a `tests/strict_history.py` mode; `broken_first` (`True`, or
+    the role models it applies to) answers each role's first session request
+    (not its preflight, not a consolidation batch) with `broken_first_answer`,
+    before the ordinary script is consulted.
+    """
+    import threading
     from itertools import cycle
 
     from tests import fake_chat_server as fake
@@ -191,8 +232,18 @@ def b17_provider(*, refuse=True, all_refused=False):
     grouper = PortionGrouper()
     refusal = fake.router_refusal(503, B17_SENTINEL, "404")
 
+    first = set()
+    lock = threading.Lock()
+
     def normal(body):
         tools = [t["function"]["name"] for t in body.get("tools", [])]
+        chosen = broken_first is True or body["model"] in (broken_first or ())
+        if chosen and tools not in ([], ["list_files"], ["list_case"]):
+            with lock:
+                fresh = body["model"] not in first
+                first.add(body["model"])
+            if fresh:
+                return {**broken_first_answer(body), "model": body["model"], "provider": "Pinned"}
         if body["model"] == "b17-grouper":
             content, calls = grouper._answer(body)
             answer = fake.tool_call(*calls[0]) if calls else fake.completion(content)
@@ -211,7 +262,7 @@ def b17_provider(*, refuse=True, all_refused=False):
         if refuse
         else normal
     )
-    return fake.start([handler])
+    return fake.start([handler], strict=strict)
 
 
 def b17_logs(run, directory):
@@ -544,3 +595,434 @@ async def test_reflection_started_before_b17_identity_resumes_after_rebase(tmp_p
     assert result.terminal == "finished", result.suspended
     records = _records(directory / "campaign.jsonl")
     assert sum(r["event"] == "identity_rebased" for r in records) == 1
+
+
+# -- b18 (ADR-0061, spec §3 and §7): strict providers, the upgrade and its rebase --
+
+
+def b18_chat_roles(base):
+    """`configure` for a chat Editor, chat Reflector and chat Grouper on `base`."""
+    from tests.model_grouping_fakes import chat_grouper_section
+    from tests.test_tree_campaign_family14_reflector_history import chat_reflector
+    from tests.test_tree_campaign_family14_role_feedback import chat_budget_section
+
+    def configure(d):
+        d["editor"] = b17_role(chat_budget_section(base), "editor")
+        b17_reflector(d, b17_role(chat_reflector(base), "reflector"))
+        d["grouper"] = b17_role(
+            chat_grouper_section(base_url=base, api_key_env="GROUPER_KEY"),
+            "grouper",
+            group_output_tokens=8192,
+        )
+
+    return configure
+
+
+def b18_role_records(run):
+    """Every private role-log record of `run`, keyed by its log path under `run`."""
+    import json
+
+    return {
+        path.relative_to(run).as_posix(): [
+            json.loads(line) for line in path.read_text().splitlines() if line
+        ]
+        for directory in ("editor-logs", "reflector-logs")
+        for path in sorted((run / directory).rglob("*.jsonl"))
+    }
+
+
+@pytest.mark.parametrize("mode", ["http_400", "error_body"])
+async def test_v16_chat_roles_finish_against_strict_provider(tmp_path, monkeypatch, mode):
+    from tests.strict_history import broken_history_calls, measures
+
+    base, server = b17_provider(refuse=False, strict=mode, broken_first=True)
+    monkeypatch.setenv("E1_KEY", "test-key")
+    monkeypatch.setenv("GROUPER_KEY", "test-key")
+    try:
+        run, result = await public_run(
+            tmp_path, monkeypatch, configure=b18_chat_roles(base), campaign={"rounds": 1}
+        )
+    finally:
+        server.shutdown()
+        server.server_close()
+    assert result.terminal == "finished", (result.owner, result.code, result.suspended)
+    # The strict provider never saw a broken call, so it refused nothing.
+    assert server.script.refusals == []
+    assert server.script.requests
+    assert all(broken_history_calls(r) == [] for r in server.script.requests)
+    logs = b18_role_records(run)
+    replaced = {
+        path: [(r["phase"], r["replaced_calls"]) for r in records if "replaced_calls" in r]
+        for path, records in logs.items()
+    }
+    repairs = {
+        path: [r for r in records if r.get("phase") == "protocol_repair_requested"]
+        for path, records in logs.items()
+    }
+    (editor,) = [path for path in logs if path.startswith("editor-logs/")]
+    (grouping,) = [path for path in logs if "/grouping-" in path]
+    (reflection,) = [path for path in logs if path.startswith("reflector-logs/r01-")]
+
+    def call(id_, name, raw):
+        return [{"id": id_, "name": name, **measures(raw)}]
+
+    # A broken first call ends its turn in one repair whose record names it.
+    assert len(repairs[editor]) == 1
+    assert replaced[editor] == [
+        ("protocol_repair_requested", call("call-dsml", "list_files", DSML))
+    ]
+    assert len(repairs[grouping]) == 1
+    assert replaced[grouping] == [
+        ("protocol_repair_requested", call("call-nan", "finish_portion", '{"groups": NaN}'))
+    ]
+    # A skipped broken call needs no repair: the records after the turn name it.
+    assert repairs[reflection] == []
+    skipped = call("call-skipped", "read_file", '{"path": "a')
+    assert replaced[reflection] == [("parallel_calls_dropped", skipped), ("tool_call", skipped)]
+
+
+@pytest.mark.parametrize("role", ["reflector", "editor"])
+async def test_v15_chat_roles_against_strict_provider_fail_as_b17(tmp_path, monkeypatch, role):
+    from evolution.tree.roles.editor.chat_editor import ChatEditor
+    from evolution.tree.roles.editor_contracts import outcome_class
+    from evolution.tree.roles.reflector.chat_reflector import ChatReflector
+    from tests.test_tree_campaign_family14_reflector_history import chat_reflector
+    from tests.test_tree_campaign_family14_role_feedback import chat_budget_section
+    from tests.test_tree_campaign_family15_role_failures import campaign_run
+    from tests.tree.roles.test_chat_loop_broken_calls_golden import (
+        V15_STRICT_REFUSAL_CLASS_EDITOR,
+        V15_STRICT_REFUSAL_CLASS_REFLECTOR,
+    )
+
+    ended = {}
+    for cls, name in ((ChatReflector, "reflect"), (ChatEditor, "edit")):
+        real = getattr(cls, name)
+
+        async def observe(self, request, *, _real=real, _role=cls.__name__):
+            result = await _real(self, request)
+            ended.setdefault(_role, []).append((outcome_class(result), result.code))
+            return result
+
+        monkeypatch.setattr(cls, name, observe)
+    base, server = b17_provider(refuse=False, strict="http_400", broken_first={f"b17-{role}"})
+    monkeypatch.setenv("E1_KEY", "test-key")
+    try:
+        run, result = await campaign_run(
+            14,
+            tmp_path,
+            monkeypatch,
+            editor_section=b17_role(chat_budget_section(base), "editor"),
+            reflector_section=b17_role(chat_reflector(base), "reflector"),
+            campaign={"rounds": 1},
+        )
+    finally:
+        server.shutdown()
+        server.server_close()
+    # `/15` sends the broken call back as is; the strict provider refuses it.
+    broken = {"reflector": "call-skipped", "editor": "call-dsml"}[role]
+    assert server.script.refusals == [[broken]]
+    pinned_class = {
+        "reflector": V15_STRICT_REFUSAL_CLASS_REFLECTOR,
+        "editor": V15_STRICT_REFUSAL_CLASS_EDITOR,
+    }[role]
+    # A0 pinned the code of a role section without `retry`; a campaign role
+    # always declares one (`role_call_retry/1`, required by `/15`), and a
+    # non-transient HTTP 400 then ends the retry as `provider_rejected`.
+    failed = "ChatReflector" if role == "reflector" else "ChatEditor"
+    assert ended[failed] == [(pinned_class, "provider_rejected")]
+    assert (result.terminal, result.owner, result.code) == (
+        "suspended",
+        role,
+        f"{role}_provider_failed",
+    )
+
+
+#: The producing versions of the two sides of the upgrade; the installed
+#: package still says b17 on this branch, so both are stamped.
+B17_VERSION = "2.0.0b17"
+B18_VERSION = "2.0.0b18"
+#: The three `/16` chat role identity fields spec §7 expects a b17 run to list.
+CHAT_ROLE_FIELDS = ["identity.editor.digest", "identity.reflector.digest", "producing_version"]
+
+
+@contextmanager
+def b18_leg(monkeypatch, *, b17):
+    """Run as b17 (its role identities and version) or as b18.
+
+    b17 is simulated by the three module globals b18 changed (each read at
+    call time): `role_contracts/1` and the b17 `/16` default Editor prompts.
+    """
+    import evolution
+    from evolution import prompts
+    from evolution.tree import bindings
+    from evolution.tree.execution import journal_identity
+    from evolution.tree.roles import seals
+
+    installed = evolution.__version__
+    with monkeypatch.context() as patch:
+        if b17:
+            patch.setattr(seals, "ROLE_CONTRACTS_V16", "role_contracts/1")
+            patch.setattr(bindings, "TREE_EDITOR_SYSTEM_V3", prompts.TREE_EDITOR_SYSTEM_V2)
+            patch.setattr(bindings, "TREE_AGENT_EDITOR_SYSTEM_V2", prompts.TREE_AGENT_EDITOR_SYSTEM)
+        version = B17_VERSION if b17 else B18_VERSION
+        patch.setattr(campaign_module, "resolve_package_version", lambda: version)
+        patch.setattr(journal_identity.metadata, "version", lambda name: installed)
+        yield patch
+
+
+async def b18_upgrade(monkeypatch, root, run, *, cut, power_cut=PowerCut):
+    """Cut `run` under b17, have b18 refuse it once, accept one `rebase` and finish.
+
+    `run(patch, **options)` drives the campaign at `root`; `cut` is a hook
+    name (passed as `cut=`) or a callable installing its own cut on `patch`.
+    Returns the refused fields, the journal records before the upgrade and
+    the finished run's records.
+    """
+    from evolution.tree.execution.authorizations import Authorization
+    from tests.campaign_drivers import _records
+
+    with b18_leg(monkeypatch, b17=True) as patch:
+        options = {"cut": cut} if isinstance(cut, str) else (cut(patch) or {})
+        with pytest.raises(power_cut):
+            await run(patch, **options)
+    journal = root / "run/campaign.jsonl"
+    before = journal.read_bytes()
+    with b18_leg(monkeypatch, b17=False) as patch:
+        with pytest.raises(EvolveRefused) as caught:
+            await run(patch)
+    assert journal.read_bytes() == before
+    refused = caught.value
+    assert refused.code == "run_identity_changed"
+    assert refused.effects == ("rebase",)
+    accepted = Authorization.new(
+        "run_identity_changed", refused.instance_digest, "accept b18", now="2026-11-08T12:00:00Z"
+    )
+    with b18_leg(monkeypatch, b17=False) as patch:
+        directory, result = await run(patch, authorizations=[accepted])
+    assert result.terminal == "finished", (result.owner, result.code, result.suspended)
+    records = _records(directory / "campaign.jsonl")
+    assert sum(r["event"] == "identity_rebased" for r in records) == 1
+    fields = sorted(d.field for d in refused.differences)
+    return fields, _records_of(before), records
+
+
+def _records_of(raw):
+    import json
+
+    return [json.loads(line) for line in raw.decode().splitlines() if line]
+
+
+def b18_portion_requests(server):
+    """The chat Grouper's portion-session requests the server received, in order."""
+    return [
+        r
+        for r in server.script.requests
+        if r["model"] == "b17-grouper"
+        and "finish_portion" in [t["function"]["name"] for t in r.get("tools") or ()]
+    ]
+
+
+async def test_b17_run_rebases_once_with_expected_fields(tmp_path, monkeypatch):
+    from tests.test_tree_campaign_family15_grouping_checkpoints import (
+        FAILING,
+        PORTION_EVENT,
+        PORTIONS,
+        _cut_after,
+    )
+
+    base, server = b17_provider(refuse=False)
+    monkeypatch.setenv("E1_KEY", "test-key")
+    monkeypatch.setenv("GROUPER_KEY", "test-key")
+    asked = []
+
+    async def run(patch, **options):
+        try:
+            return await public_run(
+                tmp_path,
+                patch,
+                configure=b18_chat_roles(base),
+                extra_cases=FAILING,
+                campaign={"rounds": 1},
+                **options,
+            )
+        finally:
+            asked.append(len(b18_portion_requests(server)))
+
+    try:
+        fields, before, records = await b18_upgrade(
+            monkeypatch,
+            tmp_path,
+            run,
+            cut=lambda patch: _cut_after(patch, "after_grouping_portion_finished", 2),
+        )
+    finally:
+        server.shutdown()
+        server.server_close()
+    # Spec §7: the chat Editor and chat Reflector identities, no Grouper field.
+    assert fields == CHAT_ROLE_FIELDS
+    cut = [r["payload"]["portion_id"] for r in before if r["event"] == PORTION_EVENT]
+    assert sorted(cut) == ["p1", "p2"]
+    assert not any(r["event"] == "grouping_finished" for r in before)
+    # The interrupted grouping keeps its checkpoints: no finished portion is
+    # requested again, by the refused leg or the resumed one.
+    first, second = [
+        r["payload"]["grouping_id"] for r in records if r["event"] == "grouping_started"
+    ]
+    resumed = [
+        r["payload"]["portion_id"]
+        for r in records
+        if r["event"] == PORTION_EVENT and r["payload"]["grouping_id"] == second
+    ]
+    assert sorted(resumed) == ["p3", "p4"]
+    assert asked == [2, 2, PORTIONS]
+    (failed,) = [r["payload"] for r in records if r["event"] == "grouping_failed"]
+    assert (failed["grouping_id"], failed["code"]) == (first, "interrupted")
+    # The resumed grouping's terminal asked two portions itself and still
+    # assigns every failing case, `c1` and `c3` from the adopted p1 and p2;
+    # only `c2`, which passes, is unassigned.
+    (finished,) = [r["payload"] for r in records if r["event"] == "grouping_finished"]
+    assert finished["grouping_id"] == second
+    assert finished["calls"]["map_requests"] == 2
+    assignments = finished["result"]["assignments"]
+    assert [index for index, group in enumerate(assignments) if group is None] == [1]
+
+
+async def test_attempt_frozen_mid_editor_resumes_after_b18_rebase(tmp_path, monkeypatch):
+    base, server = b17_provider(refuse=False)
+    monkeypatch.setenv("E1_KEY", "test-key")
+    monkeypatch.setenv("GROUPER_KEY", "test-key")
+
+    async def run(patch, **options):
+        return await public_run(
+            tmp_path, patch, configure=b18_chat_roles(base), campaign={"rounds": 1}, **options
+        )
+
+    try:
+        fields, before, records = await b18_upgrade(
+            monkeypatch, tmp_path, run, cut="after_editor_started"
+        )
+    finally:
+        server.shutdown()
+        server.server_close()
+    assert fields == CHAT_ROLE_FIELDS
+    (frozen,) = [r["payload"] for r in before if r["event"] == "editor_started"]
+    attempt = frozen["attempt_id"]
+    # The same Attempt is dispatched again with its frozen inputs; it is not
+    # abandoned for a fresh one.
+    starts = [r["payload"] for r in records if r["event"] == "editor_started"]
+    assert len(starts) == 2
+    resumed = starts[1]
+    assert resumed["attempt_id"] == attempt
+    for key in ("input_digest", "common_input_digest", "brief_digest"):
+        assert resumed[key] == frozen[key], key
+    assert resumed["operation_id"] != frozen["operation_id"]
+    inputs = [r["payload"] for r in records if r["event"] == "attempt_input_frozen"]
+    assert [p["attempt_id"] for p in inputs] == [attempt]
+    assert inputs[0]["input_digest"] == frozen["input_digest"]
+    assert [r["payload"]["attempt_id"] for r in records if r["event"] == "attempt_opened"] == [
+        attempt
+    ]
+    assert [
+        r["payload"]["operation_id"]
+        for r in records
+        if r["event"] == "editor_finished" and r["payload"]["attempt_id"] == attempt
+    ] == [resumed["operation_id"]]
+
+
+async def test_reflection_open_before_b18_resumes_after_rebase(tmp_path, monkeypatch):
+    base, server = b17_provider(refuse=False)
+    monkeypatch.setenv("E1_KEY", "test-key")
+    monkeypatch.setenv("GROUPER_KEY", "test-key")
+
+    async def run(patch, **options):
+        return await public_run(
+            tmp_path, patch, configure=b18_chat_roles(base), campaign={"rounds": 1}, **options
+        )
+
+    try:
+        fields, before, records = await b18_upgrade(
+            monkeypatch, tmp_path, run, cut="after_reflection_started"
+        )
+    finally:
+        server.shutdown()
+        server.server_close()
+    assert fields == CHAT_ROLE_FIELDS
+    (opened,) = [r["payload"] for r in before if r["event"] == "reflection_started"]
+    # The engine settles the open reflection `interrupted` and reflects again,
+    # in the same round, over the same frozen input; the grouping it reflects
+    # on is not redone.
+    started = [r["payload"] for r in records if r["event"] == "reflection_started"]
+    assert len(started) == 2 and started[0] == opened
+    again = started[1]
+    assert (again["round"], again["input_digest"]) == (opened["round"], opened["input_digest"])
+    assert again["reflection_id"] != opened["reflection_id"]
+    settled = {
+        r["payload"]["reflection_id"]: (r["event"], r["payload"].get("error_class"))
+        for r in records
+        if r["event"] in ("reflection_failed", "reflection_finished")
+    }
+    assert settled == {
+        opened["reflection_id"]: ("reflection_failed", "interrupted"),
+        again["reflection_id"]: ("reflection_finished", None),
+    }
+    assert sum(r["event"] == "grouping_started" for r in records) == 1
+
+
+async def test_v16_agent_editor_default_prompt_rebase_lists_editor_digest(tmp_path, monkeypatch):
+    from evolution.tree.roles.editor import agent_editor as agent_editor_module
+    from tests.test_tree_evolve import FakeAgentBackend, agent_editor_section
+
+    monkeypatch.setattr(agent_editor_module, "AgentBackend", FakeAgentBackend)
+
+    def configure(d):
+        d["editor"] = agent_editor_section(tmp_path)
+
+    async def run(patch, **options):
+        return await public_run(
+            tmp_path, patch, configure=configure, campaign={"rounds": 1}, **options
+        )
+
+    fields, _, records = await b18_upgrade(
+        monkeypatch, tmp_path, run, cut="after_attempt_input_frozen"
+    )
+    assert fields == ["identity.editor.digest", "producing_version"]
+    assert any(r["event"] == "editor_finished" for r in records)
+
+
+async def test_v16_subprocess_roles_rebase_lists_producing_version_only(tmp_path, monkeypatch):
+    async def run(patch, **options):
+        return await public_run(tmp_path, patch, campaign={"rounds": 1}, **options)
+
+    fields, _, _ = await b18_upgrade(monkeypatch, tmp_path, run, cut="after_attempt_input_frozen")
+    assert fields == ["producing_version"]
+
+
+async def test_v15_run_rebase_lists_producing_version_only(tmp_path, monkeypatch):
+    from tests.test_tree_campaign_family14_reflector_history import chat_reflector
+    from tests.test_tree_campaign_family14_role_feedback import chat_budget_section
+    from tests.test_tree_campaign_family15_role_failures import PowerCut as V15Cut
+    from tests.test_tree_campaign_family15_role_failures import campaign_run
+
+    base, server = b17_provider(refuse=False)
+    monkeypatch.setenv("E1_KEY", "test-key")
+
+    async def run(patch, **options):
+        return await campaign_run(
+            14,
+            tmp_path,
+            patch,
+            editor_section=b17_role(chat_budget_section(base), "editor"),
+            reflector_section=b17_role(chat_reflector(base), "reflector"),
+            campaign={"rounds": 1},
+            **options,
+        )
+
+    try:
+        fields, _, _ = await b18_upgrade(
+            monkeypatch, tmp_path, run, cut="after_attempt_input_frozen", power_cut=V15Cut
+        )
+    finally:
+        server.shutdown()
+        server.server_close()
+    # The chat roles of a `/15` run keep their b17 identities (Parts A and D are `/16` only).
+    assert fields == ["producing_version"]

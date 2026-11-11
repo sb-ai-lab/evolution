@@ -1,0 +1,213 @@
+{
+  "decisions": [
+    [
+      "global_comparison_completed",
+      null,
+      "global_off"
+    ],
+    [
+      "selection_decided",
+      null,
+      "finalist_selected"
+    ],
+    [
+      "round_closed",
+      "promoted",
+      null
+    ],
+    [
+      "campaign_finished",
+      "completed",
+      "rounds_exhausted"
+    ]
+  ],
+  "events": {
+    "affected_cases_selected": 1,
+    "attempt_closed": 1,
+    "attempt_input_frozen": 1,
+    "attempt_opened": 1,
+    "attempt_sealed": 1,
+    "baseline_bound": 1,
+    "baseline_complete": 1,
+    "campaign_created": 1,
+    "campaign_finished": 1,
+    "comparison_bound": 1,
+    "comparison_look_evaluated": 1,
+    "connection_preflight_finished": 1,
+    "connection_preflight_started": 1,
+    "editor_finished": 1,
+    "editor_started": 1,
+    "final_measurement_bound": 2,
+    "final_measurement_completed": 2,
+    "finalists_bound": 1,
+    "focus_portion_selected": 1,
+    "gate_scope_selected": 1,
+    "global_comparison_completed": 1,
+    "grouping_finished": 1,
+    "grouping_started": 1,
+    "measurement_bound": 2,
+    "noise_calibration_bound": 1,
+    "noise_calibration_completed": 1,
+    "parent_measurement_bound": 1,
+    "reflection_finished": 1,
+    "reflection_started": 1,
+    "round_closed": 1,
+    "selection_decided": 1,
+    "stage_opened": 5
+  },
+  "ledger": {
+    "promotion_committed": 1
+  },
+  "measurements": {
+    "m-r00-champion": {
+      "imports": 0,
+      "paid": 6,
+      "scores": [
+        [
+          "01",
+          "{\"score\": 0.0}"
+        ],
+        [
+          "01",
+          "{\"score\": 1.0}"
+        ],
+        [
+          "02",
+          "{\"score\": 0.0}"
+        ],
+        [
+          "02",
+          "{\"score\": 1.0}"
+        ],
+        [
+          "03",
+          "{\"score\": 0.0}"
+        ],
+        [
+          "03",
+          "{\"score\": 1.0}"
+        ]
+      ]
+    },
+    "m-r01-a01": {
+      "imports": 0,
+      "paid": 6,
+      "scores": [
+        [
+          "01",
+          "{\"score\": 1.0}"
+        ],
+        [
+          "01",
+          "{\"score\": 1.0}"
+        ],
+        [
+          "02",
+          "{\"score\": 1.0}"
+        ],
+        [
+          "02",
+          "{\"score\": 1.0}"
+        ],
+        [
+          "03",
+          "{\"score\": 1.0}"
+        ],
+        [
+          "03",
+          "{\"score\": 1.0}"
+        ]
+      ]
+    },
+    "m-r01-a01-parent": {
+      "imports": 0,
+      "paid": 6,
+      "scores": [
+        [
+          "01",
+          "{\"score\": 0.0}"
+        ],
+        [
+          "01",
+          "{\"score\": 1.0}"
+        ],
+        [
+          "02",
+          "{\"score\": 0.0}"
+        ],
+        [
+          "02",
+          "{\"score\": 1.0}"
+        ],
+        [
+          "03",
+          "{\"score\": 0.0}"
+        ],
+        [
+          "03",
+          "{\"score\": 1.0}"
+        ]
+      ]
+    },
+    "m-r01-final-01-a01": {
+      "imports": 0,
+      "paid": 6,
+      "scores": [
+        [
+          "01",
+          "{\"score\": 1.0}"
+        ],
+        [
+          "01",
+          "{\"score\": 1.0}"
+        ],
+        [
+          "02",
+          "{\"score\": 1.0}"
+        ],
+        [
+          "02",
+          "{\"score\": 1.0}"
+        ],
+        [
+          "03",
+          "{\"score\": 1.0}"
+        ],
+        [
+          "03",
+          "{\"score\": 1.0}"
+        ]
+      ]
+    },
+    "m-r01-final-01-champion": {
+      "imports": 0,
+      "paid": 6,
+      "scores": [
+        [
+          "01",
+          "{\"score\": 0.0}"
+        ],
+        [
+          "01",
+          "{\"score\": 1.0}"
+        ],
+        [
+          "02",
+          "{\"score\": 0.0}"
+        ],
+        [
+          "02",
+          "{\"score\": 1.0}"
+        ],
+        [
+          "03",
+          "{\"score\": 0.0}"
+        ],
+        [
+          "03",
+          "{\"score\": 1.0}"
+        ]
+      ]
+    }
+  }
+}

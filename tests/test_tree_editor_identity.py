@@ -377,14 +377,17 @@ def test_v16_chat_identities_carry_role_contracts_marker(role):
         "kind": "chat",
         "section": section_payload(section),
         "system_prompt_sha256": "a" * 64,
-        "role_contracts": "role_contracts/1",
+        # b18: role_contracts/2 (ADR-0061)
+        "role_contracts": "role_contracts/2",
     }
     if role == "editor":
+        assert seals.CHAT_TOOL_SCHEMA_V16 == "chat_tools/3"
         payload.update(
             tool_schema=seals.CHAT_TOOL_SCHEMA_V16, brief_version=seals.BRIEF_VERSION_V16
         )
         identity = chat_identity(section, prompt, family15=True)
     else:
+        assert seals.REFLECT_TOOL_SCHEMA_V16 == "reflect_tools/4"
         payload.update(
             tool_schema=seals.REFLECT_TOOL_SCHEMA_V16,
             request_version=seals.REFLECT_REQUEST_VERSION,
@@ -392,3 +395,145 @@ def test_v16_chat_identities_carry_role_contracts_marker(role):
         )
         identity = chat_reflector_identity(section, prompt, family15=True)
     assert identity.digest == hashlib.sha256(canonical_json(payload)).hexdigest()
+
+
+def test_v16_agent_editor_identity_keeps_chat_tools_2():
+    from evolution.tree.roles import seals
+
+    # b18 PR5: chat_tools/3 changes only the chat read_file result; the
+    # agent-CLI Editor has no read_file, so its digest stays as in b17.
+    section = make_agent_section()
+    prompt = FileSeal(None, "a" * 64, "prompt")
+    program = FileSeal(Path("/unused"), "b" * 64)
+    payload = {
+        "kind": "agent_cli",
+        "tool_schema": "chat_tools/2",
+        "section": section_payload(section),
+        "system_prompt_sha256": "a" * 64,
+        "program_sha256": "b" * 64,
+        "brief_version": seals.BRIEF_VERSION_V16,
+    }
+    assert (
+        agent_identity(section, prompt, program, family15=True).digest
+        == hashlib.sha256(canonical_json(payload)).hexdigest()
+    )
+
+
+@pytest.mark.parametrize("declared", [False, True])
+def test_v16_role_contracts_2_changes_editor_and_reflector_digests(monkeypatch, declared):
+    from evolution.tree.roles import seals
+
+    section = make_chat_section()
+    prompt = (
+        FileSeal(Path("/declared/prompt.md"), "a" * 64)
+        if declared
+        else FileSeal(None, "a" * 64, packaged_text="fixed")
+    )
+
+    def digests():
+        return (
+            chat_identity(section, prompt, family15=True).digest,
+            chat_reflector_identity(section, prompt, family15=True).digest,
+        )
+
+    assert seals.ROLE_CONTRACTS_V16 == "role_contracts/2"
+    now = digests()
+    monkeypatch.setattr(seals, "ROLE_CONTRACTS_V16", "role_contracts/1")
+    before = digests()
+    assert now[0] != before[0]
+    assert now[1] != before[1]
+
+
+def _packaged_sha(name: str) -> str:
+    # The packaged default is sealed from its text without the trailing newline
+    # (`load_prompt(...).removesuffix("\n")`), not from the raw file bytes.
+    from evolution import prompts
+
+    return hashlib.sha256(prompts.load_prompt(name).removesuffix("\n").encode()).hexdigest()
+
+
+def _bound_chat(tmp_path: Path, *, family15: bool, system_prompt: Path | None = None):
+    from evolution.tree.bindings import build_editor
+
+    return build_editor(
+        make_chat_section(system_prompt=system_prompt),
+        seed_root=tmp_path / "seed",
+        run_dir=tmp_path / "run",
+        environ={"EDITOR_API_KEY": "key"},
+        family15=family15,
+    )
+
+
+def _bound_agent(tmp_path: Path, *, family15: bool, system_prompt: Path | None = None):
+    from evolution.tree.bindings import build_editor
+
+    binary = write_fake_cli(tmp_path / "agent-bin")
+    return build_editor(
+        make_agent_section(agent_bin=binary, system_prompt=system_prompt),
+        seed_root=tmp_path / "seed",
+        run_dir=tmp_path / "run",
+        environ={},
+        family15=family15,
+    )
+
+
+def test_v16_chat_editor_identity_binds_v3_digest(tmp_path: Path) -> None:
+    # b18: tree_editor_v3.md (ADR-0061)
+    editor = _bound_chat(tmp_path, family15=True)
+    sha = _packaged_sha("tree_editor_v3")
+    assert editor.prompt.sha256 == sha
+    assert editor.identity == chat_identity(
+        editor.section, FileSeal(None, sha, packaged_text="x"), family15=True
+    )
+    # Not the V2 text it replaced as the `/16` default.
+    assert (
+        editor.identity.digest
+        != chat_identity(
+            editor.section,
+            FileSeal(None, _packaged_sha("tree_editor_v2"), packaged_text="x"),
+            family15=True,
+        ).digest
+    )
+
+    declared = write_prompt(tmp_path / "custom.md", "custom prompt\n")
+    bound = _bound_chat(tmp_path, family15=True, system_prompt=declared)
+    assert bound.prompt.sha256 == hashlib.sha256(declared.read_bytes()).hexdigest()
+    assert bound.identity == chat_identity(
+        bound.section, seal_prompt(declared, packaged=""), family15=True
+    )
+    assert bound.identity.digest != editor.identity.digest
+
+
+def test_v16_agent_editor_identity_binds_v2_digest(tmp_path: Path) -> None:
+    # b18: tree_agent_editor_v2.md (ADR-0061)
+    editor = _bound_agent(tmp_path, family15=True)
+    sha = _packaged_sha("tree_agent_editor_v2")
+    assert editor.prompt.sha256 == sha
+    assert editor.identity == agent_identity(
+        editor.section, FileSeal(None, sha, packaged_text="x"), editor.program, family15=True
+    )
+    assert (
+        editor.identity.digest
+        != agent_identity(
+            editor.section,
+            FileSeal(None, _packaged_sha("tree_agent_editor"), packaged_text="x"),
+            editor.program,
+            family15=True,
+        ).digest
+    )
+
+    declared = write_prompt(tmp_path / "custom.md", "custom prompt\n")
+    bound = _bound_agent(tmp_path, family15=True, system_prompt=declared)
+    assert bound.prompt.sha256 == hashlib.sha256(declared.read_bytes()).hexdigest()
+    assert bound.identity.digest != editor.identity.digest
+
+
+def test_v15_agent_editor_identity_unchanged(tmp_path: Path) -> None:
+    editor = _bound_agent(tmp_path, family15=False)
+    sha = _packaged_sha("tree_agent_editor")
+    assert editor.prompt.sha256 == sha
+    assert editor.identity == agent_identity(
+        editor.section, FileSeal(None, sha, packaged_text="x"), editor.program
+    )
+    chat = _bound_chat(tmp_path, family15=False)
+    assert chat.prompt.sha256 == _packaged_sha("tree_editor")

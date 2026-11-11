@@ -1066,3 +1066,33 @@ async def test_agent_fields_fallback_descriptions_only_in_family15(tmp_path, fam
             assert fields.description.description.endswith(
                 "What do they have in common, and why do they fail?"
             )
+
+
+@pytest.mark.parametrize("family15", [False, True])
+async def test_agent_model_group_descriptions_whole_only_in_family15(tmp_path, family15):
+    """An `agent_cli` Grouper's model groups go through the same projection
+    (ADR-0057 §3.1): a `/16` run carries every field and the whole title; a
+    family-14 run keeps today's 512-character cut."""
+
+    from dataclasses import replace
+
+    header = {
+        "title": "T" * 128,
+        "failure_mode": "F" * 512,
+        "expected_behaviour": "E" * 512,
+        "question": "Q" * 512,
+    }
+    partial = grouping_answer(map_group("g", [("a#1", "v")], **header))
+    with runtime_case(tmp_path, [partial, partial]) as (agent, _fake, args):
+        agent = replace(agent, family15=family15)
+        result = await agent.run(REG, **args)
+        (described,) = [
+            n.description for n in result.grouped.neighborhoods if n.description is not None
+        ]
+        whole = f"Observed: {'F' * 512}\nExpected: {'E' * 512}\nQuestion: {'Q' * 512}"
+        if family15:
+            assert described.label == "T" * 128
+            assert described.description == whole
+        else:
+            assert described.description == whole[:512]
+            assert described.label == "T" * 128

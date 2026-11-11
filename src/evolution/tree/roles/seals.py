@@ -52,8 +52,16 @@ from evolution.tree.roles.reflector_contracts import (
 )
 
 CHAT_TOOL_SCHEMA = "chat_tools/1"
-CHAT_TOOL_SCHEMA_V16 = "chat_tools/2"
+CHAT_TOOL_SCHEMA_V16 = "chat_tools/3"
 """The version of the chat editor's `TOOLS` list; part of the chat digest."""
+AGENT_TOOL_SCHEMA_V16 = "chat_tools/2"
+"""The `/16` agent-CLI Editor's `tool_schema` value. That role has no `read_file`,
+so the `chat_tools/3` result change of b18 does not reach its identity."""
+ROLE_CONTRACTS_V16 = "role_contracts/2"
+"""The `/16` chat Editor and Reflector role-behavior marker (ADR-0061).
+
+Read at call time as a module global; `/15` identities do not carry the key.
+"""
 
 
 class SealChanged(RuntimeError):
@@ -196,7 +204,7 @@ def chat_identity(
     if plan_correction:
         payload["record_plan"] = "plan_correction/1"
     if family15:
-        payload["role_contracts"] = "role_contracts/1"
+        payload["role_contracts"] = ROLE_CONTRACTS_V16
     digest = hashlib.sha256(canonical_json(payload)).hexdigest()
     return EditorIdentity(kind="chat", digest=digest)
 
@@ -216,7 +224,7 @@ def agent_identity(
 
     payload: dict[str, Any] = {
         "kind": "agent_cli",
-        **({"tool_schema": CHAT_TOOL_SCHEMA_V16} if family15 else {}),
+        **({"tool_schema": AGENT_TOOL_SCHEMA_V16} if family15 else {}),
         "section": section_payload(section),
         "system_prompt_sha256": prompt.sha256,
         "program_sha256": program.sha256,
@@ -257,7 +265,7 @@ def chat_reflector_identity(
                 "tool_schema": REFLECT_TOOL_SCHEMA_V16 if family15 else REFLECT_TOOL_SCHEMA,
                 "request_version": REFLECT_REQUEST_VERSION,
                 **({"reflect_brief": "reflect_brief/6"} if family15 else {}),
-                **({"role_contracts": "role_contracts/1"} if family15 else {}),
+                **({"role_contracts": ROLE_CONTRACTS_V16} if family15 else {}),
                 **({"finish_reflection": "result_repair/1"} if result_repair else {}),
             }
         )
