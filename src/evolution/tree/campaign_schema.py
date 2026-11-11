@@ -106,6 +106,7 @@ from evolution.tree.campaign_identity import (
     AdaptationIdentityV1,
     CampaignIdentityV1,
     final_measurement_id_for,
+    focus_case_repeats,
     measurement_id_for,
     observe_case_repeats,
     parent_measurement_id_for,
@@ -189,6 +190,7 @@ from evolution.tree.final_statistics import (
     measured_tolerance14,
     would_pass_point14,
 )
+from evolution.tree.roles.grouping.reflect_grouping import FAMILY15_DESCRIPTION_CHARS
 from evolution.tree.roles.role_failures import (
     EDITOR_BUDGET_REASONS,
     FAILURE_CLASSES,
@@ -607,6 +609,7 @@ GATE_SOURCES = frozenset({"claim", "empty-claim", "single-case", "reflection-fai
 #: Family 9 (model error grouping spec §14, ADR-0022): a gate scope exists only
 #: over a valid Editor input, so neither fallback source is admitted.
 MODEL_GROUPING_GATE_SOURCES = frozenset({"claim", "single-case"})
+FAMILY15_GATE_SOURCES = MODEL_GROUPING_GATE_SOURCES | {"below-minimum"}
 #: Family 9: why a round with a settled reflection closed `unplanned` -- the
 #: reflection was a valid terminal answer but no valid Editor input.
 UNPLANNED_REASONS = frozenset({"reflection_declined", "reflection_empty", "reflection_failed"})
@@ -1154,6 +1157,7 @@ _FINAL_BOUNDED_RECORDS = frozenset(
 #: is not edited.
 _FINAL_OPTIONAL: Mapping[str, frozenset[str]] = MappingProxyType(
     {
+        "candidate_inspected": frozenset(["components_withheld"]),
         "instance_attested": frozenset(["components_digest", "description"]),
         "reflection_failed": frozenset(["reason"]),
         "editor_failed": frozenset(["reason"]),
@@ -1511,6 +1515,7 @@ FALLBACK_REASONS = frozenset(
         "none",
         "components_unstable",
         "components_unavailable",
+        "components_withheld",
         "inspection_failed",
         "component_added_or_removed",
         "unaccounted_path",
@@ -1530,6 +1535,7 @@ _FALLBACK_SOURCES: Mapping[str, frozenset[str]] = {
         {
             "components_unstable",
             "components_unavailable",
+            "components_withheld",
             "inspection_failed",
             "component_added_or_removed",
             "unaccounted_path",
@@ -1774,6 +1780,8 @@ def validate_payload(
     extra_optional = optional.get(event, frozenset())
     if event == campaign_vocabulary_for(14).measurement_bound:
         extra_optional = extra_optional | {"stored_champion", "evidence"}
+    if independent and event == "grouping_finished":
+        extra_optional = extra_optional | {"full_descriptions_digest"}
     p = _keys(payload, keys[event], extra_optional)
     if event in _FINAL_BOUNDED_RECORDS:
         _validate_final_bounds(
@@ -2066,9 +2074,15 @@ def validate_payload(
         _positive(p["round"], "round is not a positive integer")
         _identifier(p["grouping_id"])
         _durable_reference._sha(p["result_digest"])
-        _validate_grouping_result(p["result"], p["result_digest"])
+        _validate_grouping_result(
+            p["result"],
+            p["result_digest"],
+            description_chars=FAMILY15_DESCRIPTION_CHARS if independent else 512,
+        )
         _validate_read_activity(p["reads"])
         _validate_grouping_fallback(p["fallback"], p["calls"])
+        if "full_descriptions_digest" in p:
+            _durable_reference._sha(p["full_descriptions_digest"])
     elif event == "grouping_failed":
         _positive(p["round"], "round is not a positive integer")
         _identifier(p["grouping_id"])
@@ -2209,11 +2223,11 @@ def validate_payload(
                 p["error_class"],
                 (FINAL_REFLECTION_ERRORS),
             )
-            _validate_reflection_reason(p)
+            _validate_reflection_reason(p, independent=independent)
     elif event == "gate_scope_selected":
         _positive(p["round"], "round is not a positive integer")
         _durable_reference._refuse(
-            p["source"] in (MODEL_GROUPING_GATE_SOURCES),
+            p["source"] in (FAMILY15_GATE_SOURCES if independent else MODEL_GROUPING_GATE_SOURCES),
             "gate source is not in the registry",
         )
         _durable_reference._refuse(
@@ -2287,6 +2301,11 @@ def validate_payload(
             validate_instance_components(p["components"])
         except ValueError as exc:
             raise SchemaError("components is not a valid wire map") from exc
+        if "components_withheld" in p:
+            _positive(p["components_withheld"], "components_withheld is not a positive integer")
+            _durable_reference._refuse(
+                p["components"] is not None, "components_withheld requires a component map"
+            )
     elif event == "affected_cases_selected":
         _validate_affected_selection(p)
     elif event == "comparison_bound":
@@ -2699,7 +2718,7 @@ def requested_pairing(cohort: Mapping[str, Any]) -> str:
     return "exact" if cohort["seed_mode"] == "exact" else "unpaired"
 
 
-def _validate_reflection_reason(p: Mapping[str, Any]) -> None:
+def _validate_reflection_reason(p: Mapping[str, Any], *, independent: bool) -> None:
     """Family 10 (spec §4.1): a settled `reflection_failed` carries a `reason`
     of the closed table, and a lifecycle terminal carries none."""
 
@@ -2708,7 +2727,8 @@ def _validate_reflection_reason(p: Mapping[str, Any]) -> None:
         return
     _durable_reference._refuse("reason" in p, "a settled reflection failure carries a reason")
     _durable_reference._refuse(
-        isinstance(p["reason"], str), "reflection reason outside the family-10 table"
+        isinstance(p["reason"], str) and (independent or p["reason"] != "program_failed"),
+        "reflection reason outside the family-10 table",
     )
     try:
         reflection_class(p["error_class"], p["reason"])
@@ -4755,7 +4775,9 @@ def _validate_grouping_fallback(fallback: object, calls: object) -> None:
             )
 
 
-def _validate_grouping_result(value: object, digest: object) -> None:
+def _validate_grouping_result(
+    value: object, digest: object, *, description_chars: int = 512
+) -> None:
     try:
         raw = canonical_json(value)
     except (TypeError, ValueError, RecursionError) as exc:
@@ -4791,7 +4813,7 @@ def _validate_grouping_result(value: object, digest: object) -> None:
         _durable_reference._refuse(
             all(
                 isinstance(entry[name], str) and len(entry[name]) <= limit
-                for name, limit in (("label", 128), ("description", 512))
+                for name, limit in (("label", 128), ("description", description_chars))
             ),
             "grouping description entry",
         )
@@ -5284,6 +5306,8 @@ class AttemptState:
     #: earlier family.
     inspections: int = 0
     inspected_components: Mapping[str, Any] | None = None
+    #: ADR-0024 (2026-11-08): omitted IDs bound into the inspected declaration.
+    inspected_withheld: int = 0
     #: Family 12 (G2b3b): the condition epoch in force at the last inspection.
     #: Snapshot-only, not journaled; `None` before one and in earlier families.
     inspected_epoch: int | None = None
@@ -7757,6 +7781,10 @@ class CampaignLifecycle:
                 "seq": seq,
                 "record_digest": hashlib.sha256(record.encode()).hexdigest(),
             }
+            # ADR-0057: the digest binding the grouping's full-description
+            # records, present exactly when the terminal wrote some.
+            if "full_descriptions_digest" in p:
+                entry["full_descriptions_digest"] = p["full_descriptions_digest"]
             entry.update(self._grouping_outcome(p))
         else:
             entry = {
@@ -8456,6 +8484,7 @@ class CampaignLifecycle:
                     self._attempt(p["attempt"]),
                     inspections=p["inspection"],
                     inspected_components=p["components"],
+                    inspected_withheld=p.get("components_withheld", 0),
                     inspected_epoch=len(self._epochs) - 1,
                 )
             )
@@ -8494,6 +8523,7 @@ class CampaignLifecycle:
         # G2 spec §3.5: a family-12 Candidate's case set as a selector, `None`
         # for the whole corpus (every baseline, and a full-corpus Candidate).
         case_subset: tuple[int, ...] | None = None
+        focus_repeats: list[list[int]] | None = None
         if side == CHAMPION_SIDE:
             state = self._round(number, "the round does not exist")
             _durable_reference._refuse(
@@ -8557,10 +8587,17 @@ class CampaignLifecycle:
                 bool(layers.layer_one), "a family-12 bind needs a non-empty layer 1"
             )
             case_subset = subset_of(self.identity["corpus_cases"], layers.candidate_cases)
+            # b18: `/16` focus cases at R_focus, as the fresh Parent's.
+            focus_repeats = focus_case_repeats(
+                self.policy,
+                confidence_scopes(selection, self.identity["corpus_cases"], scope["cases"])[0],
+            )
         # Families 5-11 keep their entries' keys.
-        selector = dict(
+        selector: dict[str, Any] = dict(
             role="baseline" if side == CHAMPION_SIDE else "candidate", case_subset=case_subset
         )
+        if focus_repeats is not None:
+            selector["case_repeats"] = focus_repeats
 
         def apply() -> None:
             self._register_measurement(
@@ -8637,6 +8674,10 @@ class CampaignLifecycle:
         # Family15 shares F∪C only; its R never invokes legacy observe allocation.
         if self._confidence:
             repeats = observe_case_repeats(self.policy, causal)
+            if repeats is not None:
+                selector["case_repeats"] = repeats
+        else:
+            repeats = focus_case_repeats(self.policy, focus)
             if repeats is not None:
                 selector["case_repeats"] = repeats
 

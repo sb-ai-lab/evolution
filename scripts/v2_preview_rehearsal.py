@@ -41,7 +41,7 @@ import zipfile
 from pathlib import Path
 
 CHECKOUT = Path(__file__).resolve().parents[1]
-VERSION = "2.0.0b16"
+VERSION = "2.0.0b18"
 #: The caveat kinds, in order, of the scaffold's campaign (check 8) and of its
 #: `baseline: inherit` successor (check 15). `tests/test_tree_family14_smoke.py`
 #: runs the same campaigns in process and checks them against these constants.

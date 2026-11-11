@@ -999,19 +999,31 @@ class ScorerTraceStorageFault(JournalFault):
 
 
 def trace_storage_fault(
-    exc: BaseException, location: str, operation: str
+    exc: BaseException, location: str, operation: str, *, scratch: bool = False
 ) -> ScorerTraceStorageFault:
-    """`append_log._fault`'s classification, with the trace's own detail line."""
+    """`append_log._fault`'s classification, with the trace's own detail line.
+
+    A fault on a stream buffer (`operation == "buffer"` for its creation and
+    its read-back into the pack, or `scratch` for a write or close on an open
+    buffer; buffers are never fsynced) names the temporary directory in its remedy.
+    """
 
     if isinstance(exc, OSError):
         exhausted = exc.errno in (errno.ENOSPC, errno.EDQUOT)
         code: JournalCode = "storage_capacity_exhausted" if exhausted else "journal_unavailable"
         category = errno.errorcode.get(exc.errno or 0, type(exc).__name__)
-        remedy = (
-            "free space or inodes on the run directory's filesystem"
-            if exhausted
-            else "check the filesystem"
-        )
+        if scratch or operation == "buffer":
+            remedy = (
+                "free space or inodes in the temporary directory (TMPDIR, else /tmp)"
+                if exhausted
+                else "check the temporary directory (TMPDIR, else /tmp)"
+            )
+        else:
+            remedy = (
+                "free space or inodes on the run directory's filesystem"
+                if exhausted
+                else "check the filesystem"
+            )
     else:
         code, category, remedy = "journal_unavailable", "unsafe_entry", "repair the entry"
     return ScorerTraceStorageFault(
@@ -1040,9 +1052,14 @@ _raw_close: Callable[[io.FileIO], None] = io.FileIO.close
 
 
 class TraceStream(io.FileIO):
-    """A directory-layout stream file whose every storage failure is a fault."""
+    """A stream file whose every storage failure is a fault.
+
+    `scratch` marks a stream buffer in the temporary directory, so its faults
+    name that directory instead of the run directory.
+    """
 
     location: str = ""
+    scratch: bool = False
 
     def write(self, data: Any, /) -> int:
         remaining = memoryview(data).cast("B")
@@ -1054,20 +1071,20 @@ class TraceStream(io.FileIO):
                     raise OSError(errno.EIO, "trace stream write made no progress")
                 remaining = remaining[written:]
         except OSError as exc:
-            raise trace_storage_fault(exc, self.location, "write") from exc
+            raise trace_storage_fault(exc, self.location, "write", scratch=self.scratch) from exc
         return size
 
     def sync(self) -> None:
         try:
             _fsync(self.fileno())
         except OSError as exc:
-            raise trace_storage_fault(exc, self.location, "fsync") from exc
+            raise trace_storage_fault(exc, self.location, "fsync", scratch=self.scratch) from exc
 
     def close(self) -> None:
         try:
             _raw_close(self)
         except OSError as exc:
-            raise trace_storage_fault(exc, self.location, "close") from exc
+            raise trace_storage_fault(exc, self.location, "close", scratch=self.scratch) from exc
 
 
 def open_trace_stream(path: Path, location: str) -> TraceStream:

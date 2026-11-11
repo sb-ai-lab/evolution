@@ -866,3 +866,187 @@ def test_fields_fallback_screen_and_singletons_stay_null():
                 ).description
                 is not None
             )
+
+
+# -- b17 wave 2 (ADR-0057): family 15 projects the description whole --------
+
+
+def _near_bound_group():
+    """#388 example 1's shape: three fields each near their 512-character
+    admitted bounds, so the whole description is well over 512 characters."""
+
+    return parse(
+        [
+            group(
+                "g",
+                [("a#1", "v"), ("a#2", "v"), ("b#1", "v")],
+                title="T" * 128,
+                failure_mode="F" * 512,
+                expected_behaviour="E" * 512,
+                question="Q" * 512,
+            )
+        ]
+    ).groups
+
+
+def test_family15_description_projects_every_field_and_title_whole():
+    grouped, _ = project(
+        REG,
+        _near_bound_group(),
+        policy_identity="p",
+        fallback_features=None,
+        fallback=None,
+        forbidden_string_predicates=(),
+        family15=True,
+    )
+    described = grouped.neighborhoods[0].description
+    assert described.label == "T" * 128
+    assert described.description == (
+        f"Observed: {'F' * 512}\nExpected: {'E' * 512}\nQuestion: {'Q' * 512}"
+    )
+
+
+def test_family14_description_of_the_same_group_is_byte_identical_to_today():
+    grouped, _ = project(
+        REG,
+        _near_bound_group(),
+        policy_identity="p",
+        fallback_features=None,
+        fallback=None,
+        forbidden_string_predicates=(),
+    )
+    described = grouped.neighborhoods[0].description
+    # Today's projection: the whole template, silently cut to 512 characters,
+    # which drops the question first.
+    whole = f"Observed: {'F' * 512}\nExpected: {'E' * 512}\nQuestion: {'Q' * 512}"
+    assert described.description == whole[:512]
+    assert not described.description.endswith("Question: " + "Q" * 512)
+    assert described.label == "T" * 128
+
+
+def test_trimmed_form_family14_clips_the_question_and_family15_keeps_it_whole():
+    from evolution.tree.roles.grouping.model_grouping import _description
+
+    group_ = _near_bound_group()[0]
+    family14 = _description(group_, trimmed=True)
+    assert family14 == {
+        "label": "T" * 63 + "…",
+        "description": (f"Observed: {'F' * 95}…\nExpected: {'E' * 95}…\nQuestion: {'Q' * 95}…"),
+    }
+    family15 = _description(group_, trimmed=True, family15=True)
+    assert family15 == {
+        "label": "T" * 63 + "…",
+        "description": (
+            f"Observed: {'F' * 90}…[cut]\nExpected: {'E' * 90}…[cut]\nQuestion: {'Q' * 512}"
+        ),
+    }
+    # The family-15 trimmed form keeps the whole question and so exceeds the
+    # 512-character cut it must never be subjected to.
+    assert len(family15["description"]) > 512
+
+
+def _cyrillic_bound_registry(groups: int):
+    return registry(*[rec(f"c{i}", 1, failing=True, criteria=("x",)) for i in range(groups)])
+
+
+def test_family15_map_over_64kib_trims_with_marks_and_keeps_every_question():
+    """A descriptions map over its 64 KiB bound, in Cyrillic text: every
+    trimmed entry keeps its question whole and marks the shortened fields
+    (`…[cut]`); the counts stay in `grouping_trimmed`."""
+
+    groups = 30
+    reg = _cyrillic_bound_registry(groups)
+    model_groups = tuple(
+        parse_map_response(
+            json.dumps(
+                {
+                    "groups": [
+                        group(
+                            f"g{i}",
+                            [(f"c{i}#1", "v")],
+                            title="т" * 128,
+                            failure_mode="ж" * 512,
+                            expected_behaviour="ж" * 512,
+                            question="ж" * 512,
+                        )
+                    ]
+                }
+            ),
+            chunk_failing=[f"c{i}#1"],
+            case_of={f"c{i}#1": f"c{i}"},
+            provenance_available=False,
+        ).groups
+        for i in range(groups)
+    )
+    trims = []
+    grouped, _ = project(
+        reg,
+        [g for parsed in model_groups for g in parsed],
+        policy_identity="p",
+        fallback_features=None,
+        fallback=None,
+        forbidden_string_predicates=(),
+        on_trim=trims.append,
+        family15=True,
+    )
+    assert len(trims) == 1
+    counts = trims[0]
+    assert counts["descriptions_truncated"] > 0 and counts["descriptions_dropped"] == 0
+    assert len(grouped.result.descriptions) == groups
+    whole = f"Observed: {'ж' * 512}\nExpected: {'ж' * 512}\nQuestion: {'ж' * 512}"
+    for entry in grouped.result.descriptions.values():
+        description = entry["description"]
+        # The question is whole in every entry, trimmed or not.
+        assert description.endswith("Question: " + "ж" * 512)
+        if description == whole:
+            assert "…[cut]" not in description and entry["label"] == "т" * 128
+        else:
+            assert description.count("…[cut]") == 2
+            assert entry["label"] == "т" * 63 + "…"
+            assert f"Observed: {'ж' * 90}…[cut]" in description
+
+
+def test_family14_same_groups_fit_the_map_without_trimming():
+    """The family-14 projection of the same groups is today's: every
+    description is the 512-character cut, the map fits, nothing is trimmed."""
+
+    groups = 30
+    reg = _cyrillic_bound_registry(groups)
+    model_groups = [
+        parse_map_response(
+            json.dumps(
+                {
+                    "groups": [
+                        group(
+                            f"g{i}",
+                            [(f"c{i}#1", "v")],
+                            title="т" * 128,
+                            failure_mode="ж" * 512,
+                            expected_behaviour="ж" * 512,
+                            question="ж" * 512,
+                        )
+                    ]
+                }
+            ),
+            chunk_failing=[f"c{i}#1"],
+            case_of={f"c{i}#1": f"c{i}"},
+            provenance_available=False,
+        ).groups[0]
+        for i in range(groups)
+    ]
+    trims = []
+    grouped, _ = project(
+        reg,
+        model_groups,
+        policy_identity="p",
+        fallback_features=None,
+        fallback=None,
+        forbidden_string_predicates=(),
+        on_trim=trims.append,
+    )
+    assert trims == []
+    assert len(grouped.result.descriptions) == groups
+    whole = f"Observed: {'ж' * 512}\nExpected: {'ж' * 512}\nQuestion: {'ж' * 512}"
+    for entry in grouped.result.descriptions.values():
+        assert entry["description"] == whole[:512]
+        assert entry["label"] == "т" * 128

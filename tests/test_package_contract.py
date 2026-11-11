@@ -25,11 +25,15 @@ def test_public_distribution_is_runtime_complete_and_experiment_free() -> None:
 
     wheel = config["tool"]["hatch"]["build"]["targets"]["wheel"]
     assert wheel["packages"] == ["src/evolution"]
+    if (ROOT / "src/evolution/gui").is_dir():
+        assert "src/evolution/gui" in wheel["exclude"]
 
     sdist = config["tool"]["hatch"]["build"]["targets"]["sdist"]
     included = tuple(sdist["only-include"])
     assert not any(path.startswith("/experiments") for path in included)
     assert not any(path.startswith("/tests") for path in included)
+    if (ROOT / "src/evolution/gui").is_dir():
+        assert "/src/evolution/gui" in sdist["exclude"]
 
     lock = tomllib.loads((ROOT / "uv.lock").read_text(encoding="utf-8"))
     (locked,) = (pkg for pkg in lock["package"] if pkg["name"] == "evo-skills")
@@ -41,7 +45,7 @@ def test_version_has_one_source() -> None:
 
     assert "version" not in config["project"]
     assert config["tool"]["hatch"]["version"]["path"] == "src/evolution/__init__.py"
-    assert evolution.__version__ == "2.0.0b16"
+    assert evolution.__version__ == "2.0.0b18"
 
 
 def test_changelog_opens_with_the_current_version() -> None:

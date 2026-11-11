@@ -20,8 +20,12 @@ import hashlib
 from evolution import prompts
 
 GOLDEN = {
+    "TREE_REFLECTOR_SYSTEM_V6": "dc56c577f8d286219f63dab8fcd39f8ee341e49e4f505740f848b45d8d9f7386",
+    "TREE_AGENT_REFLECTOR_SYSTEM_V4": "b366258b9e8869390fc4f79ad16d39002bd25971e315422bb779fc7e76f9339d",
     "TREE_REFLECTOR_SYSTEM_V5": "06bdc6eadc165ca86743f0b7b02b24b3399a99218ab37334f26be4e30388922c",
     "TREE_EDITOR_SYSTEM_V2": "0da4ec140bbb062f8ba547fe2fa4f2ca279fd692604245294ffa3b4e96aed114",
+    "TREE_EDITOR_SYSTEM_V3": "488ece165edc563c2cc3fef848f9cafd5a0a00749bac6fdaa6b1d323944a2b75",
+    "TREE_AGENT_EDITOR_SYSTEM_V2": "ec74b70ec328d25bd2fe6c90d691e140d55b14ed3e213a92effe37553c74eb03",
     "TREE_AGENT_GROUPER_SYSTEM": "7ec2c3842c19610b07606ba601c8390f2a7fabad377892eb0618d9e426ddeac3",
     "BASE_SOLVER_SYSTEM_PROMPT": "5057dd28efd37e99e4935d7ee887423d724d0bd62f6d1d922b105e45a40877f8",
     "ROOT_CWD_CONTRACT": "9fd8dc107b210433e109ec0bbf2515bf525232f6645603efdba0251f2a5b6b06",
@@ -46,9 +50,21 @@ GOLDEN = {
     "TREE_REFLECTOR_SYSTEM_V4": "6e0563e4c783e5062442f5e512125cac2d76b5e619afed4be3bdb55a06c8a63a",
     "TREE_GROUPING_MODEL_SYSTEM": "63b929ea0b46fbdb2127c251a65aa82c15c45ce9e9ec1f55d088563dad7ccb76",
     "TREE_GROUPING_MODEL_V2_SYSTEM": "ec5ef3d2c7fe85b87c84388a1e32c323fa402f6f7942f2778e2853336d11d0ee",
+    "TREE_GROUPING_MODEL_V3_SYSTEM": "3f8b6e21a649b8f8192c7951285b4abce16044826145b3b5484f1634faa8d9d8",
     "REWRITE_PROMPT": "1fc43a533e8cc94490aa2b007cc1a6780a4ffff0dbde98d25cda4f654229f347",
     "ORACLE_LEAD_IN": "1a0e2c77c08dc0140e10596589a5ad7c57a51c806d6f4c0415bfa8e1291fe115",
 }
+
+
+def test_new_reflector_prompts_explain_the_union_focus():
+    for prompt in (prompts.TREE_REFLECTOR_SYSTEM_V6, prompts.TREE_AGENT_REFLECTOR_SYSTEM_V4):
+        flattened = " ".join(prompt.split())
+        assert (
+            "The gate's focus is the union of affected_cases across all your hypotheses"
+            in flattened
+        )
+        assert "Together, claim only the cases these hypotheses can fix" in flattened
+        assert "A singleton claim falls back" not in flattened
 
 
 def test_every_exported_prompt_has_a_golden_hash():
@@ -79,8 +95,12 @@ def test_prompt_text_matches_golden():
 
 
 GOLDEN_FILES = {
+    "tree_reflector_v6.md": "990734df8d71a886749b3b1ba2b9fc569ed75b211802c61b987312c12155951f",
+    "tree_agent_reflector_v4.md": "36be7a631536bda7aa8e547c9d6ed8a6ab12e4f5053ffd64258b89f0a2677a7f",
     "tree_reflector_v5.md": "c7d586cbdc0e786519674ba8cf82520e5ad70e5233cab341f91a7cb70a590c85",
     "tree_editor_v2.md": "836e783fb3ae2bed5e536ddee987adb7d2c4193fec9bb788ca17471d3cbcddd5",
+    "tree_editor_v3.md": "be65ab1325ae678e68dc26f80958ab3b31fc149930448e6f750a47a9a594a992",
+    "tree_agent_editor_v2.md": "a8d37aebec300b0adb96375e23a7ac0e350ef69d950395246a2d658fb9270edb",
     "tree_agent_grouper.md": "792344112c760507d0b0dd1fa5156c751ed9e82bc1ae9ca14520a30af9fcc1db",
     "_blocks/blind_evidence.md": "d9337f8b80f2a8390eee8a321556f13bbf7b4a3cc5b99848e80154ff357871e0",
     "_blocks/generality_rules.md": "b48cde3a10e6b4c961d5a65b52f646d48ed17f87adfc985ac194cebe21a95647",
@@ -118,6 +138,7 @@ GOLDEN_FILES = {
     "tree_reflector_v4.md": "7993bdf31771d40efa88682a54408ba37b7b38030bd02fea9faa60792a75900d",
     "tree_grouping_model.md": "4a97ce28fe6e6a025df1face409532cfc23d001fcc29050fa47d25b37d268e82",
     "tree_grouping_model_v2.md": "551213198461b1cb36f060e2530ae1d92dff9bdb02fec6d98f13bad33a853aad",
+    "tree_grouping_model_v3.md": "9a4e5d9836af93df44cca932d281265b19c87bdad3a96cf95219fc37d2cbc008",
     "tree_editor_continuation.md": "957993f53cca67557545ba70b0fb0bb4727bd28d921152772d47b218dff45ba2",
 }
 
@@ -141,6 +162,31 @@ def test_tree_roles_explain_reject_regression_without_claiming_proved_harm():
         assert "uncertainty rather than proved harm" in prompt
         assert "rejection_layer" in prompt
         assert "final inconclusive attempt has no rejection_layer" in prompt
+
+
+def test_grouping_model_v3_asks_for_standalone_short_group_texts():
+    """ADR-0057: the b17 `/16` default adds exactly the two group-text rules
+    for the portion answer and the reduce header, over the same protocol,
+    answer schema and tools. The rules are requests; nothing checks them."""
+
+    v3 = " ".join(prompts.TREE_GROUPING_MODEL_V3_SYSTEM.split())
+    # Rule 1: group texts stand alone.
+    assert "## Group texts" in v3
+    assert "It does not see the references (`o<n>`, `c<n>`, `s<n>`)" in v3
+    assert 'never write "same as" another group or variant' in v3
+    # Rule 2: stay short; the bounds are ceilings, not targets.
+    assert "The bounds are ceilings, not targets." in v3
+    assert "a few words" in v3
+    assert "at most three short examples, not one per member" in v3
+    assert "one sentence, one question" in v3
+    # The reduce header follows the same targets; the protocol split is kept.
+    parts = prompts.TREE_GROUPING_MODEL_V3_SYSTEM.split("\n## Reduce")
+    assert len(parts) == 2 and "same targets" in parts[1]
+    assert "finish_portion(groups)" in parts[0]
+    # The older packaged prompts do not carry the rules; /15 keeps v1.
+    for older in (prompts.TREE_GROUPING_MODEL_V2_SYSTEM, prompts.TREE_GROUPING_MODEL_SYSTEM):
+        assert "## Group texts" not in older
+        assert "ceilings, not targets" not in older
 
 
 HISTORICAL_PROMPT_FILES = {

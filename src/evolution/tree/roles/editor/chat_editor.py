@@ -36,6 +36,7 @@ import inspect
 import json
 import os
 import re
+import stat
 import time
 from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import asdict, dataclass, field, replace
@@ -49,8 +50,12 @@ from evolution.tree.execution.private_files import WorkspaceError
 from evolution.tree.roles.chat_history import (
     CONTINUATION_FIELDS,
     ChatHistoryError,
+    ReplacedCall,
     assistant_message,
+    is_object_arguments,
     message_units,
+    retained_message,
+    strict_json,
     tool_exchange,
     with_dropped_note,
 )
@@ -613,12 +618,24 @@ def _raw_call_arguments(call: Any) -> Any:
     return getattr(getattr(call, "function", call), "arguments", "{}")
 
 
-def _call_arguments(call: Any) -> dict[str, Any]:
+def _call_arguments(call: Any, *, strict: bool = False) -> dict[str, Any]:
+    """The call's arguments as one object, or `ToolError` with today's texts.
+
+    `strict` (`/16`, ADR-0061) admits with the history rule's RFC 8259 parser,
+    so `NaN`/`Infinity` fail as "not JSON" and a replaced call never runs.
+    """
+
     raw = _raw_call_arguments(call)
-    try:
-        value = json.loads(raw) if isinstance(raw, str) else raw
-    except json.JSONDecodeError as exc:
-        raise ToolError("tool arguments are not JSON") from exc
+    if strict and isinstance(raw, str):
+        try:
+            value = strict_json(raw)
+        except ValueError as exc:
+            raise ToolError("tool arguments are not JSON") from exc
+    else:
+        try:
+            value = json.loads(raw) if isinstance(raw, str) else raw
+        except json.JSONDecodeError as exc:
+            raise ToolError("tool arguments are not JSON") from exc
     if not isinstance(value, dict):
         raise ToolError("tool arguments must be an object")
     return value
@@ -646,6 +663,21 @@ def _response_message(response: Any, request_style: str) -> dict[str, Any] | Non
         return assistant
     except ChatHistoryError as exc:
         raise EditFailure("protocol", str(exc)) from exc
+
+
+def _retained_response(
+    response: Any, request_style: str
+) -> tuple[dict[str, Any] | None, tuple[ReplacedCall, ...]]:
+    """`/16` (ADR-0061): the retained message with broken calls' arguments as `{}`.
+
+    The replacement happens once, here, when the retained message is built;
+    compaction never rewrites it (ADR-0025).
+    """
+
+    assistant = _response_message(response, request_style)
+    if assistant is None:
+        return None, ()
+    return retained_message(assistant)
 
 
 def _tool_result_messages(
@@ -679,12 +711,36 @@ def _text_summary(value: Any) -> dict[str, Any] | None:
     }
 
 
+#: `/16` (ADR-0061): said once when a call's arguments are shown without a preview.
+_REPLACED_ARGUMENTS_NOTE = (
+    "The arguments of each call listed without a preview were not one JSON object "
+    "and were removed from the conversation history. "
+)
+
+
+def _replaced_summary(text: str) -> dict[str, Any]:
+    """`_text_summary` without the preview (and `truncated`, which describes it)."""
+
+    return {"characters": len(text), "sha256": hashlib.sha256(text.encode()).hexdigest()}
+
+
 def _protocol_correction(
-    error: str, calls: list[Any], tools: Sequence[dict[str, Any]] = TOOLS
+    error: str,
+    calls: list[Any],
+    tools: Sequence[dict[str, Any]] = TOOLS,
+    *,
+    family15: bool = False,
 ) -> str:
+    encoded = [_encoded_call_arguments(call) for call in calls]
+    # `/16` (ADR-0061): a call whose arguments are not one JSON object is shown
+    # by its measures only, so its markup does not come back as user text.
+    replaced = [family15 and not is_object_arguments(text) for text in encoded]
     call_details = [
-        {"name": _call_name(call), "arguments": _text_summary(_encoded_call_arguments(call))}
-        for call in calls
+        {
+            "name": _call_name(call),
+            "arguments": _replaced_summary(text) if removed else _text_summary(text),
+        }
+        for call, text, removed in zip(calls, encoded, replaced, strict=True)
     ]
     name = _call_name(calls[0]) if len(calls) == 1 else ""
     schema = next(
@@ -693,7 +749,9 @@ def _protocol_correction(
     )
     return (
         "Your previous response was rejected locally. Return exactly one native "
-        "function call and no prose. Correction details: "
+        "function call and no prose. "
+        + (_REPLACED_ARGUMENTS_NOTE if any(replaced) else "")
+        + "Correction details: "
         + json.dumps(
             {"error": error, "received_calls": call_details, "required_schema": schema},
             sort_keys=True,
@@ -1078,6 +1136,7 @@ def read_file_tool(
     *,
     max_payload_bytes: int,
     nearest_paths: int | None = None,
+    raw_only: bool = False,
 ) -> tuple[dict[str, Any], int]:
     """The `read_file` tool, over any projection root: the editor's and the Reflector's."""
 
@@ -1098,10 +1157,6 @@ def read_file_tool(
             "first_lines": info["first_lines"],
             "sections": info["sections"][:64],
         }, 0
-    numbered = "".join(
-        f"{line_number}: {line}"
-        for line_number, line in enumerate(content.splitlines(keepends=True), start=start_line)
-    )
     relative = path.relative_to(root).as_posix()
     if len(content) > MAX_READ_FILE_CHARS:
         info = _inspect_file(path, root)
@@ -1121,15 +1176,21 @@ def read_file_tool(
                 "start_line/end_line range and call read_file again."
             ),
         }, 0
-    return {
+    result = {
         "path": relative,
         "start_line": start_line,
         "end_line": end_line,
         "total_lines": total_lines,
         "sha256": file_hash,
         "content": limited(content, max_payload_bytes),
-        "line_numbered_content": limited(numbered, max_payload_bytes),
-    }, 0
+    }
+    if not raw_only:
+        numbered = "".join(
+            f"{line_number}: {line}"
+            for line_number, line in enumerate(content.splitlines(keepends=True), start=start_line)
+        )
+        result["line_numbered_content"] = limited(numbered, max_payload_bytes)
+    return result, 0
 
 
 # --------------------------------------------------------------------------
@@ -1157,6 +1218,10 @@ def _evidence_chunk(content: str, offset: int, *, family15: bool = False) -> tup
     if offset > len(content):
         detail = f"; offset must be between 0 and {len(content)}" if family15 else ""
         raise ToolError("offset is past end of evidence" + detail)
+    # `/16`: the end of a record is a valid offset whether or not the text
+    # ends with a newline; `/15` keeps refusing it as a boundary error.
+    if family15 and offset == len(content):
+        return "", None
     if offset and content[offset - 1] != "\n":
         raise ToolError("offset must point to an evidence record boundary")
     if offset == len(content):
@@ -2114,7 +2179,10 @@ async def _negotiate_style(
         {
             "role": "user",
             "content": _protocol_correction(
-                modern_error or f"preflight requires {probe_tool}", calls, tools
+                modern_error or f"preflight requires {probe_tool}",
+                calls,
+                tools,
+                family15=family15,
             ),
         }
     )
@@ -2146,7 +2214,9 @@ async def _negotiate_style(
         messages.append(
             {
                 "role": "user",
-                "content": _protocol_correction(f"preflight requires {probe_tool}", calls, tools),
+                "content": _protocol_correction(
+                    f"preflight requires {probe_tool}", calls, tools, family15=family15
+                ),
             }
         )
     raise EditFailure("protocol", f"{role} preflight must make exactly one {probe_tool} call")
@@ -2337,6 +2407,11 @@ class _Session:
         consecutive_failures = 0
         assistant: dict[str, Any] | None = None
         dropped: list[str] = []
+        #: `/16` (ADR-0061): this turn's calls retained with `{}` arguments.
+        replaced: tuple[ReplacedCall, ...] = ()
+
+        def replaced_calls() -> dict[str, Any]:
+            return {"replaced_calls": [item.to_record() for item in replaced]} if replaced else {}
 
         def noted(output: dict[str, Any]) -> dict[str, Any]:
             return with_dropped_note(output, dropped) if self.family15 else output
@@ -2353,7 +2428,7 @@ class _Session:
                 messages.extend(
                     tool_exchange(assistant, noted({"error": error})) if calls else [assistant]
                 )
-            correction = _protocol_correction(error, calls, self.tools)
+            correction = _protocol_correction(error, calls, self.tools, family15=self.family15)
             messages.append({"role": "user", "content": correction})
             self._record(
                 {
@@ -2361,6 +2436,7 @@ class _Session:
                     "repair": protocol_repairs,
                     "error": error,
                     **({"category": category} if self.plan_correction else {}),
+                    **replaced_calls(),
                 }
             )
 
@@ -2403,7 +2479,10 @@ class _Session:
                     }
                 )
                 raise
-            assistant = _response_message(response, request_style)
+            if self.family15:
+                assistant, replaced = _retained_response(response, request_style)
+            else:
+                assistant = _response_message(response, request_style)
             self._record(_response_audit(response, self.section, request_style, turn))
             calls = _tool_calls(response)
             dropped = [_call_name(item) for item in calls[1:]] if self.family15 else []
@@ -2422,6 +2501,13 @@ class _Session:
                             {"id": _call_id(item), "name": _call_name(item), "arguments": ""}
                             for item in calls[1:]
                         ],
+                        # A broken first call always ends this turn in a repair,
+                        # whose record carries the replacements instead.
+                        **(
+                            replaced_calls()
+                            if replaced and is_object_arguments(_raw_call_arguments(calls[0]))
+                            else {}
+                        ),
                     }
                 )
             call = calls[0]
@@ -2430,7 +2516,7 @@ class _Session:
                 request_repair(f"unknown tool: {name}", calls, "unknown_tool")
                 continue
             try:
-                arguments = _call_arguments(call)
+                arguments = _call_arguments(call, strict=self.family15)
             except ToolError as exc:
                 request_repair(str(exc), calls, "invalid_arguments")
                 continue
@@ -2613,6 +2699,7 @@ class _Session:
                     "tool": name,
                     "arguments": arguments,
                     "result": output,
+                    **replaced_calls(),
                 }
             )
             if name == "finish_edit":
@@ -2947,6 +3034,7 @@ class _Session:
             arguments,
             max_payload_bytes=self.section.budgets.max_payload_bytes,
             nearest_paths=effective_nearest_paths(self.section) if self.family15 else None,
+            raw_only=self.family15,
         )
 
     def _write_file(self, arguments: dict[str, Any]) -> tuple[dict[str, Any], int]:
@@ -2961,9 +3049,26 @@ class _Session:
                 "do not rewrite the complete file"
             )
         self._limited(content)
+        created = not path.exists()
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8")
+        if created:
+            self._restore_projected_mode(path)
         return {"written": path.relative_to(self.root).as_posix()}, len(content.encode())
+
+    def _restore_projected_mode(self, path: Path) -> None:
+        """Give a re-created baseline file its baseline mode (`/16`, #231).
+
+        A file the Editor deleted and wrote back would otherwise carry the
+        writer's mode, differ from its baseline and keep its slot. A path
+        outside the baseline keeps the writer's mode.
+        """
+
+        if not self.family15:
+            return
+        entry = self.projection.baseline.get(path.relative_to(self.root).as_posix())
+        if entry is not None and entry.kind == "file":
+            os.chmod(path, stat.S_IMODE(entry.mode))
 
     def _replace_text(self, arguments: dict[str, Any]) -> tuple[dict[str, Any], int]:
         _expect(arguments, {"path", "old_text", "new_text"})
@@ -3059,8 +3164,11 @@ class _Session:
                 digest = hashlib.sha256(old.encode()).hexdigest()
                 raise ToolError(f"{exc} (path={relative}, current_sha256={digest})") from exc
         for path, content in staged.items():
+            created = not path.exists()
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(content, encoding="utf-8")
+            if created:
+                self._restore_projected_mode(path)
         return {"patched": sorted(path.relative_to(self.root).as_posix() for path in staged)}
 
     # -- provider ---------------------------------------------------------

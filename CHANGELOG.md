@@ -2,9 +2,54 @@
 
 This beta snapshot preserves the supported workflows and stored-run contracts described below.
 
-## [Unreleased]
+## [2.0.0b18] — 2026-11-10
+
+This release keeps the manifest schemas, campaign families, wire protocol, exit codes and Python import paths. `/16` remains opt-in and the scaffold still writes `/15`.
 
 ### Added
+
+- `/16` `campaign.evaluation.focus_repeats_per_question` measures each Attempt's focus case more often in the Candidate and fresh Parent; causal cases, baselines, completion, verification, Champion and refresh measurements keep their existing repeat count. It requires `gate.mode: point` and `gate.fresh_parent: true`. The point gate compares per-case means. See [focus repeats](docs/manifest-v2.md#focus-repeats).
+- `/16` `reflector.selection.min_claim_cases` (default `2`) sets the smallest Reflector claim that becomes the gate's focus. Set it to `1` to allow a focus of one case. A smaller claim gets the gate source `below-minimum`.
+
+### Changed
+
+- `/16` `read_file` returns file text once in `content` and drops `line_numbered_content`. Chat Editor and Reflector tool schemas become `chat_tools/3` and `reflect_tools/4`; the agent-CLI Editor stays at `chat_tools/2`.
+- `/16` default Reflector prompts explain that the gate's focus is the union of `affected_cases` across hypotheses and ask the Reflector to claim only what it can fix. The defaults are `tree_reflector_v6.md` and `tree_agent_reflector_v4.md`.
+- `/16` default Editor prompts ask the Editor to read related instructions and examples, reconcile competing rules in the same edit, stay inside its writable paths and re-read the changed regions. The defaults are `tree_editor_v3.md` and `tree_agent_editor_v2.md`. A declared `system_prompt` takes precedence. `/15` prompts remain unchanged.
+- Scorer stream buffers and the Reflector's Parent projection use the default temporary directory (`TMPDIR`, else `/tmp`). Storage-fault remedies name that directory. Point `TMPDIR` at a disk directory if `/tmp` is a small tmpfs. Journals, pack bytes and identities stay unchanged. See [disk and inode faults](docs/running-campaigns.md#when-the-disk-or-its-inodes-run-out).
+- Per-attempt workspace copies are no longer fsynced. Recovery resets a kept workspace from its verified Parent or abandons it; published Candidates are still fsynced. A power loss during sealing can therefore more often abandon the Attempt as `seal_not_published`.
+- A `/16` command Reflector program failure records `program_failed` instead of `unclassified`, with failure class `unknown`. `/15` retains its earlier behavior.
+
+### Fixed
+
+- `/16` chat Editor, Reflector and Grouper portion sessions retain `{}` instead of broken tool-call arguments in subsequent assistant history. Non-object JSON, markup, truncated text and empty arguments remain invalid for execution. Valid object arguments, call IDs, names, order, content and reasoning fields are preserved. Corrections identify removed arguments by length and hash without a preview; original arguments remain in the private role log. `/15` keeps the previous repair behavior.
+- Run secrets in reported `used` unions or component IDs no longer stop `/15` and `/16` runs with `persistence_failed`. A secret-bearing union becomes unknown provenance. Secret-bearing component IDs are omitted, counted by optional positive `components_withheld`; a withheld map on either side selects every case with fallback reason `components_withheld`. Warnings contain counts only. Runs without these matches keep their journal bytes.
+- `/16` `read_evidence` accepts the end of a record without a final newline and returns empty `content` with `next_offset: null`. Offsets inside a line or past the end remain invalid.
+- A `/16` chat Editor that deletes a file and restores its original bytes now restores its baseline mode and frees its changed-file budget slot.
+- Subprocess Editor and Reflector stderr logs redact the run's secret set. Logs are written after the program ends; later background-process writes are not logged. A Reflector with a probe retains its streamed log. Scorer traces and command Grouper stderr remain raw.
+- `conformance_manifest` refuses a non-mapping input as `bad_type` at `$`.
+- Tree copies use `os.copy_file_range` on Linux interpreters that provide it before Python 3.14. Digest checks and later fsyncs remain in place. Interpreters without that function retain the earlier copy path.
+
+### Upgrade
+
+- `evo tree evolve` admits `/15` and opt-in `/16`, and the `evo-target` scaffold continues to write `/15`. `evo tree conformance` continues to refuse earlier campaign manifests, including `evolution-v2-manifest/5`, with `manifest_schema`, and run directories of families 3–13 stay refused `campaign_family_unsupported`. `package_version_mismatch` still requires explicit handling on resume. `evo gui`, the `[gui]` extra and `evo tree edit` remain absent.
+
+- Install the same version at both wire ends. Unfinished b17 runs require one `run_identity_changed` authorization with effect `rebase`; every run lists `producing_version`. `/16` chat Editor and Reflector runs also list their role digest, including with a declared `system_prompt`. `/16` agent-CLI roles list their digest only with the default prompt. `/15` roles and `/16` chat Grouper or subprocess roles add no role identity change. Accept the printed differences with `evo tree authorize`, then repeat the same command. Finish or stop every `/15` run before upgrading.
+- Frozen Attempts resume with their frozen inputs. An open reflection closes as `reflection_failed` with reason `interrupted` and restarts in the same round. Finished grouping remains bound; an interrupted grouping can adopt its finished portions.
+- The two new optional keys enter identity only when declared. Adding `min_claim_cases` requires an adaptation `rebase`. Adding `focus_repeats_per_question` changes policy and offers `rebaseline` or `close`, or only `close` when no round remains.
+- Rollback to b17 refuses manifests with either new key as `unknown_key`. A campaign journal containing `program_failed` or `components_withheld` cannot be resumed by b17 and ends `persistence_failed` before authorization. When `components_withheld` occurs only in measurement journals, b17 may append the usual `identity_rebased` first and then fail reading the measurement journal. Reinstall b18 to continue; another `producing_version` rebase may be needed if b17 rebased the run.
+
+### Retained limitations
+
+- Secrets in component `sources` paths still trigger the journal guard and end the run `persistence_failed`; keep secrets out of source paths.
+- A lineage import does not screen predecessor `used` unions against the successor's run secrets. A union matching a successor secret can still stop the import with `persistence_failed`.
+- `/15` and agent-CLI Editors retain the writer's mode when recreating a file. A declared Editor `system_prompt` does not gain the default reconciliation instructions.
+
+## [2.0.0b17] — 2026-11-08
+
+### Added
+
+- Newly formed `/16` model groups retain their whole observed failure, expectation and investigation question in bound records when map descriptions overflow. Short map entries retain the whole question; fields descriptions use the same derived 1,568-character bound. `/15` keeps its 512-character bound.
 
 - Import `evaluate` and `inspect_evaluation` from `evolution.tree` before the evaluation package move. These eager root exports are the existing canonical functions, appended after the 130 existing aggregate names. Maintained evaluation examples use the root imports.
 
@@ -33,7 +78,7 @@ This beta snapshot preserves the supported workflows and stored-run contracts de
 |---|---|
 | `evolution.tree.evaluation_manifest:EvaluationPolicy` | `evolution.tree.execution.config:EvaluationPolicy` |
 
-- Extract the existing internal `DurableReference` contract and its closed validation dependencies from campaign grammar into `evolution.tree.execution.durable_reference` under and merged design PR374. Target preflight and campaign replay use the same class. The eager root initializer and its ordered aggregate exports are unchanged. Payloads, validation diagnostics and persisted evidence are unchanged. Migrate deep defining imports using the table below.
+- Extract the existing internal `DurableReference` contract and its closed validation dependencies from campaign grammar into `evolution.tree.execution.durable_reference` into the execution package. Target preflight and campaign replay use the same class. The eager root initializer and its ordered aggregate exports are unchanged. Payloads, validation diagnostics and persisted evidence are unchanged. Migrate deep defining imports using the table below.
 
 #### Durable reference import migration
 
@@ -119,7 +164,7 @@ This beta snapshot preserves the supported workflows and stored-run contracts de
 
 ### Added
 
-- **The `/16` chat Grouper groups in portions with read tools.** It uses the protocol `model_grouping/2` and the prompt `tree_grouping_model_v2.md`, ). Failing observations are split into portions. Each portion is a short tool session (`read_observation`, `read_trace`, `list_case`, `finish_portion`). A cut answer splits the portion. Groups from several portions are consolidated in batches. Every request stays within `max_input_chars` and `max_output_tokens`. The chat Grouper sees per-component counts of reported provenance. See [chat Grouper settings](docs/manifest-v2.md#the-chat-grouper-in-portions-16).
+- **The `/16` chat Grouper groups in portions with read tools.** It uses the protocol `model_grouping/2` and the prompt `tree_grouping_model_v2.md`. Failing observations are split into portions. Each portion is a short tool session (`read_observation`, `read_trace`, `list_case`, `finish_portion`). A cut answer splits the portion. Groups from several portions are consolidated in batches. Every request stays within `max_input_chars` and `max_output_tokens`. The chat Grouper sees per-component counts of reported provenance. See [chat Grouper settings](docs/manifest-v2.md#the-chat-grouper-in-portions-16).
 
 - New optional `/16` Grouper keys: `group_output_tokens`, `glimpse_chars`, `max_set_members`, `read_chars`, `max_turns`, `card_examples`, `max_reduce_levels` and `max_requests`. Every key except `max_requests` has a default (`max_requests` has none: no cap); none has an upper bound and enters identity only when declared. `/15` refuses them as `unknown_key`.
 
@@ -2771,7 +2816,7 @@ The supported tree commands include `evo tree evolve` and `evo tree conformance`
 
 - **`corpus_inside_role_workspace` is documented, and library callers can check it first.** `evo tree evolve` refuses a corpus file inside the seed, the run directory or a declared program path, or one that is a declared prompt file, with `corpus_inside_role_workspace`; the code is now in the [manifest refusal table](docs/manifest-v2.md#refusals). The new `check_corpus_placement(manifest, run_root=..., environ=...)` in `evolution.tree.evolve` runs the same check without starting a run; it checks nothing for a schema older than `/12`. Python import paths are not part of the beta promise. The refusal itself is unchanged.
 
-- **A Target's `describe()` may return `None`.** The optional `describe()` callback of a target-server backend that returns `None` reports nothing: the instance is created and its body has no `description`, as for a backend without the method. This was already the behavior; the [library reference](docs/target-server.md#the-optional-describe-callback) and now say so, and the `DescribingInstance.describe` annotation is widened to `Mapping[str, Any] | None`. Nothing changes for a running Target.
+- **A Target's `describe()` may return `None`.** The optional `describe()` callback of a target-server backend that returns `None` reports nothing: the instance is created and its body has no `description`, as for a backend without the method. This was already the behavior; the [library reference](docs/target-server.md#the-optional-describe-callback) now says so, and the `DescribingInstance.describe` annotation is widened to `Mapping[str, Any] | None`. Nothing changes for a running Target.
 
 - **Fix #241: Unicode corpus case IDs no longer crash Attempt feedback.** A case ID admitted by the campaign journal can now appear in the frozen exam set and paired-score feedback before the Editor starts. Existing valid ASCII feedback bytes and campaign identities are unchanged. An unfinished run still follows the usual producing-version authorization when resumed with a different package version.
 

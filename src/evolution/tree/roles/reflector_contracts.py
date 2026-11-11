@@ -1212,7 +1212,7 @@ def _validate_adaptive_groups(
     return tuple(parsed for _, parsed in sorted(unique.items(), key=rank))
 
 
-REFLECT_TOOL_SCHEMA_V16 = "reflect_tools/3"
+REFLECT_TOOL_SCHEMA_V16 = "reflect_tools/4"
 
 
 def reflect_tool_schema_for(pin: EvidencePin | None) -> str:

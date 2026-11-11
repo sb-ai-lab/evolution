@@ -1,79 +1,106 @@
-# Evolution
+![Evolution — the film’s ring-and-dot mark connected by branching paths.](docs/assets/readme/evolution-header.png)
 
-Evolution helps you improve the files an agent uses: skills, prompts and other editable instructions. You provide an agent, evaluation cases and a scoring program. Evolution runs the current version, investigates failures, proposes edits and compares each candidate with the current best version. It keeps a candidate only when the configured checks support the change.
+# Investigate. Edit. Compare.
 
-This branch contains the **v2 tree-evolution beta, `2.0.0b16`**. The workflow uses a local Target Service to run your agent. No model weights are trained. Your original source tree stays unchanged; candidates, selected versions and the run history live in a separate run directory.
+[English](README.md) · [Russian](README.ru.md)
 
-## Start here
+Turn your agent’s failures into proposed changes to its skills and prompts. Evolution evaluates each change against your cases before selecting a version.
 
-If you are joining the project, follow these guides in order:
+**[Try it without an API key →](#quickstart)** · [Connect your agent](docs/connecting-an-agent.md) · [How it works](docs/architecture.md)
 
-1. [Run your first campaign](QUICKSTART.md) — install this version and run a complete example without an API key.
-2. [Understand the workflow](docs/architecture.md) — what the target, scorer, Grouper, Reflector and editor do.
-3. [Run campaigns on your own tasks](docs/running-campaigns.md) — prepare inputs, read results, recover from failures and continue experiments. If a run stopped unexpectedly, see [A run failed: start here](docs/running-campaigns.md#a-run-failed-start-here).
-4. [Connect your agent](docs/connecting-an-agent.md) — implement the small backend that lets Evolution run your agent.
-5. [Contribute to Evolution](CONTRIBUTING.md) — find the code, run checks and make your first change.
+![Illustrative workflow: investigate an ungrounded answer, edit a skill, reject one candidate, select another, then use the selected instructions to query data and answer the same task.](docs/assets/readme/evolution-film.gif)
 
-See the [documentation index](docs/SUMMARY.md) for reference pages.
+[View the static example](docs/assets/readme/evolution-film-poster.png).
 
-## Try it from this checkout
+## A better instruction starts with a specific failure.
 
-Use Python 3.11.3 or newer. From the repository root:
+The agent gives general retention advice without checking product data. Investigation identifies the missing query. The proposed skill now says to query the data and compare retention cohorts. Evolution tests the candidate; your checks decide whether it is selected.
+
+You supply the agent, editable files, cases and scorer. Evolution preserves the selected files and the run history. A campaign can keep the current version.
+
+Python 3.11.3+ · Beta `2.0.0b18` · [Apache 2.0](LICENSE)
+
+
+## Quickstart
+
+Run a complete example without an API key. It uses a deterministic agent and scripted roles, so it verifies the wiring rather than real-agent quality. Use Python 3.11.3+ and Bash or Zsh.
+
+### 1. Install this beta
 
 ```bash
+git clone https://github.com/sb-ai-lab/evolution.git
+cd evolution
 python -m venv .venv
 source .venv/bin/activate
+python -m pip install --upgrade pip
 python -m pip install -e ".[tree]"
 evo --version
+```
+
+Expect `evo 2.0.0b18`. Install from the documented beta checkout or a supplied wheel; a plain PyPI install may resolve to another release. If your checkout reports another version, follow that version’s documentation. [Wheel installation](QUICKSTART.md#1-install-the-beta) is covered in the full guide.
+
+### 2. Start the example service
+
+In terminal 1, from the same `evolution` directory:
+
+```bash
 evo-target init ./demo
 evo-target serve ./demo/manifest.json
 ```
 
-Leave the server running. In a second terminal, from the same repository root:
+Wait for a JSON line containing `"status": "listening"` and leave the service running. If port 8765 is busy, stop this service, change `target.base_url` in `demo/manifest.json` to an available loopback port, and restart it before the first campaign. If `demo` already exists, use a new directory name throughout these commands.
+
+### 3. Run the campaign
+
+Open terminal 2 in the same `evolution` directory and activate the same environment:
 
 ```bash
 source .venv/bin/activate
 evo tree conformance --manifest ./demo/manifest.json
-evo tree evolve --manifest ./demo/manifest.json --run-dir ./demo/run-1
+evo tree evolve --manifest ./demo/manifest.json --run-dir ./demo/run-1 \
+  > ./demo/result.json
 ```
 
-The example uses a small deterministic agent and scripted roles. It exercises the whole campaign without an LLM or provider credentials. The [Quickstart](QUICKSTART.md) explains the generated files, expected output and how to inspect the selected version.
+Conformance should report `"ok": true` and `"leaked": []`. The campaign saves its result JSON in `demo/result.json` and its records in `demo/run-1`.
 
-Install this beta from the checkout or a wheel supplied by your team. A plain `pip install evo-skills` may install a different release; it does not identify the version documented here. Installation from a wheel is covered in the Quickstart.
+### 4. Inspect the selected files
 
-## How a campaign works
+```bash
+python - <<'PYRESULT'
+import json
+from pathlib import Path
 
-You describe a campaign in one JSON **manifest**: which files may change, how to run the agent, which cases to evaluate, how to score them, and the time and attempt limits.
+result = json.loads(Path("demo/result.json").read_text())
+print("State:", result["terminal"])
+print("Outcome:", result["finished"])
+print("Champion:", result["status"]["final_champion"])
+print("Files:", result["status"]["campaign_outcome"]["champion_path"])
+PYRESULT
+cat ./demo/seed/skills/SKILL.md
+cat ./demo/run-1/artifacts/champions/v1/skills/SKILL.md
+```
 
-Evolution then repeats this cycle:
+Expect a finished campaign with outcome `completed`, reason `rounds_exhausted` and **Champion `v1`**. The selected skill begins with `IMPROVED`; the original seed does not. The sample scorer rewards that marker, so this result demonstrates file flow and selection. It does not establish improvement for a real agent.
 
-1. Measure the current best version, called the **Champion**.
-2. Ask the **Grouper** to group observed failures, then the **Reflector** to investigate a group and suggest what to improve.
-3. Ask the **editor** to change a copy of the round’s starting version, called the **Parent**, creating a **Candidate**.
-4. Compare the Candidate with the Parent on the cases it aims to improve and other cases its edit can affect. A Candidate that passes becomes a **finalist**.
-5. Measure the finalist afresh across the training corpus and compare it with the Champion. Promote an accepted finalist, or keep the current Champion.
+Stop the service with Ctrl+C in terminal 1 when finished. A `continue:` hint after success is optional guidance for a successor campaign. To repeat the example, start the service and use a new run directory.
 
-The operator starts the Target Service; Evolution connects to it. The scorer defines task quality. The Grouper organizes failures, the Reflector diagnoses them, and the editor changes files. These can use different programs or models.
+The [full Quickstart](QUICKSTART.md) explains generated files and troubleshooting. For an unfamiliar failure, start with [diagnosis and recovery](docs/running-campaigns.md#a-run-failed-start-here).
 
-The run directory records what happened and preserves the selected files. The example writes `evolution-v2-manifest/15`; opt-in `/16` provides independent acceptance controls. Only these two file schemas and campaign families 14 and 15 are supported. Read removed-family runs with `2.0.0b9`, or seed a new unlinked `/15` campaign from the Champion copy. Infrastructure problems suspend a current campaign so you can repair the cause and run the same command again. A Grouper, Reflector or Editor failure not proven to be about its content also suspends rather than silently closing a round or Attempt. A completed current-family campaign continues through a linked run in a new directory. [Running campaigns](docs/running-campaigns.md) explains the difference.
+## What happens between an edit and selection?
 
-The scaffold compares finalists with the stored Champion measurement (`stable`) and stops each round at its first accepted finalist (`first_accepted`). Use [the stable-family guide](docs/running-campaigns.md#judge-a-candidate-with-the-stable-family-manifest-15) to choose these settings. Before upgrading an existing installation, read the [upgrade and recovery rules](docs/running-campaigns.md#resume-after-a-failure) and the [beta’s known issues](CHANGELOG.md).
+The Grouper gathers observed failures; the Reflector investigates a group; the editor changes a copy of permitted files. Preliminary checks compare the Candidate on affected training cases. A finalist then faces fresh measurement across training cases and comparison with the current Champion. A campaign can finish without a promotion. [Read the comparison rules](docs/architecture.md#how-promotion-is-decided).
 
-## Other workflows in the package
+Evolution changes instruction files, without training model weights. Training evidence guides edits and selection; held-out cases measure the fixed selected version separately.
 
-The package also includes the manual task/skill workflow: `evo quickstart`, `evo run solve`, `evo evolve reflect`, `evo evolve rewrite` and the task-based optimizer. These commands use tasks, saved skill versions and traces instead of a Target Service. They remain supported; use the [manual workflow guide](docs/manual-workflow.md) when that is the workflow you need.
+## Bring your own agent
 
-## Reference
+Your agent needs a **Target Service** wrapper that loads each supplied file snapshot and returns the agent’s behavior. Its model-provider URL is a separate connection. The [integration guide](docs/connecting-an-agent.md) and [complete offline backend](docs/target-server.md#a-complete-offline-backend) show what to implement.
 
-| I need to… | Read |
-|---|---|
-| Look up a command or exit code | [CLI reference](docs/cli.md#tree-service-commands) |
-| Change campaign settings | [Manifest reference](docs/manifest-v2.md) |
-| Understand the demo | [Reference target](docs/reference-target.md) |
-| Implement the agent backend | [Target server API](docs/target-server.md) |
-| Find run artifacts or logs | [Run storage layout](docs/run-storage-layout.md#the-v2-run-directory) |
-| Check a target without a full campaign manifest | [Conformance-only manifest](docs/manifest-v2.md#what-a-1-document-is-still-for) |
+## Keep going
 
-## License
+- [Run and inspect campaigns](docs/running-campaigns.md), including separate [held-out evaluation](docs/running-campaigns.md#improve-on-train-and-measure-on-test).
+- [Diagnose a stopped run](docs/running-campaigns.md#a-run-failed-start-here).
+- Look up [commands](docs/cli.md#tree-service-commands), [campaign settings](docs/manifest-v2.md) or the [backend API](docs/target-server.md).
+- [Browse all guides](docs/SUMMARY.md), [contribute](CONTRIBUTING.md) or [report an issue](https://github.com/sb-ai-lab/evolution/issues).
 
-Apache License 2.0. See [LICENSE](LICENSE).
+The separate [task and skill workflow](docs/manual-workflow.md) uses saved versions and traces. Before upgrading this beta, read the [release notes](CHANGELOG.md) and [recovery guidance](docs/running-campaigns.md#resume-after-a-failure).

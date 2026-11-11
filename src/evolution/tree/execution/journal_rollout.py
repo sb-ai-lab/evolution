@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from typing import Any, Protocol
 
 from evolution.tree.execution.interaction import (
@@ -24,7 +24,7 @@ from evolution.tree.execution.journal_identity import IdentityError, RunIdentity
 from evolution.tree.execution.journal_schema import EXTERNAL_OPERATIONS, SAMPLE_FIELDS, SHA256
 from evolution.tree.execution.rollout import rollout
 from evolution.tree.execution.wire_v2 import PROVENANCE_MAX_BYTES, PROVENANCE_MAX_USED
-from evolution.tree.storage.envelope import is_identifier
+from evolution.tree.storage.envelope import is_identifier, secret_match
 from evolution.tree.storage.journal_errors import (
     JournalAdmissionRefused,
     JournalBoundaryError,
@@ -41,6 +41,9 @@ class NativeJournal(Protocol):
 
     @property
     def corpus(self) -> Sequence[EvalCase]: ...
+
+    @property
+    def secrets(self) -> Sequence[str]: ...
 
     def append(
         self, event: str, payload: dict[str, Any], *, operation_id: str | None = None
@@ -181,6 +184,7 @@ class JournalRolloutAdapter:
         self.sample_payload: dict[str, Any] | None = None
         self.started = False
         self.terminal = False
+        self.withheld_samples = 0
 
     @property
     def collects_provenance(self) -> bool:
@@ -202,6 +206,7 @@ class JournalRolloutAdapter:
     def _append(self, event: dict[str, Any]) -> int:
         name = event["event"]
         operation_id = event["operation_id"]
+        withheld = False
         if name in ("rollout_started", "rollout_finished"):
             payload = {key: event[key] for key in SAMPLE_FIELDS}
             if name == "rollout_finished":
@@ -212,7 +217,10 @@ class JournalRolloutAdapter:
                     # truncated (ADR-0024 and its 2026-10-01 amendment). The
                     # rollout drops an oversized union as it runs; the checks
                     # here stay as the final guard.
-                    if event.get("used_overflow") is True:
+                    if secret_match({"payload": {"used": used}}, self.journal.secrets) is not None:
+                        payload["provenance_overflow"] = True
+                        withheld = True
+                    elif event.get("used_overflow") is True:
                         payload["provenance_overflow"] = True
                     elif used is not None and (
                         len(used) > PROVENANCE_MAX_USED
@@ -292,6 +300,7 @@ class JournalRolloutAdapter:
             self.started = True
         elif name == "rollout_finished":
             self.terminal = True
+            self.withheld_samples += int(withheld)
         return result if type(result) is int else getattr(result, "sequence", 0)
 
     def close_execution(self, event: str, outcome: str) -> None:
@@ -350,6 +359,7 @@ async def durable_rollout(
     repair: bool = False,
     components_digest: str | None = None,
     connection: ConnectionAdmission | None = None,
+    on_provenance_withheld: Callable[[int], None] | None = None,
 ) -> Trajectory:
     """Verify frozen inputs, then persist a single execution lifecycle without replay.
 
@@ -361,6 +371,9 @@ async def durable_rollout(
 
     `connection` is the family-14 admission token: the start names its
     binding and, if it is the binding's first start, carries the admission.
+
+    `on_provenance_withheld` receives the count recorded by this execution,
+    allowing a measurement to warn once across all of its rollouts.
     """
     if journal.identity.digest != identity.digest:
         raise IdentityError("run_identity_changed")
@@ -414,3 +427,6 @@ async def durable_rollout(
     except RolloutInfrastructureError:
         adapter.close_execution("rollout_failed", "infrastructure_failed")
         raise
+    finally:
+        if on_provenance_withheld is not None and adapter.withheld_samples:
+            on_provenance_withheld(adapter.withheld_samples)

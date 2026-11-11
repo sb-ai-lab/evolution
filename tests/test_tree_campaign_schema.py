@@ -24,6 +24,54 @@ def ref(kind="journal_prefix", locator="events.jsonl#bytes=0:512"):
     return dict(version=1, kind=kind, run_id="run", locator=locator, content_digest="b" * 64)
 
 
+def test_below_minimum_gate_source_is_family15_only():
+    payload = dict(
+        round=1,
+        source="below-minimum",
+        cases=["a"],
+        claimed_cases=["a", "b"],
+        selected_cases=["a"],
+        unevaluable_cases=[],
+        evidence=[ref()],
+    )
+    validate_payload("gate_scope_selected", payload, final=True, independent=True)
+    with pytest.raises(SchemaError, match="gate source is not in the registry"):
+        validate_payload("gate_scope_selected", payload, final=True, independent=False)
+
+
+@pytest.mark.parametrize("components", [None, {}])
+def test_candidate_inspected_without_withheld_is_unchanged(components):
+    payload = dict(round=1, attempt="r01-a01", inspection=1, components=components)
+    validate_payload("candidate_inspected", payload, final=True)
+    assert "components_withheld" not in payload
+
+
+@pytest.mark.parametrize("count", [0, True, "1", -1])
+def test_candidate_inspected_refuses_invalid_withheld(count):
+    payload = dict(
+        round=1, attempt="r01-a01", inspection=1, components={}, components_withheld=count
+    )
+    with pytest.raises(SchemaError):
+        validate_payload("candidate_inspected", payload, final=True)
+
+
+def test_candidate_inspected_admits_positive_withheld():
+    validate_payload(
+        "candidate_inspected",
+        dict(round=1, attempt="r01-a01", inspection=1, components={}, components_withheld=1),
+        final=True,
+    )
+
+
+def test_candidate_inspected_refuses_withheld_without_a_map():
+    with pytest.raises(SchemaError):
+        validate_payload(
+            "candidate_inspected",
+            dict(round=1, attempt="r01-a01", inspection=1, components=None, components_withheld=1),
+            final=True,
+        )
+
+
 def refuses(rule):
     """Assert the exact rule raised by the payload validator."""
     return pytest.raises(SchemaError, match=f"^{re.escape(rule)}$")
@@ -79,6 +127,13 @@ def test_projection_changed_is_a_family_14_content_failure():
         validate_payload(
             "reflection_failed", _projection_changed_failure(reason="invalid_result"), final=True
         )
+
+
+def test_program_failed_reason_is_admitted_only_by_the_independent_grammar():
+    failure = _projection_changed_failure(error_class="reported", reason="program_failed")
+    validate_payload("reflection_failed", failure, final=True, independent=True)
+    with refuses("reflection reason outside the family-10 table"):
+        validate_payload("reflection_failed", failure, final=True, independent=False)
 
 
 @pytest.mark.parametrize("reason", ["changed_file_budget", "written_byte_budget"])

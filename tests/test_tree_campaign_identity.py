@@ -778,6 +778,14 @@ ADAPTATION_COMMON: dict[str, Any] = dict(
 )
 
 
+@pytest.mark.parametrize("minimum", [0, True])
+def test_adaptation_refuses_invalid_minimum_claim(minimum):
+    payload = build_adaptation_identity(**ADAPTATION_COMMON, family_membership={}).to_payload()
+    payload["selection"]["min_claim_cases"] = minimum
+    with pytest.raises(IdentityError):
+        AdaptationIdentityV1.from_payload(payload)
+
+
 def test_adaptation_v2_with_metadata_families_records_an_empty_membership() -> None:
     identity = build_adaptation_identity(**ADAPTATION_COMMON, family_membership={"c1": None})
     assert identity.to_payload()["family_membership"] == []

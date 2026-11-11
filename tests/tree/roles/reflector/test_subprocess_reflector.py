@@ -15,11 +15,13 @@ read-only to the program it runs.
 from __future__ import annotations
 
 import asyncio
+import errno
 import json
 import os
 import stat
 import sys
 import time
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -638,3 +640,393 @@ async def test_probe_stderr_sink_failure_still_drains_pipe():
         await _redact_stderr(stream, Sink(), ("capability",))
     assert caught.value is error
     assert stream.at_eof(), "a failed log sink must not leave a full stderr pipe"
+
+
+async def test_reflector_stderr_without_probe_is_redacted(
+    tmp_path: Path, bound_reflector, reflect_request
+) -> None:
+    reflector = replace(
+        bound_reflector(
+            "import json, os, time\n"
+            "os.write(2, b'before run-secr')\n"
+            "time.sleep(0.2)\n"
+            "os.write(2, b'et-value end\\n')\n"
+            'print(json.dumps({"status": "declined", "groups": [], "note": "ok"}))\n'
+        ),
+        secrets=("run-secret-value",),
+    )
+
+    result = await reflector.reflect(reflect_request)
+
+    assert result.status == "declined"
+    log = tmp_path / "run" / "reflector-logs" / "r01-x01.stderr"
+    assert log.read_bytes() == b"before [REDACTED] end\n"
+
+
+def test_build_reflector_passes_the_run_secrets_to_the_subprocess_reflector(
+    tmp_path: Path,
+) -> None:
+    from evolution.tree.bindings import build_reflector
+    from evolution.tree.roles.config import ReflectorSection
+    from tests.test_tree_bindings import editor_section
+
+    seed = tmp_path / "seed"
+    seed.mkdir()
+
+    reflector = build_reflector(
+        ReflectorSection(role=editor_section(tmp_path), environment_docs=None, probe=None),
+        seed_root=seed,
+        run_dir=tmp_path / "run",
+        environ={},
+        secrets=["run-secret-value"],
+    )
+
+    assert isinstance(reflector, SubprocessReflector)
+    assert reflector.secrets == ("run-secret-value",)
+
+
+# -- stderr capture without a probe (#200) ---------------------------------------
+
+_ANSWER = "import json\nprint(json.dumps({'status':'declined','groups':[],'note':'ok'}))\n"
+_SECRET = "run-secret-value"
+
+
+def _reflector_log(tmp_path: Path) -> bytes:
+    return (tmp_path / "run" / "reflector-logs" / "r01-x01.stderr").read_bytes()
+
+
+def _subprocess_editor():
+    import evolution.tree.roles.editor.subprocess_editor as module
+
+    return module
+
+
+async def test_reflector_whole_stderr_secret_is_redacted(
+    tmp_path: Path, bound_reflector, reflect_request
+) -> None:
+    reflector = replace(
+        bound_reflector("import os\nos.write(2, b'before run-secret-value end\\n')\n" + _ANSWER),
+        secrets=(_SECRET,),
+    )
+
+    result = await reflector.reflect(reflect_request)
+
+    assert result.status == "declined"
+    assert _reflector_log(tmp_path) == b"before [REDACTED] end\n"
+
+
+async def test_reflector_cancellation_does_not_flush_a_secret_prefix(
+    tmp_path: Path, bound_reflector, reflect_request
+) -> None:
+    marker = tmp_path / "pid"
+    reflector = replace(
+        bound_reflector(
+            "import os,sys,time\n"
+            "os.write(2, b'before run-secr')\n"
+            "open(sys.argv[1],'w').write(str(os.getpid()))\n"
+            "time.sleep(60)\n",
+            args=(str(marker),),
+        ),
+        secrets=(_SECRET,),
+    )
+
+    task = asyncio.create_task(reflector.reflect(reflect_request))
+    await _await_marker(marker)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert _reflector_log(tmp_path) == b"before [REDACTED]"
+
+
+async def test_reflector_stderr_written_during_termination_is_redacted(
+    tmp_path: Path, bound_reflector, reflect_request
+) -> None:
+    marker = tmp_path / "pid"
+    reflector = replace(
+        bound_reflector(
+            "import os,signal,sys,time\n"
+            "def term(*_):\n"
+            "    os.write(2, b'term run-secret-value\\n')\n"
+            "    os._exit(0)\n"
+            "signal.signal(signal.SIGTERM, term)\n"
+            "open(sys.argv[1],'w').write(str(os.getpid()))\n"
+            "time.sleep(60)\n",
+            args=(str(marker),),
+        ),
+        secrets=(_SECRET,),
+    )
+
+    task = asyncio.create_task(reflector.reflect(reflect_request))
+    await _await_marker(marker)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert _reflector_log(tmp_path) == b"term [REDACTED]\n"
+
+
+async def test_reflector_stderr_is_redacted_when_the_exchange_fails(
+    tmp_path: Path, bound_reflector, reflect_request, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import evolution.tree.roles.reflector.subprocess_reflector as module
+
+    marker = tmp_path / "pid"
+    reflector = replace(
+        bound_reflector(
+            "import os,sys,time\n"
+            "os.write(2, b'before run-secret-value end\\n')\n"
+            "open(sys.argv[1],'w').write(str(os.getpid()))\n"
+            "time.sleep(60)\n",
+            args=(str(marker),),
+        ),
+        secrets=(_SECRET,),
+    )
+
+    async def failing(process, document):
+        await _await_marker(marker)
+        raise RuntimeError("exchange failed")
+
+    monkeypatch.setattr(module, "_exchange", failing)
+
+    with pytest.raises(RuntimeError, match="exchange failed"):
+        await reflector.reflect(reflect_request)
+
+    assert _reflector_log(tmp_path) == b"before [REDACTED] end\n"
+
+
+async def test_reflector_empty_secret_set_logs_stderr_byte_for_byte(
+    tmp_path: Path, bound_reflector, reflect_request
+) -> None:
+    reflector = bound_reflector(f"import os\nos.write(2, bytes(range(256))*3)\n{_ANSWER}")
+
+    result = await reflector.reflect(reflect_request)
+
+    assert result.status == "declined"
+    assert _reflector_log(tmp_path) == bytes(range(256)) * 3
+
+
+async def test_reflector_large_stderr_before_reading_stdin_does_not_deadlock(
+    tmp_path: Path, bound_reflector, reflect_request
+) -> None:
+    reflector = replace(
+        bound_reflector(
+            "import json,os,sys\nos.write(2, b'x'*(1<<20))\nr=json.load(sys.stdin)\n" + _ANSWER
+        ),
+        secrets=(_SECRET,),
+    )
+
+    async with asyncio.timeout(20):
+        result = await reflector.reflect(reflect_request)
+
+    assert result.status == "declined"
+    assert _reflector_log(tmp_path) == b"x" * (1 << 20)
+
+
+class _ReflectorFullDiskSink:
+    def write(self, data: bytes) -> int:
+        raise OSError(errno.ENOSPC, "No space left on device")
+
+    def close(self) -> None:
+        pass
+
+
+async def test_reflector_log_write_failure_keeps_the_valid_result(
+    bound_reflector, reflect_request, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import evolution.tree.roles.reflector.subprocess_reflector as module
+
+    monkeypatch.setattr(module, "_open_private_log", lambda path: _ReflectorFullDiskSink())
+    reflector = replace(
+        bound_reflector("import os\nos.write(2, b'x'*(1<<20))\n" + _ANSWER),
+        secrets=(_SECRET,),
+    )
+
+    result = await reflector.reflect(reflect_request)
+
+    assert result.status == "declined"
+    assert result.note == "ok"
+
+
+async def test_reflector_temp_file_failure_keeps_the_result_and_writes_the_fixed_line(
+    tmp_path: Path, bound_reflector, reflect_request, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    editor_module = _subprocess_editor()
+
+    def refuse(*args: object, **kwargs: object) -> object:
+        raise OSError(errno.EMFILE, "Too many open files")
+
+    monkeypatch.setattr(editor_module.tempfile, "TemporaryFile", refuse)
+    reflector = bound_reflector("import os\nos.write(2, b'lost\\n')\n" + _ANSWER)
+
+    result = await reflector.reflect(reflect_request)
+
+    assert result.status == "declined"
+    assert _reflector_log(tmp_path) == editor_module._STDERR_NOT_CAPTURED
+    assert b"Too many" not in _reflector_log(tmp_path)
+
+
+async def test_reflector_spawn_failure_closes_the_temp_file_and_the_log(
+    bound_reflector, reflect_request, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import evolution.tree.roles.reflector.subprocess_reflector as module
+    from tests.tree.roles.editor.test_subprocess_editor import _RecordingLog
+
+    editor_module = _subprocess_editor()
+    created: list[object] = []
+    real = editor_module.tempfile.TemporaryFile
+
+    def recording(*args: object, **kwargs: object) -> object:
+        created.append(real(*args, **kwargs))
+        return created[-1]
+
+    log = _RecordingLog()
+    monkeypatch.setattr(editor_module.tempfile, "TemporaryFile", recording)
+    monkeypatch.setattr(module, "_open_private_log", lambda path: log)
+
+    async def refused(*args: object, **kwargs: object) -> None:
+        raise OSError(errno.EAGAIN, "Resource temporarily unavailable")
+
+    monkeypatch.setattr(module.asyncio, "create_subprocess_exec", refused)
+    reflector = bound_reflector(_ANSWER)
+
+    with pytest.raises(OSError, match="temporarily unavailable"):
+        await reflector.reflect(reflect_request)
+
+    assert log.closed
+    assert len(created) == 1 and created[0].closed
+
+
+async def test_reflector_stderr_holder_adds_no_delay(
+    tmp_path: Path, bound_reflector, reflect_request
+) -> None:
+    from tests.tree.roles.editor.test_subprocess_editor import (
+        HOLDER_BOUND,
+        _gone,
+        kill_holder,
+        stderr_holder,
+    )
+
+    marker = tmp_path / "holder"
+    reflector = bound_reflector(stderr_holder(_ANSWER), args=(str(marker),))
+
+    try:
+        started = time.monotonic()
+        result = await reflector.reflect(reflect_request)
+        elapsed = time.monotonic() - started
+        assert not _gone(int(marker.read_text(encoding="utf-8")))
+    finally:
+        kill_holder(marker)
+
+    assert result.status == "declined"
+    assert elapsed < HOLDER_BOUND
+
+
+async def test_reflector_stderr_holder_leaves_a_result_just_before_the_deadline_valid(
+    tmp_path: Path, bound_reflector, reflect_request
+) -> None:
+    from tests.tree.roles.editor.test_subprocess_editor import (
+        EXITS_BEFORE_DEADLINE,
+        NEAR_DEADLINE,
+        _gone,
+        exits_near_the_deadline,
+        kill_holder,
+        stderr_holder,
+    )
+
+    marker = tmp_path / "holder"
+    exit_at = time.monotonic() + NEAR_DEADLINE - EXITS_BEFORE_DEADLINE
+    reflector = bound_reflector(
+        stderr_holder(exits_near_the_deadline(_ANSWER)),
+        args=(str(marker), str(exit_at)),
+    )
+
+    try:
+        # The deadline owner cancels this coroutine at the deadline.
+        async with asyncio.timeout(NEAR_DEADLINE):
+            result = await reflector.reflect(reflect_request)
+        assert not _gone(int(marker.read_text(encoding="utf-8")))
+    finally:
+        kill_holder(marker)
+
+    assert result.status == "declined"
+
+
+async def test_reflector_stderr_written_by_a_holder_after_the_copy_is_not_in_the_log(
+    tmp_path: Path, bound_reflector, reflect_request
+) -> None:
+    from tests.tree.roles.editor.test_subprocess_editor import (
+        HOLDER_LOG,
+        SECRET_AFTER_COPY,
+        SECRET_BEFORE_COPY,
+        kill_holder,
+        stderr_holder,
+    )
+
+    marker = tmp_path / "holder"
+    reflector = replace(
+        bound_reflector(
+            stderr_holder(_ANSWER, first=SECRET_BEFORE_COPY, then=SECRET_AFTER_COPY),
+            args=(str(marker),),
+        ),
+        secrets=(_SECRET,),
+    )
+
+    try:
+        result = await reflector.reflect(reflect_request)
+        Path(f"{marker}.go").touch()
+        await _await_marker(Path(f"{marker}.done"))
+    finally:
+        kill_holder(marker)
+
+    assert result.status == "declined"
+    assert _reflector_log(tmp_path) == HOLDER_LOG
+
+
+# -- the probed path -------------------------------------------------------------
+
+
+async def test_probed_reflector_stderr_is_redacted_with_the_run_secrets(
+    tmp_path: Path, bound_reflector, reflect_request
+) -> None:
+    reflector = replace(
+        bound_reflector("import os\nos.write(2, b'before run-secret-value end\\n')\n" + _ANSWER),
+        secrets=(_SECRET,),
+    )
+    request = replace(
+        reflect_request,
+        probe=ProbeAccess("http://127.0.0.1:9/" + "q" * 32 + "/probe", 1, ("GET",), None),
+    )
+
+    result = await reflector.reflect(request)
+
+    assert result.status == "declined"
+    assert _reflector_log(tmp_path) == b"before [REDACTED] end\n"
+
+
+async def test_cancelled_probed_reflect_reports_nothing_to_the_loop_exception_handler(
+    tmp_path: Path, bound_reflector, reflect_request
+) -> None:
+    marker = tmp_path / "pid"
+    reflector = bound_reflector(
+        "import os,sys,time\nopen(sys.argv[1],'w').write(str(os.getpid()))\ntime.sleep(60)\n",
+        args=(str(marker),),
+    )
+    request = replace(
+        reflect_request,
+        probe=ProbeAccess("http://127.0.0.1:9/" + "q" * 32 + "/probe", 1, ("GET",), None),
+    )
+    reports: list[dict[str, object]] = []
+    loop = asyncio.get_running_loop()
+    loop.set_exception_handler(lambda _loop, context: reports.append(context))
+    try:
+        task = asyncio.create_task(reflector.reflect(request))
+        await _await_marker(marker)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        await asyncio.sleep(0.05)  # a report scheduled by the cleanup has run by now
+    finally:
+        loop.set_exception_handler(None)
+
+    assert reports == []

@@ -99,7 +99,7 @@ def _keys(value: Any) -> set[str]:
 
 
 async def test_v16_campaign_runs_end_to_end_on_v2(tmp_path, monkeypatch):
-    from evolution.prompts import TREE_GROUPING_MODEL_V2_SYSTEM
+    from evolution.prompts import TREE_GROUPING_MODEL_V3_SYSTEM
 
     client = use_chat_grouper(monkeypatch, PortionGrouper(budget=GROUPING))
     run, result = await public_run(tmp_path, monkeypatch, configure=_chat())
@@ -108,7 +108,7 @@ async def test_v16_campaign_runs_end_to_end_on_v2(tmp_path, monkeypatch):
     assert grouping["kind"] == "chat" and grouping["protocol"] == "model_grouping/2"
     assert (
         grouping["prompt_sha256"]
-        == hashlib.sha256(TREE_GROUPING_MODEL_V2_SYSTEM.encode()).hexdigest()
+        == hashlib.sha256(TREE_GROUPING_MODEL_V3_SYSTEM.encode()).hexdigest()
     )
     assert len(client.requests) == GROUPING
     preflight, portion = client.requests
@@ -404,8 +404,8 @@ async def test_a_component_equal_to_a_run_secret(tmp_path, monkeypatch, mode):
     sees the value; shadowed, the one component counts one
     `input_run_secret_redaction` hit, however often headers and cards show it.
 
-    A target cannot get a run secret into a stored `used` union (the
-    measurement journal redacts it, and `[REDACTED]` is no component ID), so
+    A target could not get a run secret into a stored `used` union: the
+    journal envelope refused the record rather than redacting it. Therefore
     the campaign's provenance mapping is patched to report one for every
     failing observation of two cases.
     """

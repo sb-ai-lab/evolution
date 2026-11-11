@@ -23,7 +23,7 @@ from tests.test_tree_campaign_measurement import CAMPAIGN_RUN_ID, Rig, build_rig
 MAP = {"catalog": {"sha256": "a" * 64, "sources": ["skills/SKILL.md"]}}
 
 
-async def _inspect(rig: Rig, adapter: FakeAdapter, inspection: int = 1) -> Any:
+async def _inspect(rig: Rig, adapter: FakeAdapter, inspection: int = 1, *, secrets=()) -> Any:
     return await inspect_candidate(
         run_root=rig.run_root,
         campaign_run_id=CAMPAIGN_RUN_ID,
@@ -31,7 +31,7 @@ async def _inspect(rig: Rig, adapter: FakeAdapter, inspection: int = 1) -> Any:
         inspection=inspection,
         identity=rig.family12_identity(),
         corpus=rig.cases,
-        secrets=(),
+        secrets=secrets,
         adapter=adapter,
         candidate=rig.ref,
         strategy=STRATEGY,
@@ -52,7 +52,7 @@ def test_an_inspection_is_named_after_its_attempt_and_ordinal() -> None:
 async def test_an_inspection_declares_the_map_and_releases_its_one_instance(tmp_path):
     adapter = FakeAdapter(components=MAP)
     rig = await build_rig(tmp_path, adapter=adapter)
-    assert await _inspect(rig, adapter) == MAP
+    assert await _inspect(rig, adapter) == (MAP, 0)
     assert len(adapter.materialized) == 1 and adapter.released == adapter.materialized
     events = _events(rig)
     assert events.index("components_declared") < events.index("target_release_started")
@@ -64,9 +64,43 @@ async def test_an_inspection_declares_the_map_and_releases_its_one_instance(tmp_
 async def test_an_instance_without_a_map_inspects_as_none(tmp_path):
     adapter = FakeAdapter()
     rig = await build_rig(tmp_path, adapter=adapter)
-    assert await _inspect(rig, adapter) is None
+    assert await _inspect(rig, adapter) == (None, 0)
     assert "components_declared" not in _events(rig)
     assert adapter.released == adapter.materialized
+
+
+async def test_an_instance_without_the_optional_components_attribute(tmp_path):
+    class NoComponents(FakeAdapter):
+        def instance_for(self, *args, **kwargs):
+            instance = super().instance_for(*args, **kwargs)
+            del instance.components
+            return instance
+
+    adapter = NoComponents()
+    rig = await build_rig(tmp_path, adapter=adapter)
+    assert await _inspect(rig, adapter) == (None, 0)
+    assert "components_declared" not in _events(rig)
+    assert adapter.released == adapter.materialized
+
+
+@pytest.mark.parametrize("components", [{}, None])
+async def test_inspection_keeps_empty_and_absent_maps_distinct(tmp_path, components, capsys):
+    adapter = FakeAdapter(components=components)
+    rig = await build_rig(tmp_path, adapter=adapter)
+    assert await _inspect(rig, adapter) == (components, 0)
+    assert ("components_declared" in _events(rig)) is (components is not None)
+    assert capsys.readouterr().err == ""
+
+
+async def test_inspection_warns_once_with_counts_only(tmp_path, capsys):
+    secret = "inspection-secret-387"
+    adapter = FakeAdapter(components={secret: next(iter(MAP.values()))})
+    rig = await build_rig(tmp_path, adapter=adapter)
+    assert await _inspect(rig, adapter, secrets=(secret,)) == ({}, 1)
+    lines = capsys.readouterr().err.splitlines()
+    assert len(lines) == 1
+    assert "0 sample(s) and 1 component(s)" in lines[0]
+    assert secret not in lines[0]
 
 
 async def test_a_target_failure_is_inspection_failed(tmp_path):
@@ -155,7 +189,7 @@ async def test_an_inspection_interrupted_under_an_admitted_older_version_is_reop
         call_attempts=None,
         admitted_versions={"0.3.0a0"},
     )
-    assert reopened == MAP
+    assert reopened == (MAP, 0)
     assert adapter.live == {}
 
 
@@ -198,7 +232,7 @@ async def test_a_crash_after_create_is_released_and_reinspected_in_the_same_jour
         await _inspect(rig, adapter)
     monkeypatch.setattr(inspection_module, "release_target", original)
     assert len(adapter.live) == 1
-    assert await _inspect(rig, adapter) == MAP
+    assert await _inspect(rig, adapter) == (MAP, 0)
     assert adapter.live == {}
     assert _events(rig).count("components_declared") == 1
 
@@ -229,7 +263,7 @@ async def test_an_unborn_directory_is_replaced_by_a_new_journal(tmp_path):
     unborn = rig.run_root / INSPECTIONS_DIR / inspection_id("r01-a01", 1)
     unborn.mkdir(parents=True)
     (unborn / "events.jsonl").write_bytes(b"")
-    assert await _inspect(rig, adapter) == MAP
+    assert await _inspect(rig, adapter) == (MAP, 0)
     assert _events(rig)[0] == "run_created"
 
 
@@ -292,7 +326,7 @@ async def test_a_journal_left_under_another_identity_is_released_and_replaced(
     leftover = await _crash_before_the_release(rig, adapter, monkeypatch)
     moved = _moved_identity(rig)
     assert moved.digest != rig.family12_identity().digest
-    assert await _inspect_as(rig, adapter, moved) == MAP
+    assert await _inspect_as(rig, adapter, moved) == (MAP, 0)
     assert leftover in adapter.released and adapter.live == {}
     path = rig.run_root / INSPECTIONS_DIR / inspection_id("r01-a01", 1)
     assert inspection_module.stored_identity(path).digest == moved.digest

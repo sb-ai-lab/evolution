@@ -24,6 +24,13 @@ model's answer names run-derived evidence IDs only its request carries).
 `server.script.headers` the same requests' headers: one tuple of
 `(lower-cased name, value)` pairs per request, repeats kept, so a test can say
 which credential headers left the client (#290).
+
+`start(..., strict=mode)` makes the server a strict provider
+(`tests/strict_history.py`, b18): a request whose history holds an assistant
+tool call with arguments that are not one JSON object is refused (`http_400`
+or `error_body`) before the script is consulted, so the refusal consumes no
+script item. `server.script.refusals` holds the broken call IDs of every
+refused request, in order. Without `strict` the server behaves as before.
 """
 
 from __future__ import annotations
@@ -31,9 +38,12 @@ from __future__ import annotations
 import json
 import threading
 import time
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from tests.strict_history import Mode
 
 __all__ = ["completion", "refuse_parallel", "router_refusal", "start", "tool_call"]
 
@@ -111,18 +121,39 @@ def completion(content: str) -> dict[str, Any]:
 class _Script:
     """The scripted responses, handed out in order and looped, under one lock."""
 
-    def __init__(self, responses: Sequence[Any]) -> None:
+    def __init__(self, responses: Sequence[Any], strict: Mode | None = None) -> None:
         if not responses:
             raise ValueError("the script needs at least one response")
         self._responses = list(responses)
         self._lock = threading.Lock()
         self._index = 0
+        self._refuse: Callable[[Any], Any] | None = None
+        self._broken: Callable[[Mapping[str, Any]], list[str]] | None = None
+        if strict is not None:
+            # Imported here, not at module level: `scripts/e1_evolve_smoke.py`
+            # loads this file by path, where `tests` is not importable.
+            from tests.strict_history import broken_history_calls, strict_history
+
+            self._refuse = strict_history(None, mode=strict)
+            self._broken = broken_history_calls
         self.served = 0
         self.requests: list[Any] = []
         self.headers: list[tuple[tuple[str, str], ...]] = []
+        self.refusals: list[list[str]] = []
 
     def next(self, request: Any = None, headers: tuple[tuple[str, str], ...] = ()) -> Any:
         with self._lock:
+            if (
+                self._refuse is not None
+                and self._broken is not None
+                and isinstance(request, Mapping)
+            ):
+                broken = self._broken(request)
+                if broken:
+                    self.refusals.append(broken)
+                    self.requests.append(request)
+                    self.headers.append(headers)
+                    return self._refuse(request)
             response = self._responses[self._index % len(self._responses)]
             self._index += 1
             self.served += 1
@@ -182,14 +213,17 @@ class _Server(ThreadingHTTPServer):
         self.script = script
 
 
-def start(responses: Sequence[Any]) -> tuple[str, _Server]:
+def start(responses: Sequence[Any], *, strict: Mode | None = None) -> tuple[str, _Server]:
     """Serve `responses` in order, looping, and return `(base_url, server)`.
+
+    `strict`, when given, refuses a request whose history holds a broken tool
+    call in that mode (see the module docstring).
 
     The caller shuts the server down (`shutdown()` then `server_close()`); the
     serving thread is a daemon, so a test that forgets cannot hang the suite.
     """
 
-    server = _Server(_Script(responses))
+    server = _Server(_Script(responses, strict))
     thread = threading.Thread(
         target=server.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True
     )

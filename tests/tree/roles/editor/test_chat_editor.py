@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import json
 import os
 import stat
@@ -46,7 +47,44 @@ from evolution.tree.roles.editor_contracts import (
     EditRequest,
 )
 from evolution.tree.roles.seals import chat_identity, seal_prompt
-from evolution.tree.roles.workspace import Budgets, ControlCollision
+from evolution.tree.roles.workspace import ActorViolation, Budgets, ControlCollision, Projection
+from tests.strict_history import StrictScriptedClient, broken_history_calls, holds
+from tests.strict_history import measures as _measures
+
+
+def test_raw_only_read_file_preserves_range_hash_and_empty_file(tmp_path):
+    import hashlib
+
+    from evolution.tree.roles.editor.chat_editor import read_file_tool
+
+    (tmp_path / "file.md").write_text("first\nsecond\nthird\n")
+    result, _ = read_file_tool(
+        tmp_path,
+        {"path": "file.md", "start_line": 2, "end_line": 2},
+        max_payload_bytes=65536,
+        raw_only=True,
+    )
+    assert set(result) == {"path", "start_line", "end_line", "total_lines", "sha256", "content"}
+    assert (result["content"], result["start_line"], result["end_line"]) == ("second\n", 2, 2)
+    assert result["sha256"] == hashlib.sha256(b"first\nsecond\nthird\n").hexdigest()
+    (tmp_path / "empty.md").write_text("")
+    empty, _ = read_file_tool(
+        tmp_path, {"path": "empty.md"}, max_payload_bytes=65536, raw_only=True
+    )
+    assert empty["content"] == ""
+    legacy, _ = read_file_tool(tmp_path, {"path": "file.md"}, max_payload_bytes=65536)
+    assert legacy["line_numbered_content"] == "1: first\n2: second\n3: third\n"
+
+
+def test_raw_only_large_file_answer_is_unchanged(tmp_path):
+    from evolution.tree.roles.editor.chat_editor import MAX_READ_FILE_CHARS, read_file_tool
+
+    (tmp_path / "big.md").write_text("a" * (MAX_READ_FILE_CHARS + 1))
+    args = {"path": "big.md"}
+    old, _ = read_file_tool(tmp_path, args, max_payload_bytes=65536)
+    new, _ = read_file_tool(tmp_path, args, max_payload_bytes=65536, raw_only=True)
+    assert old == new and new["large_file"] is True
+
 
 pytestmark = pytest.mark.slow
 
@@ -2558,3 +2596,549 @@ async def test_editor_opening_states_own_limits_only_in_v16(tmp_path, family15):
     assert (sentence in opening) is family15
     if family15:
         assert opening.endswith(sentence)
+
+
+# --------------------------------------------------------------------------
+# `/16`: a broken tool call is retained as `{}` (ADR-0061, b18 Part A)
+# --------------------------------------------------------------------------
+
+#: Builder decision 3 of the b18 plan (ADR-0061), verbatim.
+REPLACED_SENTENCE = (
+    "The arguments of each call listed without a preview were not one JSON object "
+    "and were removed from the conversation history."
+)
+#: The `/15` kinds of `tests/tree/roles/test_chat_loop_broken_calls_golden.py`.
+V16_KINDS = [
+    "dsml",
+    "truncated",
+    "empty",
+    "array",
+    "string",
+    "null",
+    "nan",
+    "unknown_tool_broken",
+    "skipped_broken",
+]
+_KIND_ERRORS = {
+    "dsml": "tool arguments are not JSON",
+    "truncated": "tool arguments are not JSON",
+    "empty": "tool arguments are not JSON",
+    "array": "tool arguments must be an object",
+    "string": "tool arguments must be an object",
+    "null": "tool arguments must be an object",
+    "nan": "tool arguments are not JSON",
+    "unknown_tool_broken": "unknown tool: no_such_tool",
+}
+_DSML = (
+    '<｜DSML｜function_calls><｜DSML｜invoke name="list_files">'
+    "</｜DSML｜invoke></｜DSML｜function_calls>"
+)
+
+
+class _CopyingClient(_Client):
+    """`_Client` that keeps each request body as it was sent."""
+
+    def __init__(self, responses: list[Any]) -> None:
+        super().__init__(responses)
+        self.bodies: list[dict[str, Any]] = []
+
+    async def create(self, **kwargs: Any) -> Any:
+        self.bodies.append(json.loads(json.dumps(kwargs, ensure_ascii=False, default=repr)))
+        return await super().create(**kwargs)
+
+
+def _v16_editor(tmp_path: Path, client: Any, **kw: Any) -> ChatEditor:
+    from dataclasses import replace
+
+    from tests.test_tree_chat_role_retry import _resilient_editor
+
+    return replace(_resilient_editor(tmp_path, client, **kw), family15=True)
+
+
+def _correction_details(content: str) -> dict[str, Any]:
+    return json.loads(content.split("Correction details: ", 1)[1])
+
+
+def _summary(text: str) -> dict[str, Any]:
+    import hashlib
+
+    return {
+        "characters": len(text),
+        "sha256": hashlib.sha256(text.encode()).hexdigest(),
+        "preview": text[:4000],
+        "truncated": len(text) > 4000,
+    }
+
+
+def _repairs(editor: ChatEditor) -> list[dict[str, Any]]:
+    return [e for e in _log_lines(editor) if e["phase"] == "protocol_repair_requested"]
+
+
+def test_v16_kinds_are_the_v15_golden_kinds() -> None:
+    from tests.tree.roles.test_chat_loop_broken_calls_golden import BROKEN, KINDS
+
+    assert V16_KINDS == KINDS
+    assert set(_KIND_ERRORS) == set(BROKEN)
+
+
+@pytest.mark.parametrize("kind", V16_KINDS)
+async def test_v16_editor_retains_broken_call_as_empty_object(tmp_path: Path, kind: str) -> None:
+    from tests.tree.roles.test_chat_loop_broken_calls_golden import _broken_turn
+
+    broken = _broken_turn(kind, "list_files")
+    provider = broken.choices[0].message
+    provider.content = "thinking aloud"
+    provider.reasoning_content = "chain"
+    provider.reasoning_details = [{"type": "reasoning.encrypted", "data": "opaque=="}]
+    expected = assistant_message(provider)
+    broken_ids = {"call-1"} if kind == "skipped_broken" else {"call"}
+    for call in expected["tool_calls"]:
+        if call["id"] in broken_ids:
+            call["function"]["arguments"] = "{}"
+    client = _CopyingClient([_response("list_files"), broken, *_edit_flow()[1:]])
+    editor = _v16_editor(tmp_path, client)
+
+    result = await editor.edit(_request(_ws(tmp_path)))
+
+    assert result.status == "edited"
+    before, after = client.bodies[1]["messages"], client.bodies[2]["messages"]
+    assert after[: len(before)] == before
+    retained = after[len(before)]
+    assert retained == expected
+    assert json.dumps(retained, sort_keys=True) == json.dumps(expected, sort_keys=True)
+    assert [call["id"] for call in retained["tool_calls"]] == [
+        call["id"] for call in expected["tool_calls"]
+    ]
+    for key in ("content", "reasoning_content", "reasoning_details"):
+        assert retained[key] == getattr(provider, key)
+    tools = after[len(before) + 1 :]
+    if kind == "skipped_broken":
+        first = json.loads(tools[0]["content"])
+        assert "files" in first
+        assert first["parallel_calls_not_run"]["tools"] == ["read_file"]
+        assert [m["tool_call_id"] for m in tools] == ["call-0", "call-1"]
+        assert json.loads(tools[1]["content"]) == {
+            "error": "not_executed",
+            "reason": "one_tool_per_turn",
+        }
+        assert len(tools) == 2
+    else:
+        assert [m.get("tool_call_id") for m in tools[:1]] == ["call"]
+        assert json.loads(tools[0]["content"]) == {"error": _KIND_ERRORS[kind]}
+        assert tools[1]["role"] == "user"
+        assert _correction_details(tools[1]["content"])["error"] == _KIND_ERRORS[kind]
+        assert len(tools) == 2
+
+
+async def test_v16_editor_nan_arguments_are_not_dispatched(tmp_path: Path) -> None:
+    workspace = _ws(tmp_path)
+    client = _CopyingClient(
+        [
+            _response("list_files"),
+            _plan("skills/SKILL.md"),
+            _response("replace_text", '{"path": "a", "old": "x", "new": NaN}'),
+            _response("finish_edit", '{"summary":"done"}'),
+            _response("finish_edit", '{"summary":"done"}'),
+        ]
+    )
+    editor = _v16_editor(tmp_path, client)
+
+    result = await editor.edit(_request(workspace))
+
+    assert result.status != "edited"
+    assert (workspace / "skills" / "SKILL.md").read_text(encoding="utf-8") == "first\n"
+    assert _repairs(editor)[0]["error"] == "tool arguments are not JSON"
+    assert not [
+        e
+        for e in _log_lines(editor)
+        if e["phase"] in ("tool_call", "tool_error") and e.get("tool") == "replace_text"
+    ]
+
+
+async def test_v16_editor_empty_arguments_are_never_executed(tmp_path: Path) -> None:
+    client = _CopyingClient(
+        [_response("list_files"), _response("list_files", ""), *_edit_flow()[1:]]
+    )
+    editor = _v16_editor(tmp_path, client)
+
+    result = await editor.edit(_request(_ws(tmp_path)))
+
+    assert result.status == "edited"
+    assert _repairs(editor)[0]["error"] == "tool arguments are not JSON"
+    assert [e["tool"] for e in _log_lines(editor) if e["phase"] == "tool_call"] == [
+        "record_plan",
+        "write_file",
+        "finish_edit",
+    ]
+    retained = client.bodies[2]["messages"][len(client.bodies[1]["messages"])]
+    assert retained["tool_calls"][0]["function"]["arguments"] == "{}"
+
+
+async def test_v16_editor_skipped_broken_call_after_valid_first_call(tmp_path: Path) -> None:
+    first = '{ "path" : "skills/SKILL.md" }'
+    client = _CopyingClient(
+        [
+            _response("list_files"),
+            _parallel_response(("read_file", first), ("list_files", _DSML)),
+            *_edit_flow()[1:],
+        ]
+    )
+    editor = _v16_editor(tmp_path, client)
+
+    result = await editor.edit(_request(_ws(tmp_path)))
+
+    assert result.status == "edited"
+    assert not _repairs(editor)
+    calls = [e for e in _log_lines(editor) if e["phase"] == "tool_call"]
+    assert calls[0]["tool"] == "read_file"
+    retained = client.bodies[2]["messages"][len(client.bodies[1]["messages"])]
+    assert [call["function"]["arguments"] for call in retained["tool_calls"]] == [first, "{}"]
+    assert not any(holds(body, _DSML) or holds(body, "DSML") for body in client.bodies)
+
+
+async def test_v16_correction_omits_preview_of_replaced_calls(tmp_path: Path) -> None:
+    from evolution.tree.roles.editor.chat_editor import _protocol_correction
+
+    def call(name: str, arguments: str) -> Any:
+        return SimpleNamespace(
+            id=name, type="function", function=SimpleNamespace(name=name, arguments=arguments)
+        )
+
+    broken = '{"path": "a'
+    nan = '{"path": "a", "start_line": NaN}'
+    calls = [call("read_file", broken), call("list_files", '{ "x" : 1 }'), call("read_file", nan)]
+    v15 = _protocol_correction("tool arguments are not JSON", calls)
+    v16 = _protocol_correction("tool arguments are not JSON", calls, family15=True)
+    assert v15 == _protocol_correction("tool arguments are not JSON", calls, family15=False)
+    assert REPLACED_SENTENCE not in v15
+    assert v16.count(REPLACED_SENTENCE) == 1
+    assert v16.startswith(
+        "Your previous response was rejected locally. Return exactly one native "
+        "function call and no prose. " + REPLACED_SENTENCE + " Correction details: "
+    )
+    received = _correction_details(v16)["received_calls"]
+    assert [entry["arguments"] for entry in received] == [
+        _measures(broken),
+        _summary('{ "x" : 1 }'),
+        _measures(nan),
+    ]
+    assert broken not in v16 and "NaN" not in v16
+    assert _correction_details(v16) == {
+        **_correction_details(v15),
+        "received_calls": received,
+    }
+    # Without a replaced call the `/16` text is today's.
+    valid = [call("read_file", '{"path": "a"}')]
+    assert _protocol_correction("e", valid, family15=True) == _protocol_correction("e", valid)
+    assert _protocol_correction("e", [], family15=True) == _protocol_correction("e", [])
+
+    # Through the loop: the correction the model receives.
+    client = _CopyingClient(
+        [_response("list_files"), _response("read_file", broken), *_edit_flow()[1:]]
+    )
+    editor = _v16_editor(tmp_path, client)
+    assert (await editor.edit(_request(_ws(tmp_path)))).status == "edited"
+    correction = client.bodies[2]["messages"][-1]["content"]
+    assert correction.count(REPLACED_SENTENCE) == 1
+    assert _correction_details(correction)["received_calls"] == [
+        {"name": "read_file", "arguments": _measures(broken)}
+    ]
+
+
+async def test_v16_preflight_and_legacy_corrections_omit_preview(tmp_path: Path) -> None:
+    broken = '{"path": "a'
+    # The preflight: three modern styles answer a broken non-probe call.
+    client = _CopyingClient(
+        [
+            _response("read_file", broken),
+            _response("read_file", broken),
+            _response("read_file", broken),
+            _legacy_response("list_files"),
+            _plan("skills/SKILL.md", legacy=True),
+            _legacy_response("write_file", '{"path":"skills/SKILL.md","content":"second\\n"}'),
+            _legacy_response("finish_edit", '{"summary":"done"}'),
+        ]
+    )
+    editor = _v16_editor(tmp_path, client)
+    assert (await editor.edit(_request(_ws(tmp_path)))).status == "edited"
+    correction = client.bodies[3]["messages"][-1]["content"]
+    assert correction.count(REPLACED_SENTENCE) == 1
+    assert _correction_details(correction)["received_calls"] == [
+        {"name": "read_file", "arguments": _measures(broken)}
+    ]
+    assert not any(holds(body, broken) for body in client.bodies)
+
+    # A legacy `function_call` with broken arguments in the tool loop.
+    client = _CopyingClient(
+        [
+            _legacy_response("list_files"),
+            _legacy_response("read_file", broken),
+            _plan("skills/SKILL.md", legacy=True),
+            _legacy_response("write_file", '{"path":"skills/SKILL.md","content":"second\\n"}'),
+            _legacy_response("finish_edit", '{"summary":"done"}'),
+        ]
+    )
+    editor = _v16_editor(tmp_path / "legacy", client)
+    assert (await editor.edit(_request(_ws(tmp_path / "legacy")))).status == "edited"
+    correction = client.bodies[2]["messages"][-1]["content"]
+    assert correction.count(REPLACED_SENTENCE) == 1
+    assert _correction_details(correction)["received_calls"] == [
+        {"name": "read_file", "arguments": _measures(broken)}
+    ]
+    assert "replaced_calls" not in _repairs(editor)[0]
+
+
+def _turn_records(
+    log: list[dict[str, Any]], phase: str
+) -> list[tuple[dict[str, Any], dict[str, Any]]]:
+    """Each `phase` record with the `model_response` record it follows."""
+
+    pairs = []
+    response: dict[str, Any] | None = None
+    for entry in log:
+        if entry["phase"] == "model_response":
+            response = entry
+        elif entry["phase"] == phase:
+            assert response is not None
+            pairs.append((entry, response))
+    return pairs
+
+
+def _linked(replaced: list[dict[str, Any]], response: dict[str, Any]) -> None:
+    import hashlib
+
+    by_id = {call["id"]: call for call in response["calls"]}
+    for entry in replaced:
+        original = by_id[entry["id"]]
+        assert entry["name"] == original["name"]
+        assert entry["characters"] == len(original["arguments"])
+        assert entry["sha256"] == hashlib.sha256(original["arguments"].encode()).hexdigest()
+
+
+async def test_v16_replaced_calls_record(tmp_path: Path) -> None:
+    client = _CopyingClient(
+        [
+            _response("list_files"),
+            # Turn 1: a broken first call (and a broken skipped one) is repaired.
+            _parallel_response(("list_files", _DSML), ("read_file", '{"path": "a')),
+            # Turn 2: a valid first call runs; the broken skipped call is replaced.
+            _parallel_response(("list_files", "{}"), ("read_file", _DSML)),
+            *_edit_flow()[1:],
+        ]
+    )
+    editor = _v16_editor(tmp_path, client)
+    result = await editor.edit(_request(_ws(tmp_path)))
+    assert result.status == "edited"
+    log = _log_lines(editor)
+
+    ((repair, repaired_turn),) = _turn_records(log, "protocol_repair_requested")
+    assert repaired_turn["turn"] == 1
+    assert repair["replaced_calls"] == [
+        {"id": "call-0", "name": "list_files", **_measures(_DSML)},
+        {"id": "call-1", "name": "read_file", **_measures('{"path": "a')},
+    ]
+    _linked(repair["replaced_calls"], repaired_turn)
+    assert repaired_turn["calls"][0]["arguments"] == _DSML
+
+    dropped = _turn_records(log, "parallel_calls_dropped")
+    assert [response["turn"] for _, response in dropped] == [1, 2]
+    # Turn 1 is repaired: its replacement is on the repair record only.
+    assert "replaced_calls" not in dropped[0][0]
+    entry, response = dropped[1]
+    assert entry["turn"] == response["turn"] == 2
+    assert entry["replaced_calls"] == [{"id": "call-1", "name": "read_file", **_measures(_DSML)}]
+    _linked(entry["replaced_calls"], response)
+    tool_calls = _turn_records(log, "tool_call")
+    entry, response = tool_calls[0]
+    assert entry["turn"] == response["turn"] == 2
+    assert entry["replaced_calls"] == dropped[1][0]["replaced_calls"]
+    assert all("replaced_calls" not in entry for entry, _ in tool_calls[1:])
+
+    # The original arguments stay only in `model_response`.
+    assert holds([e for e in log if e["phase"] == "model_response"], _DSML)
+    for entry in log:
+        if entry["phase"] != "model_response":
+            assert not holds(entry, _DSML) and not holds(entry, "DSML"), entry["phase"]
+    for body in client.bodies:
+        assert not holds(body, _DSML) and not holds(body, "DSML")
+        assert broken_history_calls(body) == []
+    outcome = dataclasses.asdict(result)
+    assert not holds(outcome, _DSML) and not holds(outcome, "DSML")
+
+
+async def test_v16_replaced_calls_on_both_carriers_with_a_valid_first_call(
+    tmp_path: Path,
+) -> None:
+    """Ruling R5: a repair behind a valid first call still carries the skipped replacement."""
+
+    client = _CopyingClient(
+        [
+            _response("list_files"),
+            # Valid JSON, unknown tool, then a broken skipped call.
+            _parallel_response(("nope", "{}"), ("read_file", _DSML)),
+            *_edit_flow()[1:],
+        ]
+    )
+    editor = _v16_editor(tmp_path, client)
+    result = await editor.edit(_request(_ws(tmp_path)))
+    assert result.status == "edited"
+    log = _log_lines(editor)
+    expected = [{"id": "call-1", "name": "read_file", **_measures(_DSML)}]
+
+    ((dropped, response),) = _turn_records(log, "parallel_calls_dropped")
+    ((repair, repaired),) = _turn_records(log, "protocol_repair_requested")
+    assert response is repaired
+    assert dropped["replaced_calls"] == expected
+    assert repair["replaced_calls"] == expected
+    _linked(expected, response)
+    phases = [e["phase"] for e in log if e["phase"] not in ("model_request", "provider_attempt")]
+    start = phases.index("model_response", phases.index("model_response") + 1)
+    assert phases[start : start + 3] == [
+        "model_response",
+        "parallel_calls_dropped",
+        "protocol_repair_requested",
+    ]
+
+    correction = client.bodies[2]["messages"][-1]["content"]
+    assert correction.count(REPLACED_SENTENCE) == 1
+    received = _correction_details(correction)["received_calls"]
+    assert received[1] == {"name": "read_file", "arguments": _measures(_DSML)}
+    assert "preview" not in json.dumps(received[1])
+    for body in client.bodies:
+        assert not holds(body, _DSML) and not holds(body, "DSML")
+
+
+@pytest.mark.parametrize("mode", ["http_400", "error_body"])
+async def test_v16_editor_survives_strict_provider(tmp_path: Path, mode: str) -> None:
+    from tests.tree.roles.test_chat_loop_broken_calls_golden import _editor_script
+
+    inner = _CopyingClient(_editor_script("truncated"))
+    strict = StrictScriptedClient(inner, mode)  # type: ignore[arg-type]
+    editor = _v16_editor(tmp_path, strict)
+    workspace = _ws(tmp_path)
+
+    result = await editor.edit(_request(workspace))
+
+    assert result.status == "edited"
+    assert (workspace / "skills" / "SKILL.md").read_text(encoding="utf-8") == "second\n"
+    assert len(_repairs(editor)) == 1
+    assert [e["tool"] for e in _log_lines(editor) if e["phase"] == "tool_call"][-1] == "finish_edit"
+    assert strict.refusals == []
+    assert all(broken_history_calls(body) == [] for body in inner.bodies)
+
+
+# A re-created file takes its baseline mode (#231, b18)
+# --------------------------------------------------------------------------
+
+
+def _recreating_session(tmp_path: Path, *, family15: bool) -> tuple[Any, Projection]:
+    """A real session over a projection of one two-file Candidate."""
+
+    from evolution.tree.roles.editor import chat_editor
+    from evolution.tree.roles.workspace import open_attempt_log, project
+
+    workspace = _ws(tmp_path)
+    (workspace / "skills" / "other.md").write_text("other\n", encoding="utf-8")
+    projection = project(workspace)
+    editor, client = _editor(tmp_path)
+    editor = dataclasses.replace(editor, family15=family15)
+    log = open_attempt_log(tmp_path / "logs", "a1", secrets=())
+    session = chat_editor._Session(
+        editor, _request(workspace, writable=("skills/**",)), projection, log, client
+    )
+    return session, projection
+
+
+def _admit_one(projection: Projection) -> Any:
+    from evolution.tree.roles.workspace import admit
+
+    return admit(
+        projection,
+        writable_paths=("skills/**",),
+        budgets=Budgets(max_changed_files=1, max_written_bytes=1 << 20, max_payload_bytes=1 << 16),
+    )
+
+
+@pytest.mark.parametrize("family15", [False, True])
+def test_editor_read_file_text_shape_depends_on_family(tmp_path, family15):
+    from evolution.tree.roles.workspace import discard
+
+    session, projection = _recreating_session(tmp_path, family15=family15)
+    try:
+        result, _ = session._read_file({"path": "skills/other.md"})
+        assert result["content"] == "other\n"
+        assert ("line_numbered_content" in result) is (not family15)
+    finally:
+        discard(projection)
+
+
+def test_family15_recreated_file_frees_its_slot(tmp_path: Path) -> None:
+    from evolution.tree.roles.workspace import PROJECTED_FILE_MODE, changed_file_paths
+
+    old = os.umask(0o022)
+    try:
+        session, projection = _recreating_session(tmp_path, family15=True)
+        target = projection.root / "skills" / "SKILL.md"
+        session._run_tool("delete_file", {"path": "skills/SKILL.md"})
+        assert changed_file_paths(projection) == ("skills/SKILL.md",)
+        session._run_tool("write_file", {"path": "skills/SKILL.md", "content": "first\n"})
+    finally:
+        os.umask(old)
+
+    assert stat.S_IMODE(target.stat().st_mode) == PROJECTED_FILE_MODE
+    assert changed_file_paths(projection) == ()
+    assert _admit_one(projection) == ()
+
+
+def test_family15_recreated_file_through_apply_patch_takes_baseline_mode(
+    tmp_path: Path,
+) -> None:
+    from evolution.tree.roles.workspace import PROJECTED_FILE_MODE, changed_file_paths
+
+    old = os.umask(0o022)
+    try:
+        session, projection = _recreating_session(tmp_path, family15=True)
+        target = projection.root / "skills" / "SKILL.md"
+        session._run_tool("delete_file", {"path": "skills/SKILL.md"})
+        session._run_tool(
+            "apply_patch",
+            {"patch": "--- a/skills/SKILL.md\n+++ b/skills/SKILL.md\n@@ -0,0 +1 @@\n+first\n"},
+        )
+    finally:
+        os.umask(old)
+
+    assert target.read_text(encoding="utf-8") == "first\n"
+    assert stat.S_IMODE(target.stat().st_mode) == PROJECTED_FILE_MODE
+    assert changed_file_paths(projection) == ()
+    assert _admit_one(projection) == ()
+
+
+def test_family15_new_file_keeps_the_writers_mode(tmp_path: Path) -> None:
+    old = os.umask(0o022)
+    try:
+        session, projection = _recreating_session(tmp_path, family15=True)
+        session._run_tool("write_file", {"path": "skills/new.md", "content": "new\n"})
+        session._run_tool(
+            "apply_patch",
+            {"patch": "--- a/skills/patched.md\n+++ b/skills/patched.md\n@@ -0,0 +1 @@\n+p\n"},
+        )
+    finally:
+        os.umask(old)
+
+    for name in ("new.md", "patched.md"):
+        assert stat.S_IMODE((projection.root / "skills" / name).stat().st_mode) == 0o644
+
+
+def test_family14_recreated_file_is_still_refused(tmp_path: Path) -> None:
+    old = os.umask(0o022)
+    try:
+        session, projection = _recreating_session(tmp_path, family15=False)
+        target = projection.root / "skills" / "SKILL.md"
+        session._run_tool("delete_file", {"path": "skills/SKILL.md"})
+        session._run_tool("write_file", {"path": "skills/SKILL.md", "content": "first\n"})
+    finally:
+        os.umask(old)
+
+    assert stat.S_IMODE(target.stat().st_mode) == 0o644
+    with pytest.raises(ActorViolation, match="mode changed"):
+        _admit_one(projection)

@@ -78,6 +78,7 @@ import asyncio
 import hashlib
 import os
 import shutil
+import sys
 from collections.abc import Awaitable, Callable, Collection, Mapping, Sequence
 from contextlib import suppress
 from dataclasses import dataclass, field
@@ -139,7 +140,7 @@ from evolution.tree.execution.journal_rollout import (
 from evolution.tree.execution.journal_schema import (
     S1_FAMILY,
     Lifecycle,
-    components_digest,
+    publish_components,
     try_is_retryable,
 )
 from evolution.tree.execution.journal_scoring import durable_score
@@ -662,6 +663,9 @@ class Measurement:
         self.identity = identity
         self.corpus = tuple(corpus)
         self.secrets = tuple(secrets)
+        self._withheld_samples = 0
+        self._withheld_components = 0
+        self._withholding_warned = False
         #: #97 spec §4.1: which scored rows a primary outside [0, 1] makes a
         #: fault row -- the live ones under the version in force, the carried
         #: ones also under their carry's (ADR-0019 as amended 2026-10-03).
@@ -867,6 +871,20 @@ class Measurement:
         if self._journal is not None:
             self._journal.close()
             self._journal = None
+            if (
+                self._withheld_samples or self._withheld_components
+            ) and not self._withholding_warned:
+                print(
+                    f"measurement {self.measurement_id}: provenance withheld for "
+                    f"{self._withheld_samples} sample(s) and "
+                    f"{self._withheld_components} component(s) left out of "
+                    "published maps because they contain a run secret",
+                    file=sys.stderr,
+                )
+                self._withholding_warned = True
+
+    def _record_withheld_samples(self, count: int) -> None:
+        self._withheld_samples += count
 
     # -- staged dispatch ---------------------------------------------------
 
@@ -967,9 +985,16 @@ class Measurement:
         the behaviour it had.
         """
 
-        self._require_journal()
+        journal = self._require_journal()
         if self._instances:
             return
+        # Reopening finished or inactive measurements must not repeat old
+        # warnings. Recover counts only when this invocation measures again,
+        # including a declaration persisted just before an interruption.
+        self._withheld_components = sum(
+            record.payload.get("components_withheld", 0)
+            for record in journal.declared_components().values()
+        )
         await self._materialize(adapter, candidate, strategy, policy)
 
     async def prepare_stage(
@@ -1776,13 +1801,11 @@ class Measurement:
         components = getattr(instance, "components", None)
         if not self.identity.row_provenance or components is None:
             return None
-        digest = components_digest(components)
-        if digest not in journal.declared_components():
-            journal.append(
-                "components_declared",
-                {"components_digest": digest, "components": dict(components)},
-            )
-        return digest
+        published = publish_components(components, journal.secrets)
+        if published.digest not in journal.declared_components():
+            journal.append("components_declared", published.payload())
+            self._withheld_components += published.withheld
+        return published.digest
 
     async def _run_row(
         self,
@@ -1928,6 +1951,7 @@ class Measurement:
                     repair=repair,
                     components_digest=self._components_digest.get(instance_id),
                     connection=connection,
+                    on_provenance_withheld=self._record_withheld_samples,
                 )
             finally:
                 sessions.put_nowait(instance_id)

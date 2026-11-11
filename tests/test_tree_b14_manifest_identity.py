@@ -122,15 +122,15 @@ CHAT_BYTES = b'{"base_url":"https://example.test/v1","budgets":{"max_changed_fil
 GROUPER_BYTES = b'{"backend":"openai_chat","base_url":"https://example.test/v1","concurrency":1,"fallback":null,"kind":"chat","max_input_chars":8000,"max_output_tokens":256,"model":"test-model","prompt_sha256":"63b929ea0b46fbdb2127c251a65aa82c15c45ce9e9ec1f55d088563dad7ccb76","protocol":"model_grouping/1","provider_only":null,"proxy_env":null,"reasoning_effort":null,"representatives_per_case":3,"retry":{"backoff":{"initial_seconds":1,"jitter":"full","max_seconds":20,"multiplier":2},"max_attempts":4,"total_budget_seconds":120,"version":"role_call_retry/1"},"timeout_seconds":60,"verify_ssl_certs":true}'
 
 #: A `/16` Grouper's identity as `evolve` builds it (b16 spec §11): `/15`'s keys
-#: with `model_grouping/2` and the packaged `_v2` prompt's digest, and no
-#: undeclared portion key.
+#: with `model_grouping/2` and the packaged prompt's digest -- `_v3` from b17
+#: (ADR-0057), the `_v2` digest before it -- and no undeclared portion key.
 GROUPER_V16_BYTES = GROUPER_BYTES.replace(b'"model_grouping/1"', b'"model_grouping/2"').replace(
     b"63b929ea0b46fbdb2127c251a65aa82c15c45ce9e9ec1f55d088563dad7ccb76",
-    b"ec5ef3d2c7fe85b87c84388a1e32c323fa402f6f7942f2778e2853336d11d0ee",
+    b"3f8b6e21a649b8f8192c7951285b4abce16044826145b3b5484f1634faa8d9d8",
 )
 IDENTITY_DIGESTS = {
     "grouper": "10ef231774444bbc5d167f66f9f6fc5e7248b985faf4edf5cc44e767775f299e",
-    "grouper/16": "926c57741fc0fb7d0fe2e560a1fc21260cfdf6fff785d1ca202af20f686460be",
+    "grouper/16": "7f7fc80a4d1bb5c4a9dc682f36329cb0d0cc4c7b907b0cf1efd4b5f195af10d1",
     "chat": "599a334d15e925c3eefa6768a57cb4cd628b2b7d8db1bc20bac3b4142c216aee",
 }
 

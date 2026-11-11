@@ -31,6 +31,8 @@ from evolution.tree.execution.json_pointer import MISSING, pointer_value
 from evolution.tree.execution.private_files import WorkspaceError
 from evolution.tree.roles.editor.subprocess_editor import _open_private_log, _terminate_shielded
 from evolution.tree.roles.grouping.reflect_grouping import (
+    DESCRIPTION_CHARS,
+    FAMILY15_DESCRIPTION_CHARS,
     AdmittedGrouping,
     FieldFeature,
     GroupingRegistry,
@@ -296,6 +298,9 @@ class GroupingRuntime:
             policy_identity=self.config.policy_digest,
             forbidden_string_predicates=forbidden_string_predicates,
             describe=family15,
+            # A family-15 `fields` description is bounded like a model
+            # description (ADR-0057 §3.4); family 14 keeps 512.
+            description_chars=FAMILY15_DESCRIPTION_CHARS if family15 else DESCRIPTION_CHARS,
         )
 
     async def agent(
@@ -422,11 +427,15 @@ class GroupingRuntime:
         ``adopted``, ``provenance`` (stored `used` unions by evidence ID),
         ``redact`` (the run-secret redaction of component IDs) and
         ``normalize`` (the journal's form of a checkpointed decision).
+
+        A family-15 run without a declared `system_prompt` seals the packaged
+        `_v3` prompt (b17, ADR-0057); `/15` and every declared prompt keep
+        their bytes.
         """
 
         # Lazy: the manifest loader imports this module, and both the runtime
         # and the packaged prompts sit above it.
-        from evolution.prompts import TREE_GROUPING_MODEL_SYSTEM, TREE_GROUPING_MODEL_V2_SYSTEM
+        from evolution.prompts import TREE_GROUPING_MODEL_SYSTEM, TREE_GROUPING_MODEL_V3_SYSTEM
         from evolution.tree.roles.config import effective_grouping_v2
         from evolution.tree.roles.grouping.model_grouping_runtime import run_model_grouping
         from evolution.tree.roles.grouping.model_grouping_v2 import run_model_grouping_v2
@@ -438,15 +447,15 @@ class GroupingRuntime:
             raise ValueError("grouping_is_not_model")
         grouping = self.config.identity.to_payload()["grouping"]
         expected = grouping.get("prompt_sha256")
-        # A `/16` Grouper's identity records `model_grouping/2` and the `_v2`
-        # packaged prompt (b16 spec §11); the identity selects the protocol,
-        # and only a family-15 run may record it.
+        # A `/16` Grouper's identity records `model_grouping/2` and the packaged
+        # prompt (b16 spec §11; b17 seals `_v3`, ADR-0057); the identity selects
+        # the protocol, and only a family-15 run may record it.
         v2 = grouping.get("protocol") == "model_grouping/2"
         if v2 and not family15:
             raise ValueError("model_grouping_v2_outside_family15")
         if v2 and (reader is None or record_budget is None):
             raise ValueError("model_grouping_v2_bindings_required")
-        packaged = TREE_GROUPING_MODEL_V2_SYSTEM if v2 else TREE_GROUPING_MODEL_SYSTEM
+        packaged = TREE_GROUPING_MODEL_V3_SYSTEM if v2 else TREE_GROUPING_MODEL_SYSTEM
         try:
             seal = seal_prompt(section.system_prompt, packaged=packaged)
             if seal.sha256 != expected:
@@ -533,6 +542,7 @@ class GroupingRuntime:
         parent_digest: str | None = None,
         cancelled: Callable[[], bool] = lambda: False,
         scorer_diagnostics: bool = False,
+        family15: bool = False,
     ) -> AdmittedGrouping:
         """Run one sealed custom policy over operation-scoped helper launchers.
 
@@ -540,6 +550,10 @@ class GroupingRuntime:
         sees: `reflect_grouping_request/2` when the bound baseline's inputs
         admit the `diagnostics` source (family 8, ADR-0021), `/1` otherwise --
         families 5-7 keep the request byte for byte.
+
+        ``family15`` admits the result's descriptions up to
+        `FAMILY15_DESCRIPTION_CHARS` instead of `DESCRIPTION_CHARS`
+        (ADR-0057): a family-15 run has one description admission bound.
         """
 
         binding = self.config.custom_command
@@ -697,7 +711,10 @@ class GroupingRuntime:
             except (KeyError, TypeError, ValueError) as exc:
                 raise GroupingExecutionError("invalid_result") from exc
             return admit_grouping_result(
-                registry, result, policy_identity=self.config.policy_digest
+                registry,
+                result,
+                policy_identity=self.config.policy_digest,
+                description_chars=FAMILY15_DESCRIPTION_CHARS if family15 else DESCRIPTION_CHARS,
             )
         except (OSError, WorkspaceError) as exc:
             raise GroupingExecutionError("command_failed") from exc

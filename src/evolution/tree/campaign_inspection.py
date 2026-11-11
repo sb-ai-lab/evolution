@@ -18,7 +18,7 @@ there.
 
 Outcomes:
 
-- the inspected map, or `None` when the instance declared none;
+- the screened map (or `None` when the instance declared none) and its withheld count;
 - `InspectionFailed` when the Target could not be inspected (a materialize or
   identity failure, an attestation refusal, or an instance an earlier
   interrupted inspection left that the Target will not release) -- the
@@ -37,6 +37,7 @@ from __future__ import annotations
 import asyncio
 import os
 import shutil
+import sys
 from collections.abc import Collection, Mapping, Sequence
 from contextlib import suppress
 from pathlib import Path
@@ -60,7 +61,7 @@ from evolution.tree.execution.journal import (
 from evolution.tree.execution.journal_identity import IdentityError, RunIdentityV1
 from evolution.tree.execution.journal_recovery import close_interrupted_operations
 from evolution.tree.execution.journal_rollout import JournalRolloutAdapter
-from evolution.tree.execution.journal_schema import S1_FAMILY, Lifecycle, components_digest
+from evolution.tree.execution.journal_schema import S1_FAMILY, Lifecycle, publish_components
 from evolution.tree.execution.rollout import (
     materialize_target,
     recover_target_instances,
@@ -119,8 +120,10 @@ async def inspect_candidate(
     strategy: MaterializationStrategy,
     call_attempts: int | None,
     admitted_versions: Collection[str] = (),
-) -> Mapping[str, Any] | None:
-    """Materialize `candidate` once, attest it, declare its map, release it.
+) -> tuple[Mapping[str, Any] | None, int]:
+    """Materialize, attest, publish the screened map, and release `candidate` once.
+
+    Return the published map and withheld count; no map is `(None, 0)`.
 
     `identity` must be a family-12 measurement identity (`row_provenance`):
     S1 admits `components_declared` only under it. `call_attempts` is passed
@@ -131,6 +134,7 @@ async def inspect_candidate(
     """
 
     path = inspection_path(run_root, attempt_id, inspection)
+    withheld = 0
     journal = await _open(
         path,
         inspection_id(attempt_id, inspection),
@@ -183,13 +187,11 @@ async def inspect_candidate(
             # HTTP adapter's handle carries the creation body's validated map.
             components = getattr(instance, "components", None)
             if components is not None:
-                digest = components_digest(components)
+                published = publish_components(components, secrets)
                 # The journal is fresh (`_open` replaces a leftover), so the
                 # map is declared exactly once.
-                journal.append(
-                    "components_declared",
-                    {"components_digest": digest, "components": dict(components)},
-                )
+                journal.append("components_declared", published.payload())
+                components, withheld = published.components, published.withheld
         except InspectionFailed as exc:
             # As before the fallback: a journal fault while recording the
             # release outranks the Target failure the Attempt would fall back on.
@@ -210,9 +212,18 @@ async def inspect_candidate(
         )
         if fault is not None:
             raise fault
-        return None if components is None else dict(components)
+        return components, withheld
     finally:
-        journal.close()
+        try:
+            if withheld:
+                print(
+                    f"measurement {inspection_id(attempt_id, inspection)}: provenance withheld for "
+                    f"0 sample(s) and {withheld} component(s) left out of "
+                    "published maps because they contain a run secret",
+                    file=sys.stderr,
+                )
+        finally:
+            journal.close()
 
 
 async def _release(

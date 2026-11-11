@@ -13,7 +13,7 @@ Start with the [Quickstart](../QUICKSTART.md) to see this happen. This page expl
 | Corpus | Cases on which the agent will be evaluated | Questions, task inputs and private expected answers |
 | Environment | Decide what message to send next and when the interaction ends | Send each case's `public.text` once |
 | Scorer | Turn an interaction into metrics and criterion verdicts | Score correctness and report missing required steps |
-| Grouper | Group the baseline's failing observations by what failed together, before reflection (the `grouper` key of `/15`) | Put every case that missed the same required step into one group |
+| Grouper | Group the baseline's failing observations before reflection; `/16` can also propose cause hypotheses | Put every case that missed the same required step into one group |
 | Reflector | Investigate failing cases and propose a diagnosis | Identify an instruction that causes repeated omissions |
 | Editor | Change permitted files in a candidate workspace | Add a general checklist to a skill |
 | Manifest | Connect all these pieces and set the budgets | `manifest.json` |
@@ -46,7 +46,9 @@ A **campaign** is the whole experiment stored in one run directory. It contains 
 
 The **Champion** is the version currently selected by the campaign. At the start it is the seed. After a successful promotion it is the selected Candidate. The original seed is never overwritten by promotion.
 
-The baseline tells the Reflector which cases failed. Before the Reflector runs, the **Grouper** puts failing observations that share an observed failure mode into one error group; with `/15` it can be a dedicated grouping model or an agent CLI, and it states only what failed together, not why. The Reflector investigates a bounded part of one group and sends a diagnosis to the editor. A round whose Reflector declines, finds nothing or gives unusable content (an invalid or leaking diagnosis, for example) closes as `unplanned` without calling the editor. A provider failure or an unexplained failure does not close the round: it suspends the campaign (see [Failures and recovery](#failures-and-recovery)). Attempts in a round start from the same Parent. In sequential feedback mode, later attempts can learn from earlier closed attempts; they do not silently start from an earlier Candidate's files.
+The baseline identifies failing cases. The **Grouper** groups their observations using an offline policy, a model or an agent CLI. Under `/15`, groups state what failed together without diagnosing why. Under `/16`, the Grouper can propose cause hypotheses for the Reflector to check; it does not prescribe a repair. The Reflector investigates a bounded part of one group and sends its diagnosis to the Editor.
+
+If reflection declines, finds nothing or produces unusable content, the round closes as `unplanned` without an Editor call. Provider and unexplained failures suspend the campaign (see [Failures and recovery](#failures-and-recovery)). Each Attempt starts from the same Parent; sequential feedback can share lessons from earlier closed Attempts without inheriting their files.
 
 If the baseline has no failing cases to investigate, the round can close without calling the Reflector or editor. A completed campaign therefore does not necessarily make edits or promote anything.
 
@@ -74,7 +76,7 @@ The [stable-family reference](manifest-v2.md#stable-family-keys-manifest-15) def
 
 Opt-in manifest `/16` writes family 15 and leaves `/15` unchanged. It separates repeat count (R>=1), point/confidence/unfiltered acceptance, declared execution-noise allowance and reuse/fresh verification. Promotion is always automatic. The recommended point/reuse workflow completes the Candidate across train by importing its own sealed gate slots and measuring only missing slots before eligibility. Fresh verification buys a distinct full-train measurement; stable/unstable chooses a stored/fresh Champion independently. `all_attempts` freezes its finalist set at the full Attempt barrier before final work and deterministic ranking.
 
-Comparisons bind exact scopes, weights, policy and authenticated evidence prefixes. Immutable comparison data and bounded private linked-diagnostic bundles use the existing artifact ledger as publication authority. Missing inherited diagnostics become visible gaps; scalar import remains a separate decision. Journals own decisions. No statistical result triggers hidden calibration, extra repeats or suspension. Train/test separation, role privacy, fault ownership and earlier-family arithmetic remain unchanged.
+Comparisons bind their cases, weights, policy and authenticated evidence. Journals record decisions; train/test separation and role privacy still apply. Numerical results do not trigger extra repeats or suspend the campaign.
 
 See [independent acceptance](running-campaigns.md#choose-independent-acceptance-manifest-16) and [storage](run-storage-layout.md#the-v2-run-directory).
 
@@ -82,7 +84,9 @@ See [independent acceptance](running-campaigns.md#choose-independent-acceptance-
 
 A wrong answer and an unavailable service are different evidence. A deterministic defect in the agent can be scored; a timeout or broken connection cannot be treated as a quality score.
 
-Current campaigns retry transient target calls within declared limits. Before the baseline, one connection probe of the Champion through Target and scorer must match the metric contract, or the campaign suspends. Too much instability, target contract violations and other infrastructure problems also suspend: repair the cause and rerun the same command with the same run directory. An unusable grouping answer can fall back to a simpler policy with a `grouping_fallback` caveat; provider failures and two full fallbacks in a row suspend. A run secret in the grouping text, a changed prompt or damaged evidence also suspends. Cancelling during grouping stops the campaign as an orderly finished run. Changed bound inputs may still need authorization or a linked run. The Reflector and Editor use the same resilience principle: only a failure proven to be about diagnosis or edit content closes a round or Attempt; provider and unexplained failures suspend.
+Current campaigns retry transient target calls within declared limits. With the default enforced checks, a connection probe of the Champion through Target and scorer must match the metric contract before the baseline, or the campaign suspends. Too much instability, target contract violations and other infrastructure problems also suspend: repair the cause and rerun the same command with the same run directory.
+
+An unusable grouping answer can fall back to a simpler policy with a `grouping_fallback` caveat. Provider failures suspend, as do consecutive full fallbacks at the declared limit: two by default, configurable in `/16` through [role-loop limits](manifest-v2.md#role-loop-limits-manifest-16). By default, a run secret in the grouping text also suspends; `/16` can change this and the connection checks through [check modes](manifest-v2.md#checks-manifest-16). A changed prompt or damaged evidence suspends in every mode. Cancelling during grouping stops the campaign as an orderly finished run. Changed bound inputs may still need authorization or a linked run. The Reflector and Editor use the same resilience principle: only a failure proven to be about diagnosis or edit content closes a round or Attempt; provider and unexplained failures suspend.
 
 A finished campaign uses a linked successor when you want more rounds. See [Running campaigns](running-campaigns.md) for the operator procedure, exit codes and examples.
 

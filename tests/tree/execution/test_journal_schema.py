@@ -898,11 +898,12 @@ def test_a_failed_materialize_may_be_retried_under_the_same_instance_id():
 MAP = {"catalog": {"sha256": "a" * 64, "sources": ["skills/a/SKILL.md"]}}
 
 
-def declared(state, components=MAP, digest=None):
+def declared(state, components=MAP, digest=None, **extra):
     m = schema()
     payload = dict(
         components_digest=m.components_digest(components) if digest is None else digest,
         components=components,
+        **extra,
     )
     return Envelope.from_payload(
         dict(
@@ -925,6 +926,140 @@ def test_components_digest_is_the_sha256_of_the_canonical_map():
 
     expected = hashlib.sha256(canonical_json(MAP)).hexdigest()
     assert schema().components_digest(MAP) == expected
+
+
+@pytest.mark.parametrize(
+    ("components", "expected"),
+    [
+        ({}, "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"),
+        (MAP, "ee5fff08cd2527f4787a4926c69659a6e5be86c6a4557b87ac8811cb38fe8931"),
+        (
+            {
+                "retriever": {
+                    "sha256": "b" * 64,
+                    "sources": ["a.md", "docs/context.md", "skills/b/SKILL.md"],
+                }
+            },
+            "bf8e546e6919ae2eaa7de67ce0d2c35bea029f2b0b743b4f87806f258007647d",
+        ),
+    ],
+    ids=["empty", "one-component", "several-sources"],
+)
+def test_declaration_digest_without_withheld_is_components_digest(components, expected):
+    # These literals were captured from components_digest before C2 changed production.
+    m = schema()
+    assert m.declaration_digest(components, 0) == expected
+    assert m.components_digest(components) == expected
+
+
+def test_declaration_digest_covers_positive_count():
+    import hashlib
+
+    from evolution.tree.execution.journal_identity import canonical_json
+
+    m = schema()
+    expected = hashlib.sha256(
+        canonical_json({"components": MAP, "components_withheld": 1})
+    ).hexdigest()
+    digest = m.declaration_digest(MAP, 1)
+    assert digest == expected
+    assert digest != m.declaration_digest(MAP, 0)
+    assert digest != m.declaration_digest(MAP, 2)
+
+
+@pytest.mark.parametrize(
+    ("components", "secrets", "expected", "withheld"),
+    [
+        ({"SECRET": MAP["catalog"]}, ("SECRET",), {}, 1),
+        ({"retriever:SECRET": MAP["catalog"]}, ("SECRET",), {}, 1),
+        (
+            {"FIRST": MAP["catalog"], "tool:SECOND": MAP["catalog"], **MAP},
+            ("FIRST", "SECOND"),
+            MAP,
+            2,
+        ),
+        (MAP, ("catalog",), {}, 1),
+        ({"FIRST:SECOND": MAP["catalog"]}, ("FIRST", "SECOND"), {}, 1),
+        (
+            {"retriever": {"sha256": "b" * 64, "sources": ["SECRET.md"]}},
+            ("SECRET",),
+            {"retriever": {"sha256": "b" * 64, "sources": ["SECRET.md"]}},
+            0,
+        ),
+        (MAP, (), MAP, 0),
+        (MAP, ("", "unmatched"), MAP, 0),
+    ],
+    ids=[
+        "equal",
+        "substring",
+        "two-keys",
+        "real-name",
+        "two-secrets-one-key",
+        "sources-only",
+        "no-secrets",
+        "empty-and-unmatched-secret",
+    ],
+)
+def test_screen_components(components, secrets, expected, withheld):
+    before = json.loads(json.dumps(components))
+    assert schema().screen_components(components, secrets) == (expected, withheld)
+    assert components == before
+
+
+@pytest.mark.parametrize("withheld", [False, True], ids=["unchanged", "withheld"])
+def test_publish_components_payload(withheld):
+    import hashlib
+
+    from evolution.tree.execution.journal_identity import canonical_json
+
+    components = {**MAP, "tool:SECRET": MAP["catalog"]} if withheld else MAP
+    published = schema().publish_components(components, ("SECRET",))
+    expected = {"components": MAP}
+    if withheld:
+        expected["components_withheld"] = 1
+        digest = hashlib.sha256(canonical_json(expected)).hexdigest()
+    else:
+        digest = "ee5fff08cd2527f4787a4926c69659a6e5be86c6a4557b87ac8811cb38fe8931"
+    expected["components_digest"] = digest
+    assert published.components == MAP
+    assert published.withheld == int(withheld)
+    assert published.digest == digest
+    assert published.payload() == expected
+    raw = declared(ledger({"row_provenance": 1})).to_payload()
+    raw["payload"] = published.payload()
+    assert Envelope.from_payload(raw, family=S1_FAMILY).to_payload() == raw
+
+
+@pytest.mark.parametrize("withheld", [0, True, False, -1, "1"])
+def test_components_declared_refuses_invalid_withheld_counts(withheld):
+    import hashlib
+
+    from evolution.tree.execution.journal_identity import canonical_json
+
+    # Supply the matching wrapper digest so a type/range bug cannot hide behind
+    # digest rejection. Explicit zero also tries the legacy digest below.
+    digest = hashlib.sha256(
+        canonical_json({"components": MAP, "components_withheld": withheld})
+    ).hexdigest()
+    state = ledger({"row_provenance": 1})
+    with pytest.raises(SchemaError):
+        declared(state, digest=digest, components_withheld=withheld)
+    with pytest.raises(SchemaError):
+        declared(state, components_withheld=withheld)
+
+
+def test_components_declared_refuses_a_positive_count_with_the_map_digest():
+    with pytest.raises(SchemaError):
+        declared(ledger({"row_provenance": 1}), components_withheld=1)
+
+
+def test_components_declared_without_withheld_preserves_the_payload():
+    raw = declared(ledger({"row_provenance": 1})).to_payload()
+    assert raw["payload"] == {
+        "components": MAP,
+        "components_digest": "ee5fff08cd2527f4787a4926c69659a6e5be86c6a4557b87ac8811cb38fe8931",
+    }
+    assert Envelope.from_payload(raw, family=S1_FAMILY).to_payload() == raw
 
 
 def test_components_declared_needs_a_marked_journal_and_its_own_digest():

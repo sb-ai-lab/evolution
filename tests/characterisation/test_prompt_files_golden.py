@@ -81,8 +81,12 @@ from evolution.llm.gigachat_backend import GigaChatBackend
 from evolution.llm.litellm_backend import LiteLLMBackend
 
 GOLDEN_LOADED = {
+    "tree_reflector_v6": "990734df8d71a886749b3b1ba2b9fc569ed75b211802c61b987312c12155951f",
+    "tree_agent_reflector_v4": "36be7a631536bda7aa8e547c9d6ed8a6ab12e4f5053ffd64258b89f0a2677a7f",
     "tree_reflector_v5": "c7d586cbdc0e786519674ba8cf82520e5ad70e5233cab341f91a7cb70a590c85",
     "tree_editor_v2": "836e783fb3ae2bed5e536ddee987adb7d2c4193fec9bb788ca17471d3cbcddd5",
+    "tree_editor_v3": "be65ab1325ae678e68dc26f80958ab3b31fc149930448e6f750a47a9a594a992",
+    "tree_agent_editor_v2": "a8d37aebec300b0adb96375e23a7ac0e350ef69d950395246a2d658fb9270edb",
     "_blocks/blind_evidence": "d9337f8b80f2a8390eee8a321556f13bbf7b4a3cc5b99848e80154ff357871e0",
     "_blocks/generality_rules": "b48cde3a10e6b4c961d5a65b52f646d48ed17f87adfc985ac194cebe21a95647",
     "_blocks/leak_rules": "51d790862b121ffa3f16c8fb4d63ed754ec6d4899cc15ad4d63435618b9ab637",
@@ -139,6 +143,7 @@ GOLDEN_LOADED = {
     "tree_reflector_v4": "7993bdf31771d40efa88682a54408ba37b7b38030bd02fea9faa60792a75900d",
     "tree_grouping_model": "4a97ce28fe6e6a025df1face409532cfc23d001fcc29050fa47d25b37d268e82",
     "tree_grouping_model_v2": "551213198461b1cb36f060e2530ae1d92dff9bdb02fec6d98f13bad33a853aad",
+    "tree_grouping_model_v3": "9a4e5d9836af93df44cca932d281265b19c87bdad3a96cf95219fc37d2cbc008",
 }
 
 INCLUDE_BEARING_PROMPTS = frozenset(

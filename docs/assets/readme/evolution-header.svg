@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="264" viewBox="0 0 1200 264" role="img" aria-labelledby="title desc">
+<title id="title">Evolution</title><desc id="desc">Evolution wordmark with the source film's ring, lime dot and branching paths.</desc>
+<defs><pattern id="stars" width="36" height="36" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r=".65" fill="#3a4135" opacity=".45"/></pattern><radialGradient id="glow"><stop stop-color="#c0f46a" stop-opacity=".12"/><stop offset="1" stop-color="#c0f46a" stop-opacity="0"/></radialGradient></defs>
+<rect width="1200" height="264" fill="#0b0d0e"/><rect width="1200" height="264" fill="url(#stars)"/>
+<circle cx="1034" cy="132" r="185" fill="url(#glow)"/>
+<g fill="none" stroke-width="1.1"><path d="M678 230 C760 220 778 138 875 132 H966" stroke="#777e68"/><path d="M730 20 C820 24 830 106 896 123 L967 132" stroke="#3c4439"/><path d="M784 264 C854 250 867 152 966 132" stroke="#414b36"/><path d="M1102 132 C1150 133 1168 78 1200 66" stroke="#667653"/><path d="M1102 132 C1150 132 1169 195 1200 203" stroke="#414b36"/></g>
+<circle cx="1034" cy="132" r="68" fill="#0b0d0e" stroke="#8caa58" stroke-width="1.5"/>
+<circle cx="1034" cy="132" r="91" fill="none" stroke="#49533a" stroke-dasharray="2 11"/>
+<circle cx="1034" cy="132" r="49" fill="none" stroke="#c0f46a" stroke-width="3" stroke-dasharray="190 118" transform="rotate(-55 1034 132)"/>
+<circle cx="1034" cy="132" r="10" fill="#c0f46a"/>
+<circle cx="98" cy="132" r="17" fill="none" stroke="#6c7958" stroke-width="1.5"/><circle cx="98" cy="132" r="5" fill="#c0f46a"/>
+<text x="144" y="158" fill="#eef0e8" font-family="IBM Plex Sans,DejaVu Sans,sans-serif" font-weight="600" font-size="76" letter-spacing="9">EVOLUTION</text>
+<path d="M42 35 V22 H55 M1145 22 H1158 V35 M42 229 V242 H55 M1145 242 H1158 V229" fill="none" stroke="#505746" stroke-width="1"/>
+</svg>

@@ -12,7 +12,9 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Final
+
+DEFAULT_MIN_CLAIM_CASES: Final = 2
 
 
 @dataclass(frozen=True)
@@ -41,6 +43,7 @@ def derive_gate_scope(
     family_membership: Mapping[str, str] | None,
     corpus_order: Sequence[str],
     evaluable_cases: frozenset[str] | None,
+    min_claim_cases: int = DEFAULT_MIN_CLAIM_CASES,
 ) -> GateScope:
     """The gate scope a settled diagnosis selects.
 
@@ -54,8 +57,11 @@ def derive_gate_scope(
         source, selected = "reflection-failed", tuple(fallback)
     elif not claimed:
         source, selected = "empty-claim", tuple(fallback)
-    elif len(claimed) == 1:
-        source, selected = "single-case", tuple(fallback)
+    elif len(claimed) < min_claim_cases:
+        source, selected = (
+            ("single-case" if len(claimed) == 1 else "below-minimum"),
+            tuple(fallback),
+        )
     else:
         source, selected = "claim", claimed
     cases = list(selected)

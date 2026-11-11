@@ -30,6 +30,18 @@ def schema():
     return importlib.import_module("evolution.tree.family15_schema")
 
 
+@pytest.mark.parametrize("count", [None, 1, 0, True, "1"])
+def test_candidate_inspected_withheld_family15(count):
+    payload = dict(round=1, attempt="r01-a01", inspection=1, components={})
+    if count is not None:
+        payload["components_withheld"] = count
+    if count is None or type(count) is int and count > 0:
+        schema().validate_family15_payload("candidate_inspected", payload)
+    else:
+        with pytest.raises(SchemaError):
+            schema().validate_family15_payload("candidate_inspected", payload)
+
+
 def q(value=0):
     value = Fraction(value)
     return dict(
@@ -1276,9 +1288,12 @@ def test_family15_delta_events_are_exactly_the_automatic_contract():
         "selection_decided",
         "grouping_portion_finished",
         "grouping_batch_finished",
+        # b17 (ADR-0057): one whole description per shortened or dropped map
+        # entry, bound by the terminal's `full_descriptions_digest`.
+        "grouping_full_description",
     }
     assert set(api._EVENT_FIELDS) == expected
-    assert set(EVENTS) == expected
+    assert set(EVENTS) == expected | {"grouping_finished"}
     assert not hasattr(api, "PromotionDecision")
     with pytest.raises(SchemaError, match="family-15 contract"):
         api.validate_family15_payload("operator_decision", {"round": 1})

@@ -699,3 +699,46 @@ def test_result_envelope_covers_a_full_tool_result(tmp_path: Path) -> None:
         (_, message) = tool_exchange(assistant, output)
         envelope = chat_request_size([message], []) - len(output["content"])
         assert envelope <= RESULT_ENVELOPE_CHARS
+
+
+# --- `/16`: a broken tool call is retained as `{}` (ADR-0061, b18 Part A) ------------------
+
+
+@pytest.mark.parametrize("mode", ["http_400", "error_body"])
+@pytest.mark.asyncio
+async def test_v16_portion_session_survives_strict_provider(tmp_path: Path, mode: str) -> None:
+    from tests.strict_history import StrictScriptedClient, broken_history_calls, holds, measures
+
+    answer = finish(group("g1", ["o1", "o3"]), group("g2", ["o2"]))
+    reference, _ = await Harness(tmp_path / "reference", basic_rows()).run([answer])
+
+    h = Harness(tmp_path, basic_rows())
+    marker = "broken-portion-marker-91c"
+    broken = '{"groups": [{"id": "' + marker + '", "members": ['
+    inner = Client([{"tool_calls": [("finish_portion", broken)]}, answer])
+    strict = StrictScriptedClient(inner, mode)  # type: ignore[arg-type]
+    with open_attempt_log(tmp_path / "logs-strict", "a", secrets=()) as log:
+        try:
+            outcome = await run_portion(h.context(strict, log), h.plan.portions[0])
+        finally:
+            records = read_log(log.path)
+
+    assert strict.refusals == []
+    assert outcome.outcome is None and outcome.repairs == 1 and outcome.requests == 2
+    # The admitted answer is the one a session without the broken turn admits.
+    assert outcome.groups == reference.groups
+    (repair,) = phases(records, "protocol_repair_requested")
+    assert repair["error"] == "tool arguments are not JSON"
+    assert repair["replaced_calls"] == [
+        {"id": "call-1-0", "name": "finish_portion", **measures(broken)}
+    ]
+    assert repair["portion"] == "p1"
+    retained = inner.bodies[1]["messages"][len(inner.bodies[0]["messages"])]
+    assert retained["tool_calls"][0]["function"]["arguments"] == "{}"
+    assert all(broken_history_calls(body) == [] for body in inner.bodies)
+    assert holds(phases(records, "model_response"), broken)  # the check below can see it
+    for record in records:
+        if record["phase"] != "model_response":
+            assert not holds(record, broken) and not holds(record, marker), record["phase"]
+    for body in inner.bodies:
+        assert not holds(body, broken) and not holds(body, marker)

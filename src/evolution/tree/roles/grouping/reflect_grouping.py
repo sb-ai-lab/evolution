@@ -38,6 +38,40 @@ MAX_REGISTRY_RECORDS: Final = 32768
 MAX_GROUP_NUMBER: Final = 32767
 MAX_RESULT_BYTES: Final = 512 * 1024
 MAX_SPARSE_MAP_BYTES: Final = 64 * 1024
+#: The bound of one described model-group header field (`failure_mode`,
+#: `expected_behaviour`, `question`) in the Grouper's admitted answer.
+#: `_HEADER_BOUNDS` in `model_grouping` admits each field at this bound, so
+#: the family-15 description bound below cannot drift from it (ADR-0057).
+DESCRIPTION_FIELD_CHARS: Final = 512
+#: The description template's per-field prefixes, in the order the projection
+#: (`_description` in `model_grouping`) renders them.
+DESCRIPTION_FIELD_PREFIXES: Final = ("Observed: ", "Expected: ", "Question: ")
+#: The description bound outside family 15, and `admit_grouping_result`'s
+#: default (ADR-0022: a description is "already bounded ... by grouping
+#: admission").
+DESCRIPTION_CHARS: Final = 512
+#: The longest description a family-15 projection can build (ADR-0057): the
+#: `Observed/Expected/Question` template with each field at
+#: `DESCRIPTION_FIELD_CHARS` -- three prefixes of 10 characters, three fields
+#: of 512 and the two separators = 1,568 characters. Family-15 grouping
+#: admission and `fields_group_texts` bound descriptions by it; family 14
+#: keeps `DESCRIPTION_CHARS`. Stored family-15 descriptions of at most
+#: `DESCRIPTION_CHARS` characters re-admit unchanged.
+FAMILY15_DESCRIPTION_CHARS: Final = (
+    sum(len(prefix) + DESCRIPTION_FIELD_CHARS for prefix in DESCRIPTION_FIELD_PREFIXES)
+    + len(DESCRIPTION_FIELD_PREFIXES)
+    - 1
+)
+#: The mark a shortened description or `fields` text carries for its loss.
+CUT_MARK: Final = "…[cut]"
+
+
+def _cut(text: str, maximum: int) -> str:
+    """`text` whole, or its first `maximum` characters ending in the cut mark."""
+
+    return text if len(text) <= maximum else text[: maximum - len(CUT_MARK)] + CUT_MARK
+
+
 _SOURCES: Final = frozenset(("case", "public", "observation", "feedback"))
 #: `FieldFeature.source` alone admits one further value beyond the four
 #: runtime projections `GroupingRecord.sources` carries: `"diagnostics"`
@@ -320,6 +354,8 @@ def _parse_descriptions(
     used: set[int],
     predicates: Sequence[tuple[str, Callable[[str], bool]]],
     locations: Mapping[tuple[str, ...], str],
+    *,
+    description_chars: int = DESCRIPTION_CHARS,
 ) -> dict[int, GroupDescription]:
     if not isinstance(raw, Mapping):
         _fail("invalid_descriptions")
@@ -335,7 +371,7 @@ def _parse_descriptions(
         description = entry.get("description")
         if not isinstance(label, str) or len(label) > 128:
             _fail("invalid_description")
-        if not isinstance(description, str) or len(description) > 512:
+        if not isinstance(description, str) or len(description) > description_chars:
             _fail("invalid_description")
         _scan_strings(
             label, predicates, location=locations.get(("descriptions", str(key), "label"))
@@ -413,6 +449,7 @@ def admit_grouping_result(
     policy_identity: str,
     forbidden_string_predicates: Sequence[tuple[str, Callable[[str], bool]]] = (),
     unavailable_unassigned: bool = False,
+    description_chars: int = DESCRIPTION_CHARS,
 ) -> AdmittedGrouping:
     """Validate, canonicalize, and expand a compact result without corpus reads.
 
@@ -421,6 +458,11 @@ def admit_grouping_result(
     error group). A failing record that is not available must then carry
     `None` and is left out of every neighborhood instead of becoming a
     singleton. The default keeps every earlier policy and family unchanged.
+
+    ``description_chars`` bounds one description's text and defaults to the
+    family-14 bound (`DESCRIPTION_CHARS`, 512). A family-15 run passes
+    `FAMILY15_DESCRIPTION_CHARS` (ADR-0057): the template with each described
+    field at its admitted bound. The label bound (128) does not move.
     """
 
     _require_text(policy_identity, "invalid_policy_identity")
@@ -456,7 +498,9 @@ def admit_grouping_result(
         {"assignments": result.assignments, "descriptions": result.descriptions},
         tuple(row.evidence_id for row in registry.records),
     )
-    descriptions = _parse_descriptions(result.descriptions, used, predicates, locations)
+    descriptions = _parse_descriptions(
+        result.descriptions, used, predicates, locations, description_chars=description_chars
+    )
     variants = _parse_variants(
         result.variants,
         registry.records,
@@ -551,11 +595,17 @@ def fields_group_texts(
     first_number: int,
     reserved: Mapping[int | str, Mapping[str, Any]],
     screens: Sequence[Callable[[str], bool]],
+    description_chars: int = DESCRIPTION_CHARS,
 ) -> dict[int, dict[str, str]]:
     """Optional field summaries fitted beside existing model descriptions.
 
     Group membership is already settled. Missing, unsafe or oversized text
     must never invalidate it; admission performs the final, counted scan.
+    ``description_chars`` bounds one built description, as
+    `admit_grouping_result` receives it: a family-15 run passes
+    `FAMILY15_DESCRIPTION_CHARS` so a long grouping key is cut less often
+    (ADR-0057). The template, label rule, map handling and screening are
+    unchanged.
     """
     members: dict[int, list[GroupingRecord]] = {}
     for row, number in zip(registry.records, assignments, strict=True):
@@ -596,9 +646,9 @@ def fields_group_texts(
             f"in {cases} case{'s' if cases != 1 else ''} share "
         )
         key = keys[number]
-        room = 512 - len(prefix) - len(question)
+        room = description_chars - len(prefix) - len(question)
         if len(key) > room:
-            key = key[: room - len("…[cut]")] + "…[cut]"
+            key = _cut(key, room)
         entry = {"label": labels[keys[number]], "description": prefix + key + question}
         if any(quiet_forbidden(screen, text) for screen in screens for text in entry.values()):
             continue
@@ -618,8 +668,14 @@ def builtin_grouping(
     policy_identity: str,
     forbidden_string_predicates: Sequence[tuple[str, Callable[[str], bool]]] = (),
     describe: bool = False,
+    description_chars: int = DESCRIPTION_CHARS,
 ) -> AdmittedGrouping:
-    """Group failing records by the full typed values of declared features."""
+    """Group failing records by the full typed values of declared features.
+
+    ``description_chars`` bounds the optional built descriptions and the
+    result's admission, exactly as `admit_grouping_result` receives it
+    (ADR-0057: a family-15 run passes `FAMILY15_DESCRIPTION_CHARS`).
+    """
 
     if features is None:
         features = DEFAULT_FIELD_FEATURES
@@ -653,6 +709,7 @@ def builtin_grouping(
                     first_number=0,
                     reserved={},
                     screens=tuple(predicate for _, predicate in forbidden_string_predicates),
+                    description_chars=description_chars,
                 ).items()
             )
             if describe
@@ -660,6 +717,7 @@ def builtin_grouping(
         ),
         policy_identity=policy_identity,
         forbidden_string_predicates=forbidden_string_predicates,
+        description_chars=description_chars,
     )
 
 

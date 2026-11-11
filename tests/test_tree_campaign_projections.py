@@ -51,6 +51,37 @@ async def finished_rig(tmp_path: Path, **overrides: Any) -> Rig:
     return rig
 
 
+async def test_audit_accepts_withheld_declarations(tmp_path: Path) -> None:
+    from tests.campaign_drivers import audit_mismatches
+    from tests.campaign_fakes import EditorScript, FakeAdapter, ScriptedEditor
+
+    secret = "run-secret-387"
+    rig = Rig(
+        tmp_path,
+        campaign_policy=policy(rounds=1, attempts_per_round=1),
+        adapter=FakeAdapter(components={secret: {"sha256": "a" * 64, "sources": []}}),
+        # Baseline and attestation audit do not require a Candidate inspection (C5).
+        editor=ScriptedEditor({"r01-a01": EditorScript("declined")}),
+    )
+    result = await rig.run(secrets=(secret,))
+    assert result.terminal == "finished"
+    records = [
+        json.loads(line) for line in (rig.run_root / CAMPAIGN_FILE).read_bytes().splitlines()
+    ]
+    (declaration,) = [
+        json.loads(line)["payload"]
+        for line in (rig.run_root / "measurements" / "m-r00-champion" / "events.jsonl")
+        .read_bytes()
+        .splitlines()
+        if json.loads(line)["event"] == "components_declared"
+    ]
+    assert declaration["components"] == {} and declaration["components_withheld"] == 1
+    attested = [r["payload"] for r in records if r["event"] == "instance_attested"]
+    assert attested
+    assert {r["components_digest"] for r in attested} == {declaration["components_digest"]}
+    assert audit_mismatches(rig.run_root) == []
+
+
 # -- shapes ---------------------------------------------------------------
 
 

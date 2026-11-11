@@ -92,11 +92,13 @@ def _payload(section, role):
     [
         ("editor", "599a334d15e925c3eefa6768a57cb4cd628b2b7d8db1bc20bac3b4142c216aee"),
         ("reflector", "599a334d15e925c3eefa6768a57cb4cd628b2b7d8db1bc20bac3b4142c216aee"),
-        ("grouper", "926c57741fc0fb7d0fe2e560a1fc21260cfdf6fff785d1ca202af20f686460be"),
+        # Re-pinned after #394: the chat Grouper payload carries the v3 default
+        # prompt's prompt_sha256 (ADR-0057); the absent b17 keys still add nothing.
+        ("grouper", "7f7fc80a4d1bb5c4a9dc682f36329cb0d0cc4c7b907b0cf1efd4b5f195af10d1"),
     ],
 )
 def test_absent_b17_role_keys_keep_identity_bytes(tmp_path, role, digest):
-    # Captured before b17 production edits at 7f1eebcaa.
+    # Editor/Reflector captured before b17 production edits at 7f1eebcaa.
     payload = _payload(parse_role(tmp_path, role, manifest.SCHEMA_V16), role)
     assert hashlib.sha256(canonical_json(payload)).hexdigest() == digest
     assert not {"require_parameters", "nearest_paths"} & payload.keys()

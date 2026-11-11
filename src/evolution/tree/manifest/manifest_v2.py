@@ -1703,9 +1703,11 @@ def _parse_command_grouping(
     )
 
 
-def _parse_selection(value: object, path: str) -> SelectionSection:
+def _parse_selection(value: object, path: str, *, schema: str) -> SelectionSection:
     obj = _dict_or_raise(value, path)
-    _check_unknown(obj, _SELECTION_ALLOWED, path)
+    _check_unknown(
+        obj, _SELECTION_ALLOWED | ({"min_claim_cases"} if schema == SCHEMA_V16 else set()), path
+    )
     values = {
         "focus_cases": obj.get("focus_cases", 16),
         "representatives_per_case": obj.get("representatives_per_case", 2),
@@ -1717,7 +1719,13 @@ def _parse_selection(value: object, path: str) -> SelectionSection:
             raise ManifestError("bad_type", _path(path, name))
         if not 1 <= item <= limits[name]:
             raise ManifestError("bad_value", _path(path, name))
-    return SelectionSection(**values)
+    minimum = obj.get("min_claim_cases")
+    if "min_claim_cases" in obj:
+        if type(minimum) is not int:
+            raise ManifestError("bad_type", _path(path, "min_claim_cases"))
+        if minimum < 1:
+            raise ManifestError("bad_value", _path(path, "min_claim_cases"))
+    return SelectionSection(**values, min_claim_cases=minimum)
 
 
 def _parse_families(value: object, path: str) -> FamilySection:
@@ -1853,7 +1861,7 @@ def _parse_reflector(
         role=role,
         environment_docs=environment_docs,
         probe=probe,
-        selection=_parse_selection(obj["selection"], _path(prefix, "selection")),
+        selection=_parse_selection(obj["selection"], _path(prefix, "selection"), schema=schema),
         families=_parse_families(obj["families"], _path(prefix, "families")),
         max_consecutive_failures=max_consecutive_failures,
         group_text_chars=group_text_chars,
@@ -2043,6 +2051,8 @@ def conformance_manifest(document: Mapping[str, object], *, base: Path) -> Manif
     The workflow=None result supports run_conformance, ArtifactStore.create
     and HttpSessionAdapter through its parsed seed, policy and target.
     """
+    if not isinstance(document, Mapping):
+        raise ManifestError("bad_type", _ROOT)
     obj = dict(document)
     _validate_structure(obj, _CONFORMANCE_KEYS)
     target = _parse_target(obj["target"], "target", schema=SCHEMA_V15)

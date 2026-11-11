@@ -12,7 +12,11 @@ import pytest
 
 from evolution.eval.child_env import _RUNTIME_ENV_KEYS
 from evolution.llm.agent_backend import CURATED_ENV_NAMES
-from evolution.prompts import TREE_AGENT_EDITOR_SYSTEM, TREE_EDITOR_SYSTEM
+from evolution.prompts import (
+    TREE_AGENT_EDITOR_SYSTEM,
+    TREE_AGENT_EDITOR_SYSTEM_V2,
+    TREE_EDITOR_SYSTEM,
+)
 from evolution.tree.bindings import (
     BindingError,
     bound_child_environment,
@@ -1174,12 +1178,96 @@ def test_b17_chat_prompt_selection_keeps_declared_and_v15_bytes(tmp_path, family
     assert editor.prompt.text() == (
         "custom prompt\n"
         if declared
-        else getattr(prompts, "TREE_EDITOR_SYSTEM_V2" if family15 else "TREE_EDITOR_SYSTEM")
+        # b18: tree_editor_v3.md (ADR-0061)
+        else getattr(prompts, "TREE_EDITOR_SYSTEM_V3" if family15 else "TREE_EDITOR_SYSTEM")
     )
     assert reflector.prompt.text() == (
         "custom prompt\n"
         if declared
         else getattr(
-            prompts, "TREE_REFLECTOR_SYSTEM_V5" if family15 else "TREE_REFLECTOR_SYSTEM_V3"
+            prompts, "TREE_REFLECTOR_SYSTEM_V6" if family15 else "TREE_REFLECTOR_SYSTEM_V3"
         )
     )
+
+
+@pytest.mark.parametrize("family15", [False, True])
+@pytest.mark.parametrize("declared", [False, True])
+def test_agent_reflector_prompt_selection_by_family(tmp_path, family15, declared):
+    from evolution import prompts
+
+    prompt = tmp_path / "custom.md"
+    prompt.write_text("custom prompt\n")
+    role = agent_section(tmp_path, system_prompt=prompt if declared else None)
+    reflector = build_reflector(
+        ReflectorSection(role=role, environment_docs=None, probe=None),
+        seed_root=tmp_path / "seed",
+        run_dir=tmp_path / "run",
+        environ={},
+        family15=family15,
+        model_grouping_family=True,
+    )
+    expected = (
+        prompts.TREE_AGENT_REFLECTOR_SYSTEM_V4
+        if family15
+        else prompts.TREE_AGENT_REFLECTOR_SYSTEM_V3
+    )
+    assert reflector.prompt == seal_prompt(prompt if declared else None, packaged=expected)
+
+
+def _b18_chat_editor(tmp_path: Path, *, family15: bool, system_prompt: Path | None = None):
+    return build_editor(
+        chat_section(system_prompt=system_prompt),
+        seed_root=tmp_path / "seed",
+        run_dir=tmp_path / "run",
+        environ={"E1_KEY": "key"},
+        family15=family15,
+    )
+
+
+def test_v16_chat_editor_default_prompt_is_v3(tmp_path):
+    from evolution import prompts
+
+    editor = _b18_chat_editor(tmp_path, family15=True)
+    assert editor.prompt.text() == prompts.TREE_EDITOR_SYSTEM_V3
+    assert editor.prompt.text() != prompts.TREE_EDITOR_SYSTEM_V2
+
+
+def test_v15_chat_editor_default_prompt_unchanged(tmp_path):
+    editor = _b18_chat_editor(tmp_path, family15=False)
+    assert editor.prompt.text() == TREE_EDITOR_SYSTEM
+
+
+def test_declared_system_prompt_wins_in_v16(tmp_path):
+    prompt = tmp_path / "custom.md"
+    prompt.write_text("custom prompt\n")
+    editor = _b18_chat_editor(tmp_path, family15=True, system_prompt=prompt)
+    assert editor.prompt.text() == "custom prompt\n"
+
+
+def _b18_agent_editor(tmp_path: Path, *, family15: bool, system_prompt: Path | None = None):
+    kw: dict[str, Any] = {} if system_prompt is None else {"system_prompt": system_prompt}
+    return build_editor(
+        agent_section(tmp_path, **kw),
+        seed_root=tmp_path / "seed",
+        run_dir=tmp_path / "run",
+        environ={},
+        family15=family15,
+    )
+
+
+def test_v16_agent_editor_default_prompt_is_v2(tmp_path):
+    editor = _b18_agent_editor(tmp_path, family15=True)
+    assert editor.prompt.text() == TREE_AGENT_EDITOR_SYSTEM_V2
+    assert editor.prompt.text() != TREE_AGENT_EDITOR_SYSTEM
+
+
+def test_v15_agent_editor_default_prompt_unchanged(tmp_path):
+    editor = _b18_agent_editor(tmp_path, family15=False)
+    assert editor.prompt.text() == TREE_AGENT_EDITOR_SYSTEM
+
+
+def test_declared_system_prompt_wins_for_agent_editor_in_v16(tmp_path):
+    prompt = tmp_path / "custom.md"
+    prompt.write_text("custom prompt\n")
+    editor = _b18_agent_editor(tmp_path, family15=True, system_prompt=prompt)
+    assert editor.prompt.text() == "custom prompt\n"

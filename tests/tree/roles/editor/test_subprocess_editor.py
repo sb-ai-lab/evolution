@@ -20,15 +20,19 @@ zombie, which `os.kill(pid, 0)` still finds, so `_gone` reads `/proc` to tell
 from __future__ import annotations
 
 import asyncio
+import errno
 import json
 import os
+import signal
 import stat
 import sys
 import time
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 
+import evolution.tree.roles.editor.subprocess_editor as module
 from evolution.tree.campaign_editor import EditorOutcome, run_editor
 from evolution.tree.evolve import EvolveRefused
 from evolution.tree.execution.command_binding import CommandBinding
@@ -659,3 +663,597 @@ def test_the_subprocess_editor_gets_no_reader(tmp_path):
         )
     finally:
         trace.close()
+
+
+# -- stderr redaction and capture (#200) ----------------------------------------
+
+SECRET = "run-secret-value"
+ANSWERS = "import json\nprint(json.dumps({'status':'declined','note':'ok'}))\n"
+
+
+def _stderr_log(tmp_path: Path, attempt: str = "a1") -> bytes:
+    return (tmp_path / "run" / "editor-logs" / f"{attempt}.stderr").read_bytes()
+
+
+async def test_stderr_secret_is_redacted(tmp_path: Path) -> None:
+    editor, request = _bind(
+        tmp_path, "import os\nos.write(2, b'before run-secret-value end\\n')\n" + ANSWERS
+    )
+
+    result = await replace(editor, secrets=(SECRET,)).edit(request)
+
+    assert result.status == "declined"
+    assert _stderr_log(tmp_path) == b"before [REDACTED] end\n"
+
+
+async def test_stderr_secret_split_across_writes_is_redacted(tmp_path: Path) -> None:
+    editor, request = _bind(
+        tmp_path,
+        "import os,sys,time\n"
+        "os.write(2, b'before run-secr')\n"
+        "sys.stderr.flush()\n"
+        "time.sleep(0.2)\n"
+        "os.write(2, b'et-value end\\n')\n" + ANSWERS,
+    )
+
+    result = await replace(editor, secrets=(SECRET,)).edit(request)
+
+    assert result.status == "declined"
+    assert _stderr_log(tmp_path) == b"before [REDACTED] end\n"
+
+
+async def test_cancellation_does_not_flush_a_secret_prefix(tmp_path: Path) -> None:
+    marker = tmp_path / "pid"
+    editor, request = _bind(
+        tmp_path,
+        "import os,sys,time\n"
+        "os.write(2, b'before run-secr')\n"
+        "open(sys.argv[1],'w').write(str(os.getpid()))\n"
+        "time.sleep(60)\n",
+        args=(str(marker),),
+    )
+
+    task = asyncio.create_task(replace(editor, secrets=(SECRET,)).edit(request))
+    pid = await _await_marker(marker)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    await _assert_gone(pid)
+    assert _stderr_log(tmp_path) == b"before [REDACTED]"
+
+
+async def test_stderr_written_during_termination_is_redacted(tmp_path: Path) -> None:
+    """The copy runs after termination, so a program's last words are in the log."""
+
+    marker = tmp_path / "pid"
+    editor, request = _bind(
+        tmp_path,
+        "import os,signal,sys,time\n"
+        "def term(*_):\n"
+        "    os.write(2, b'term run-secret-value\\n')\n"
+        "    os._exit(0)\n"
+        "signal.signal(signal.SIGTERM, term)\n"
+        "open(sys.argv[1],'w').write(str(os.getpid()))\n"
+        "time.sleep(60)\n",
+        args=(str(marker),),
+    )
+
+    task = asyncio.create_task(replace(editor, secrets=(SECRET,)).edit(request))
+    pid = await _await_marker(marker)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    await _assert_gone(pid)
+    assert _stderr_log(tmp_path) == b"term [REDACTED]\n"
+
+
+async def test_stderr_is_redacted_when_the_exchange_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    marker = tmp_path / "pid"
+    editor, request = _bind(
+        tmp_path,
+        "import os,sys,time\n"
+        "os.write(2, b'before run-secret-value end\\n')\n"
+        "open(sys.argv[1],'w').write(str(os.getpid()))\n"
+        "time.sleep(60)\n",
+        args=(str(marker),),
+    )
+
+    async def failing(process: asyncio.subprocess.Process, document: bytes) -> tuple[bytes, bool]:
+        await _await_marker(marker)
+        raise RuntimeError("exchange failed")
+
+    monkeypatch.setattr(module, "_exchange", failing)
+
+    with pytest.raises(RuntimeError, match="exchange failed"):
+        await replace(editor, secrets=(SECRET,)).edit(request)
+
+    await _assert_gone(int(marker.read_text(encoding="utf-8")))
+    assert _stderr_log(tmp_path) == b"before [REDACTED] end\n"
+
+
+class _FullDiskSink:
+    def write(self, data: bytes) -> int:
+        raise OSError(errno.ENOSPC, "No space left on device")
+
+    def close(self) -> None:
+        pass
+
+
+async def test_log_write_failure_keeps_the_valid_result(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    editor, request = _bind(tmp_path, "import os\nos.write(2, b'x'*(1<<20))\n" + ANSWERS)
+    monkeypatch.setattr(module, "_open_private_log", lambda path: _FullDiskSink())
+
+    result = await replace(editor, secrets=(SECRET,)).edit(request)
+
+    assert result == EditResult("declined", "ok")
+
+
+def _refuse_temp_file(*args: object, **kwargs: object) -> object:
+    raise OSError(errno.EMFILE, "Too many open files")
+
+
+async def test_temp_file_failure_keeps_the_result_and_writes_the_fixed_line(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(module.tempfile, "TemporaryFile", _refuse_temp_file)
+    editor, request = _bind(tmp_path, "import os\nos.write(2, b'lost\\n')\n" + ANSWERS)
+
+    result = await editor.edit(request)
+
+    assert result == EditResult("declined", "ok")
+    assert _stderr_log(tmp_path) == module._STDERR_NOT_CAPTURED
+    assert b"Too many" not in _stderr_log(tmp_path)
+
+
+async def test_temp_file_failure_with_a_failing_log_keeps_the_result(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(module.tempfile, "TemporaryFile", _refuse_temp_file)
+    monkeypatch.setattr(module, "_open_private_log", lambda path: _FullDiskSink())
+    editor, request = _bind(tmp_path, ANSWERS)
+
+    result = await editor.edit(request)
+
+    assert result == EditResult("declined", "ok")
+
+
+async def test_temp_file_failure_of_another_kind_keeps_the_result_and_writes_the_fixed_line(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def refuse(*args: object, **kwargs: object) -> object:
+        raise RuntimeError("not an OSError")
+
+    monkeypatch.setattr(module.tempfile, "TemporaryFile", refuse)
+    editor, request = _bind(tmp_path, ANSWERS)
+
+    result = await editor.edit(request)
+
+    assert result == EditResult("declined", "ok")
+    assert _stderr_log(tmp_path) == module._STDERR_NOT_CAPTURED
+
+
+def _raising_redaction(monkeypatch: pytest.MonkeyPatch, kind: str) -> tuple[str, ...]:
+    """The secret set of a run whose redaction raises, when built or while feeding."""
+
+    if kind == "construction":
+        return ("\ud800token-value",)
+
+    def feed(self: object, chunk: bytes, *, final: bool = False) -> bytes:
+        raise MemoryError
+
+    monkeypatch.setattr(module._SecretStream, "feed", feed)
+    return (SECRET,)
+
+
+@pytest.mark.parametrize("kind", ["construction", "feed"])
+async def test_raising_redaction_keeps_the_valid_result(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, kind: str
+) -> None:
+    secrets = _raising_redaction(monkeypatch, kind)
+    log = _RecordingLog()
+    monkeypatch.setattr(module, "_open_private_log", lambda path: log)
+    editor, request = _bind(tmp_path, "import os\nos.write(2, b'raw\\n')\n" + ANSWERS)
+
+    result = await replace(editor, secrets=secrets).edit(request)
+
+    assert result == EditResult("declined", "ok")
+    assert log.data == b""
+    assert log.closed
+
+
+@pytest.mark.parametrize("kind", ["construction", "feed"])
+async def test_raising_redaction_keeps_the_cancellation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, kind: str
+) -> None:
+    secrets = _raising_redaction(monkeypatch, kind)
+    marker = tmp_path / "pid"
+    editor, request = _bind(
+        tmp_path,
+        "import os,sys,time\n"
+        "os.write(2, b'raw\\n')\n"
+        "open(sys.argv[1],'w').write(str(os.getpid()))\n"
+        "time.sleep(60)\n",
+        args=(str(marker),),
+    )
+
+    task = asyncio.create_task(replace(editor, secrets=secrets).edit(request))
+    pid = await _await_marker(marker)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    await _assert_gone(pid)
+    assert _stderr_log(tmp_path) == b""
+
+
+async def test_spawn_failure_closes_the_temp_file_and_the_log(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    created: list[object] = []
+    real = module.tempfile.TemporaryFile
+
+    def recording(*args: object, **kwargs: object) -> object:
+        created.append(real(*args, **kwargs))
+        return created[-1]
+
+    log = _RecordingLog()
+    monkeypatch.setattr(module.tempfile, "TemporaryFile", recording)
+    monkeypatch.setattr(module, "_open_private_log", lambda path: log)
+
+    async def refused(*args: object, **kwargs: object) -> None:
+        raise OSError(errno.EAGAIN, "Resource temporarily unavailable")
+
+    monkeypatch.setattr(module.asyncio, "create_subprocess_exec", refused)
+    editor, request = _bind(tmp_path, ANSWERS)
+
+    with pytest.raises(OSError, match="temporarily unavailable"):
+        await editor.edit(request)
+
+    assert log.closed
+    assert len(created) == 1 and created[0].closed
+
+
+async def test_empty_secret_set_logs_stderr_byte_for_byte(tmp_path: Path) -> None:
+    payload = bytes(range(256)) * 3  # not valid UTF-8
+    editor, request = _bind(tmp_path, f"import os\nos.write(2, bytes(range(256))*3)\n{ANSWERS}")
+
+    result = await replace(editor, secrets=()).edit(request)
+
+    assert result.status == "declined"
+    assert _stderr_log(tmp_path) == payload
+
+
+async def test_large_stderr_before_reading_stdin_does_not_deadlock(tmp_path: Path) -> None:
+    editor, request = _bind(
+        tmp_path,
+        "import json,os,sys\n"
+        "os.write(2, b'x'*(1<<20))\n"
+        "r=json.load(sys.stdin)\n"
+        "print(json.dumps({'status':'declined','note':r['version']}))\n",
+        brief=_large_brief(),
+    )
+
+    async with asyncio.timeout(20):
+        result = await replace(editor, secrets=(SECRET,)).edit(request)
+
+    assert result == EditResult("declined", REQUEST_VERSION)
+    assert _stderr_log(tmp_path) == b"x" * (1 << 20)
+
+
+def test_build_editor_passes_the_run_secrets_to_the_subprocess_editor(tmp_path: Path) -> None:
+    from evolution.tree.bindings import build_editor
+    from tests.test_tree_bindings import editor_section
+
+    seed = tmp_path / "seed"
+    seed.mkdir()
+
+    editor = build_editor(
+        editor_section(tmp_path),
+        seed_root=seed,
+        run_dir=tmp_path / "run",
+        environ={},
+        secrets=[SECRET],
+    )
+
+    assert isinstance(editor, SubprocessEditor)
+    assert editor.secrets == (SECRET,)
+
+
+async def test_secret_straddling_the_copy_read_boundary_is_redacted(tmp_path: Path) -> None:
+    before = module._DRAIN_CHUNK_BYTES - 5
+    editor, request = _bind(
+        tmp_path,
+        f"import os\nos.write(2, b'x'*{before} + b'run-secret-value end\\n')\n" + ANSWERS,
+    )
+
+    result = await replace(editor, secrets=(SECRET,)).edit(request)
+
+    assert result.status == "declined"
+    assert _stderr_log(tmp_path) == b"x" * before + b"[REDACTED] end\n"
+
+
+def test_secret_stream_accepts_a_surrogate_escaped_secret() -> None:
+    secret = b"tok\xffen".decode("utf-8", "surrogateescape")
+
+    stream = module._SecretStream((secret,))
+
+    assert stream.feed(b"a tok\xffen b\n", final=True) == b"a [REDACTED] b\n"
+
+
+# -- the capture itself -----------------------------------------------------------
+
+
+class _RecordingLog:
+    """A log that keeps what it is given and can fail one chosen call."""
+
+    def __init__(self, *, fail_write: int | None = None, fail_close: bool = False) -> None:
+        self.data = b""
+        self.writes = 0
+        self.fail_write = fail_write
+        self.fail_close = fail_close
+        self.closed = False
+
+    def write(self, data: bytes) -> int:
+        self.writes += 1
+        if self.writes == self.fail_write:
+            raise OSError(errno.ENOSPC, "No space left on device")
+        self.data += data
+        return len(data)
+
+    def close(self) -> None:
+        self.closed = True
+        if self.fail_close:
+            raise OSError(errno.EIO, "Input/output error")
+
+
+def _capture_with(log: _RecordingLog, data: bytes = b"") -> module._StderrCapture:
+    capture = module._StderrCapture(log, (SECRET,))
+    os.write(capture.child_stderr.fileno(), data)
+    return capture
+
+
+def _refuse_pread(*args: object) -> bytes:
+    raise OSError(errno.EIO, "Input/output error")
+
+
+@pytest.mark.parametrize(
+    ("fault", "written"),
+    [("read", b""), ("write", b""), ("final_write", b"a [REDACTED]")],
+)
+def test_capture_stops_at_a_copy_fault_and_closes_both_files(
+    monkeypatch: pytest.MonkeyPatch, fault: str, written: bytes
+) -> None:
+    log = _RecordingLog(fail_write={"write": 1, "final_write": 2}.get(fault))
+    capture = _capture_with(log, b"a run-secret-value b\n")
+    scratch = capture.child_stderr
+    if fault == "read":
+        monkeypatch.setattr(module.os, "pread", _refuse_pread)
+
+    capture.finish()
+
+    assert log.data == written
+    assert log.closed and scratch.closed
+
+
+class _Stop(BaseException):
+    pass
+
+
+def test_capture_lets_a_base_exception_through_after_closing_both_files(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def feed(self: object, chunk: bytes, *, final: bool = False) -> bytes:
+        raise _Stop
+
+    log = _RecordingLog()
+    capture = _capture_with(log, b"payload\n")
+    scratch = capture.child_stderr
+    monkeypatch.setattr(module._SecretStream, "feed", feed)
+
+    with pytest.raises(_Stop):
+        capture.finish()
+
+    assert log.closed and scratch.closed
+
+
+def test_capture_survives_a_failing_scratch_close(monkeypatch: pytest.MonkeyPatch) -> None:
+    log = _RecordingLog()
+    capture = _capture_with(log, b"payload\n")
+    scratch = capture.child_stderr
+    real_close = scratch.close
+
+    class Closing:
+        def fileno(self) -> int:
+            return scratch.fileno()
+
+        def close(self) -> None:
+            real_close()
+            raise OSError(errno.EIO, "Input/output error")
+
+    monkeypatch.setattr(capture, "_scratch", Closing())
+
+    capture.finish()
+
+    assert log.data == b"payload\n"
+    assert log.closed and scratch.closed
+
+
+def test_capture_survives_a_failing_log_close() -> None:
+    log = _RecordingLog(fail_close=True)
+    capture = _capture_with(log, b"payload\n")
+    scratch = capture.child_stderr
+
+    capture.finish()
+
+    assert log.data == b"payload\n"
+    assert log.closed and scratch.closed
+
+
+def test_capture_copies_only_the_size_taken_when_the_copy_starts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    log = _RecordingLog()
+    capture = _capture_with(log, b"before\n")
+    real_pread = os.pread
+
+    def flooded(fd: int, length: int, offset: int) -> bytes:
+        os.pwrite(fd, b"x" * 4096, os.fstat(fd).st_size)  # a holder that keeps writing
+        return real_pread(fd, length, offset)
+
+    monkeypatch.setattr(module.os, "pread", flooded)
+
+    capture.finish()
+
+    assert log.data == b"before\n"
+
+
+def test_capture_does_not_move_the_offset_the_child_shares() -> None:
+    log = _RecordingLog()
+    capture = _capture_with(log, b"written\n")
+    shared = os.dup(capture.child_stderr.fileno())  # the same open file description
+    os.lseek(shared, 3, os.SEEK_SET)  # where a surviving process would write next
+
+    try:
+        capture.finish()
+        assert os.lseek(shared, 0, os.SEEK_CUR) == 3
+    finally:
+        os.close(shared)
+
+    assert log.data == b"written\n"
+
+
+# -- a background process that outlives the program and holds its stderr ---------
+
+#: Generous for a loaded machine and still far below the holder's 30 s lifetime.
+HOLDER_BOUND = 20.0
+
+
+def stderr_holder(
+    answer: str,
+    *,
+    first: tuple[str, ...] = (),
+    then: tuple[str, ...] = ("time.sleep(30)",),
+) -> str:
+    """A program that answers and exits, leaving a child that holds only its stderr.
+
+    `first` runs in the child before the program may exit, `then` after. The
+    child's pid is in `argv[1]`, so the test can kill it whatever happens, and
+    its sleep is bounded, so it cannot outlive a test that never gets there.
+    """
+
+    child = (
+        "null=os.open(os.devnull,os.O_RDWR); os.dup2(null,0); os.dup2(null,1)",
+        *first,
+        "open(sys.argv[1],'w').write(str(os.getpid()))",
+        *then,
+        "os._exit(0)",
+    )
+    return (
+        "import os,sys,time\n"
+        "if os.fork()==0:\n    " + "\n    ".join(child) + "\n"
+        "while not os.path.exists(sys.argv[1]): time.sleep(0.01)\n" + answer
+    )
+
+
+def kill_holder(marker: Path) -> None:
+    try:
+        os.kill(int(marker.read_text(encoding="utf-8")), signal.SIGKILL)
+    except (OSError, ValueError):
+        pass
+
+
+#: A role that waited 5 s after the program's exit would miss this deadline.
+NEAR_DEADLINE = 8.0
+EXITS_BEFORE_DEADLINE = 2.5
+
+
+def exits_near_the_deadline(answer: str) -> str:
+    """`answer`, held until the monotonic time in `argv[2]`.
+
+    The test computes that time, so a slow interpreter start cannot eat the
+    margin. On Linux the monotonic clock is shared between processes.
+    """
+
+    return "time.sleep(max(0.0,float(sys.argv[2])-time.monotonic()))\n" + answer
+
+
+async def test_stderr_holder_adds_no_delay(tmp_path: Path) -> None:
+    marker = tmp_path / "holder"
+    editor, request = _bind(tmp_path, stderr_holder(ANSWERS), args=(str(marker),))
+
+    try:
+        started = time.monotonic()
+        result = await editor.edit(request)
+        elapsed = time.monotonic() - started
+        assert not _gone(int(marker.read_text(encoding="utf-8")))
+    finally:
+        kill_holder(marker)
+
+    assert result == EditResult("declined", "ok")
+    assert elapsed < HOLDER_BOUND
+
+
+async def test_stderr_holder_leaves_a_result_just_before_the_deadline_valid(
+    tmp_path: Path,
+) -> None:
+    marker = tmp_path / "holder"
+    exit_at = time.monotonic() + NEAR_DEADLINE - EXITS_BEFORE_DEADLINE
+    editor, request = _bind(
+        tmp_path,
+        stderr_holder(exits_near_the_deadline(ANSWERS)),
+        args=(str(marker), str(exit_at)),
+        deadline=NEAR_DEADLINE,
+    )
+
+    try:
+        outcome = await run_editor(editor, request, cancelled=lambda: False)
+        assert not _gone(int(marker.read_text(encoding="utf-8")))
+    finally:
+        kill_holder(marker)
+
+    assert (outcome.terminal, outcome.status, outcome.error_class) == (
+        "finished",
+        "declined",
+        None,
+    )
+
+
+SECRET_BEFORE_COPY = ("os.write(2,b'early run-secret-value \\nsplit run-secr')",)
+#: The test creates the `.go` file once the role has returned, so these bytes
+#: are written after the copy however slow the machine is; the wait is bounded
+#: so the holder cannot outlive a test that never gets there.
+SECRET_AFTER_COPY = (
+    "for _ in range(1500):",
+    "    if os.path.exists(sys.argv[1]+'.go'): break",
+    "    time.sleep(0.01)",
+    "os.write(2,b'et-value late run-secret-value\\n')",
+    "open(sys.argv[1]+'.done','w').write(str(os.getpid()))",
+)
+HOLDER_LOG = b"early [REDACTED] \nsplit [REDACTED]"
+
+
+async def test_stderr_written_by_a_holder_after_the_copy_is_not_in_the_log(
+    tmp_path: Path,
+) -> None:
+    marker = tmp_path / "holder"
+    editor, request = _bind(
+        tmp_path,
+        stderr_holder(ANSWERS, first=SECRET_BEFORE_COPY, then=SECRET_AFTER_COPY),
+        args=(str(marker),),
+    )
+
+    try:
+        result = await replace(editor, secrets=(SECRET,)).edit(request)
+        Path(f"{marker}.go").touch()
+        await _await_marker(Path(f"{marker}.done"))
+    finally:
+        kill_holder(marker)
+
+    assert result.status == "declined"
+    assert _stderr_log(tmp_path) == HOLDER_LOG

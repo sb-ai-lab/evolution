@@ -66,6 +66,18 @@ def _brief(version: str, history: dict[str, Any]) -> AdaptiveReflectBrief:
     )
 
 
+def test_family15_opening_states_minimum_outside_payload() -> None:
+    from dataclasses import replace
+
+    original = _brief("reflect_brief/6", _history())
+    brief = replace(original, min_claim_cases=2)
+    assert "Smallest claim that sets the focus: 2 case(s), counted across all hypotheses." in (
+        render_reflect_opening(brief, (), ("skills/**",))
+    )
+    assert reflect_brief_payload(brief) == reflect_brief_payload(original)
+    assert "Smallest claim" not in render_reflect_opening(original, (), ("skills/**",))
+
+
 def test_reflect_brief_4_is_unchanged() -> None:
     import hashlib
 

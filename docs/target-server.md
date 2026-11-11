@@ -4,7 +4,7 @@ Use the target server library, imported from `evolution.tree`, to connect your a
 
 For a step-by-step integration, read [Connecting an agent](connecting-an-agent.md). This page is the API reference: callback signatures, ownership, concurrency, events and a complete offline example.
 
-The library is implemented and shipped in the package. This reference was originally published before implementation under the name F0; the current sections include its later supported contract changes. Editorial updates do not change that contract.
+The current sections describe the supported target-server contract and its executable offline example.
 
 ## Import and names
 
@@ -22,7 +22,7 @@ from evolution.tree import (
 from evolution.tree import Message, TurnResult, Usage
 ```
 
-The library exports these eight names and reuses the rollout types `Message`, `TurnResult` and `Usage`. All eleven are also available from `evolution.tree`; the imports above show their defining modules.
+Import these eight library names and the rollout types `Message`, `TurnResult` and `Usage` from `evolution.tree`.
 
 The module imports nothing outside `evolution.tree` and the standard library directly: the transitive edge `evolution.tree.artifacts.artifact_copy` → `evolution.lineage.state_io` exists, so the library is not free of the rest of the package, only of any direct dependency on it.
 
@@ -63,7 +63,7 @@ class TargetServer:
 
 `target_id`, `contract_digest`, `settings_hash` and `runtime_ref_digest` are the four identity strings the server attests in its `/evolution/v2` identity body, and none has a default: a consumer declares its own identity, where the reference target keeps its own constants, and a manifest's optional `target.contract_digest` and `target.settings_hash` pins must equal the values passed here or preflight refuses the target with `pin_mismatch`.
 
-Evolution detects a change on the target's side only through these attested strings. If a switch of LLM provider or model should be visible to a campaign, derive `settings_hash` from the settings that name them (for example, a hash over the provider, the model and the sampling settings) and restart the server after the switch. A campaign resumed against the new value is refused `run_identity_changed` on `identity.target.settings_hash`, and on an unfinished `/8` campaign the operator can then continue in place, re-measure from the next round, or close ([Running campaigns](running-campaigns.md#change-the-provider-mid-campaign)). A value that changes while a campaign is running suspends it `target_changed`, and the same choice follows on resume. A provider switch that the server keeps out of these strings is invisible: the campaign continues as if nothing changed.
+Evolution detects a change on the target's side only through these attested strings. If a switch of LLM provider or model should be visible to a campaign, derive `settings_hash` from the settings that name them (for example, a hash over the provider, the model and the sampling settings) and restart the server after the switch. A campaign resumed against the new value is refused `run_identity_changed` on `identity.target.settings_hash`. On an unfinished current campaign, the operator can then continue in place, re-measure from the next round if one remains, or close ([Running campaigns](running-campaigns.md#change-the-provider-mid-campaign)). A value that changes while a campaign is running suspends it `target_changed`, and the same choice follows on resume. A provider switch that the server keeps out of these strings is invisible: the campaign continues as if nothing changed.
 
 `max_instances`, `max_concurrent_sessions`, `max_input_bytes`, `max_output_bytes` and `tombstones` are the server's own capacities, unchanged in meaning from `ReferenceTarget.__init__` today; `max_concurrent_sessions` is a declared capacity the server advertises and does not itself enforce — see Ownership and cleanup.
 
@@ -139,7 +139,7 @@ The backend reads Candidate material only from `LoadedTree.root`, never from the
 
 `describe()` is optional. An instance that implements it — `def describe(self) -> Mapping[str, Any] | None` — states how it assembled the agent from the loaded Candidate: a configuration hash, the source of its settings, its hermeticity mode, where it passed the seed. The server calls it once, right after `load` returns and its shape check passes, and journals the result once per instance in `instance_attested`. Return `None` when you have nothing to report: the instance is created as usual and its body has no `description`, as if the method were absent.
 
-Its object must be flat — identifier keys, scalar values — at most 32 keys and 4096 bytes of canonical JSON. The server validates shape and size and nothing else: **keeping secrets out of it is your obligation**, because the server holds neither the names nor the provenance of your launch secrets. A campaign refuses a description that holds the value of a secret it forwards, as `connection_description_secret` in the connection preflight or, for a later instance, `persistence_failed` / `record_matches_secret` ([when the connection preflight suspends](running-campaigns.md#when-the-connection-preflight-suspends)); report a hash instead of the value. It is never compared, never part of identity, and never shown to the editor or the Reflector.
+Its object must be flat — identifier keys, scalar values — at most 32 keys and 4096 bytes of canonical JSON. The server validates shape and size and nothing else: **keeping secrets out of it is your obligation**, because the server holds neither the names nor the provenance of your launch secrets. With the default enforced checks, a campaign refuses a description that holds the value of a secret it forwards, as `connection_description_secret` in the connection preflight or, for a later instance, `persistence_failed` / `record_matches_secret` ([when the connection preflight suspends](running-campaigns.md#when-the-connection-preflight-suspends)). Manifest `/16` can change this check to `shadow` or `off` ([check modes](manifest-v2.md#checks-manifest-16)). Report a hash instead of the value. The description is never compared, never part of identity, and never shown to the editor or the Reflector.
 
 Detection is structural, exactly like the `open`/`close` shape check: an instance is never required to implement `describe` to be a valid `BackendInstance`, and one that omits it is unchanged. A `describe()` that raises, or that returns anything other than `None` or a mapping the shape/size check accepts, fails the instance's creation the same way a raising `load` does — `500 internal`, no instance registered, the snapshot removed.
 
@@ -207,7 +207,11 @@ A session's `turn` returns a `BackendReply` wrapping a `TurnResult(events, usage
 
 Current campaigns, families 14 (`/15`) and 15 (`/16`), store each sample's sorted union of `used` and the digest of its instance's `components` map; the map itself is stored once per measurement. The union is `provenance` and the digest is `components_digest` in `rollout_finished`, under `measurements/<measurement_id>/events.jsonl`; the map is `components_declared` in that journal. A missing turn provenance, more than 1024 identifiers or more than 256 KiB of canonical JSON makes provenance unknown (the field is absent); overflow also sets `provenance_overflow: true`, without truncation. A sample ending before its first turn stores `[]`. Stored provenance, maps and their digests stay outside Editor and Reflector inputs. In family 15 the chat Grouper sees per-component counts from the stored unions; the Reflector and the editor get no field that carries the `used` unions, component maps, their digests or affected-case sets; component names may reach them through the Grouper's group texts. They select [affected cases](manifest-v2.md#affected-case-selection). Removed run families require `2.0.0b9` for historical reading; the wire contract itself is unchanged. See [what a Target should report and how to check it](connecting-an-agent.md#report-what-the-agent-used).
 
-The wire accepts any event with a non-blank string `type`; the scorer input records every event verbatim; the brief a Candidate editor sees shows only these, with only these keys:
+Keep run secrets out of `used`, component IDs and `sources` paths. If any entry in a sample's `used` union contains a run secret, Evolution omits the whole union and records `provenance_overflow: true`; that sample's provenance is unknown, so its case is affected. A component ID that contains a run secret is omitted from every published map, including the Candidate inspection. Each publishing record carries `components_withheld` only when the omitted count is positive. If either the baseline or Candidate map has withheld components, every case is affected, with fallback reason `components_withheld`. A withheld map entry alone does not make every sample's provenance unknown; a sample that names that ID in `used` is unknown because its union contains the secret.
+
+When anything is withheld, one warning per measurement or inspection goes to stderr and the process log, giving counts of samples and omitted components without their values. Matching includes a secret inside an identifier and a secret equal to a real component name; no placeholder is published. A secret inside a component's `sources` path remains a known limitation: the journal guard refuses it and the run ends `persistence_failed`.
+
+The wire accepts any event with a non-blank string `type`, and the scorer input records every event verbatim. Under `/15`, and with `/16`'s `evidence.view: allowlist`, the Editor's observation shows only these event types and keys:
 
 | `type` | keys shown | cut |
 |---|---|---|
@@ -217,21 +221,21 @@ The wire accepts any event with a non-blank string `type`; the scorer input reco
 | `skill_read` | `path` (str, a relative artifact path) | none |
 | `output_truncated` | none | none |
 
-Any other event type is accepted on the wire, recorded in the scorer input, and never shown to the editor.
+Other event types are omitted from that compact projection. Manifest `/16` defaults to `evidence.view: full`, which shows every event key within its configured limits, including tool arguments and results. Roles can also read complete baseline traces through the supported trace helpers, subject to the configured input screening. Keep private data out of Target events; see [evidence visibility](manifest-v2.md#evidence-manifest-16) for the view limits, trace access and input checks.
 
 ## What the client does with a refusal
 
-The server states `retryable` on every error body it writes (`{"error": {"code", "message", "retryable"}}`), and `true` for exactly three codes: `internal`, `not_ready` and `instances_exhausted`. Since I1 the Evolution client honours it.
+The server states `retryable` on every error body it writes (`{"error": {"code", "message", "retryable"}}`), and `true` for exactly three codes: `internal`, `not_ready` and `instances_exhausted`. The Evolution client honours it.
 
-Which class a failure falls in is decided by its **code**, never by the flag: `transport_error`, `callee_timeout`, `upstream_unavailable`, `internal`, `not_ready` and `instances_exhausted` are transient; the request-shape and response-shape codes are contract failures; `pin_mismatch`, `policy_mismatch`, `target_epoch_changed`, `limits_incompatible` and `identity_changed` are structural. Only a transient failure is retried, and `retryable: false` can withhold that retry — it can never turn a contract or structural failure into a retryable one. A backend that wants a refusal retried therefore states a transient code and leaves the flag alone; one that wants its transient refusal left alone sets `retryable: false`.
+Which class a failure falls in is decided by its **code**, never by the flag: `transport_error`, `callee_timeout`, `upstream_unavailable`, `internal`, `not_ready` and `instances_exhausted` are transient; the request-shape and response-shape codes are contract failures; `pin_mismatch`, `policy_mismatch`, `target_epoch_changed`, `limits_incompatible` and `identity_changed` are structural. Only a transient failure is retried, and `retryable: false` can withhold that retry — it can never turn a contract or structural failure into a retryable one. A custom HTTP Target may withhold a retry of a transient refusal by setting `retryable: false`. With `TargetServer`, callback exceptions become `internal` with `retryable: true`; callbacks cannot choose an error code or flag.
 
 The client's bounds are the operator's, in the manifest, not a target capability: `campaign.call_retries.max_attempts` (1–10, counting the first attempt) for every target call — creating an instance, opening a session, releasing, reading identity — with jittered back-off, and `turn_max_attempts` for the agent's turn alone. Calls within a rollout share its deadline; instance creation and release are outside that rollout. A `500` on a turn is resent **only** under `turn_max_attempts > 1`, which is the operator's declaration that a failed turn leaves their agent's session unchanged; the scaffold's value `1` means a failed turn is never resent, whatever the flag says. A resent call carries the same `request_id`, so a turn the server did record is replayed from that record rather than executed twice. A refusal that was not recorded may still have applied side effects in your backend, so the absence of a replay record alone does not make resending safe.
 
-When the attempts run out, the failure is the *sample's* — an indeterminate try owned by the target — and a campaign family `7` created suspends rather than closes when those tries cross the operator's `campaign.indeterminate` threshold. Nothing here asks anything new of a backend: an unchanged backend simply sees resent `request_id`s for the calls the operator declared retryable.
+When retries are exhausted, the try is indeterminate evidence owned by the target. Current campaigns suspend when those tries cross the operator's `campaign.indeterminate` threshold. The backend sees resent `request_id`s for calls the operator declared retryable.
 
 ## A complete offline backend
 
-This backend answers every turn from the first line of the loaded tree's `skills/SKILL.md`, with no model and no network call, reports in `provenance` that it used that file, and is exactly what `tests/tree/target/test_target_server.py::test_f0_example` extracts from this page and runs against the shipped library, so the example is checked against the code:
+This offline backend reads the first line of `skills/SKILL.md` from the loaded snapshot and reports that file in `provenance`. The executable test `tests/tree/target/test_target_server.py::test_f0_example_runs_verbatim_from_the_page` extracts this block and runs it against the shipped library:
 
 ```python
 from collections.abc import Mapping

@@ -406,7 +406,9 @@ async def test_third_transport_failure_kills_session_without_fourth_dispatch(
 async def test_http_response_resets_transport_failure_streak(tmp_path: Path) -> None:
     with ProbeHTTPServer() as server:
         events: list[dict[str, object]] = []
-        owner = session(tmp_path, config(server.base_url, budget=5), events)
+        owner = session(
+            tmp_path, config(server.base_url, budget=5, request_timeout_seconds=10.0), events
+        )
         assert (await owner.request({"method": "GET", "path": "/drop", "body": None}))[
             "error"
         ] == "transport"

@@ -1425,13 +1425,53 @@ class Family15Audit:
             expected == body, "comparison result differs from exact authenticated-row computation"
         )
 
+    def grouping_descriptions(self, record: Envelope) -> None:
+        """Authenticate the terminal binding directly from journal records."""
+        payload = record.payload
+        entries = []
+        numbers = set()
+        for prior in self.context.records:
+            if prior.to_payload()["sequence"] >= record.to_payload()["sequence"]:
+                break
+            body = prior.payload
+            if (
+                prior.event != "grouping_full_description"
+                or body["grouping_id"] != payload["grouping_id"]
+            ):
+                continue
+            number = body["group"]
+            _need(number not in numbers, "duplicate full description")
+            _need(
+                number in payload["result"]["assignments"],
+                "full description names no assigned group",
+            )
+            numbers.add(number)
+            entries.append(
+                {"group": number, "label": body["label"], "description": body["description"]}
+            )
+        entries.sort(key=lambda entry: entry["group"])
+        digest = hashlib.sha256(canonical_json(entries)).hexdigest() if entries else None
+        _need(
+            payload.get("full_descriptions_digest") == digest,
+            "full descriptions differ from terminal binding",
+        )
+
     def check(self, record: Envelope) -> None:
+        if record.event == "grouping_finished":
+            self.grouping_descriptions(record)
+            return
         if record.event == "check_shadowed":
             return  # Closed metadata; no numerical or external evidence.
         if record.event in ("grouping_portion_finished", "grouping_batch_finished"):
             # b16 §9: a Grouper decision, checkpointed for adoption. It cites
             # no evidence; the lifecycle proves it names the started grouping,
             # and the grouping's admitted result is `grouping_finished`'s.
+            return
+        if record.event == "grouping_full_description":
+            # b17 (ADR-0057): a copy of one model group's whole description,
+            # bound by the grouping's `grouping_finished` digest. It cites no
+            # evidence; the lifecycle proves it names the started grouping
+            # and that one group is recorded once.
             return
         if record.event == "auxiliary_payload_declared":
             self.declaration(record)
@@ -2015,5 +2055,7 @@ EVENTS = frozenset(
         "diagnostic_import_declared",
         "grouping_portion_finished",
         "grouping_batch_finished",
+        "grouping_full_description",
+        "grouping_finished",
     }
 )

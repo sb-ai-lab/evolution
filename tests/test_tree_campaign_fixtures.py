@@ -16,7 +16,8 @@ from __future__ import annotations
 import asyncio
 import json
 import shutil
-from collections.abc import Mapping
+import tempfile
+from collections.abc import Iterator, Mapping
 from dataclasses import replace
 from fractions import Fraction
 from pathlib import Path
@@ -88,11 +89,11 @@ pytestmark = pytest.mark.slow
 
 # -- shared readers -------------------------------------------------------
 
-#: Exactly the run-root entries §4 assigns to C1, S1 and S2, plus the two a
-#: Reflector round adds: `.reflections`, where C1 makes each read-only private
-#: copy of the Parent (spec §3.3) and removes it again, and `scorer-traces`,
-#: W1's own output root, which the fixtures' scorer now writes because the
-#: Reflector's evidence is read from it.
+#: Exactly the run-root entries §4 assigns to C1, S1 and S2, plus
+#: `scorer-traces`, W1's own output root, which the fixtures' scorer now writes
+#: because the Reflector's evidence is read from it. The Reflector's read-only
+#: private copy of the Parent (spec §3.3) lives in the temporary directory, not
+#: in the run root.
 CONTAINED = frozenset(
     {
         "campaign.jsonl",
@@ -101,7 +102,6 @@ CONTAINED = frozenset(
         ".artifacts.lock",
         "artifacts",
         "measurements",
-        ".reflections",
         "scorer-traces",
         # ADR-0029 and PDR-0030: /15 owns connection evidence and role logs.
         "connection",
@@ -111,15 +111,29 @@ CONTAINED = frozenset(
 )
 
 
+@pytest.fixture(autouse=True)
+def _scratch(tmp_path: Path) -> Iterator[Path]:
+    """A private temporary directory, so `assert_contained` can list it.
+
+    Its own `MonkeyPatch`, because several tests call `monkeypatch.undo()`
+    before their containment check.
+    """
+
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(tempfile, "tempdir", str(scratch))
+        yield scratch
+
+
 def assert_contained(run_root: Path) -> None:
     """§13 *Containment*: the run root holds only the §4 entries."""
 
     assert set(entry.name for entry in run_root.iterdir()) <= CONTAINED
-    reflections = run_root / ".reflections"
-    if reflections.is_dir():
-        # Every private projection is discarded as its reflection returns, so
-        # a quiescent run leaves none behind.
-        assert list(reflections.iterdir()) == []
+    # Every private projection is discarded as its reflection returns, so a
+    # quiescent run leaves none behind in the (patched) temporary directory.
+    assert tempfile.tempdir is not None
+    assert list(Path(tempfile.tempdir).glob("evo-tree-editor-*")) == []
     measurements = run_root / "measurements"
     if measurements.is_dir():
         for entry in measurements.iterdir():

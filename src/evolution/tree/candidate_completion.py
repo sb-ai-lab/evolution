@@ -88,9 +88,17 @@ def prepare_candidate_completion(
         if original.imported != len(old["schedule"]):
             raise ValueError("sealed gate is not fully admissible under its original identity")
         slots = {(s["case_id"], s["repeat"]): s for s in new["schedule"]}
+        # b18: a gate measured with `case_repeats` (`/16` focus repeats) has
+        # focus repeats past the completion's R; only those may stay behind.
+        horizon: dict[str, int] = {}
+        for s in new["schedule"]:
+            horizon[s["case_id"]] = max(horizon.get(s["case_id"], 0), int(s["repeat"]))
+        extended = "case_repeats" in old
         for slot in old["schedule"]:
             target = slots.get((slot["case_id"], slot["repeat"]))
-            if target is None:
+            if target is None and not (
+                extended and int(slot["repeat"]) > horizon.get(slot["case_id"], slot["repeat"])
+            ):
                 raise ValueError("completion omits a gate slot")
         # An authorized condition change may legitimately omit formerly valid
         # rows. Destination non-admission is owed work, not source corruption.

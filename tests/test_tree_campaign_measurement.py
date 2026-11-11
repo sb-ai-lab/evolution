@@ -2026,6 +2026,8 @@ async def test_run_interleaved_starts_rows_in_the_given_order(tmp_path: Path) ->
 
 MAP = {"catalog": {"sha256": "a" * 64, "sources": ["skills/a/SKILL.md"]}}
 OTHER = {"catalog": {"sha256": "b" * 64, "sources": ["skills/a/SKILL.md"]}}
+PUBLIC_MAP_DIGEST = "ee5fff08cd2527f4787a4926c69659a6e5be86c6a4557b87ac8811cb38fe8931"
+WITHHELD_MAP_DIGEST = "685c0eb70720870b2ea13424339917d6155837585db5d054855b36d2a9b40c4a"
 
 
 def s1_records(rig: Rig, measurement_id: str = MEASUREMENT_ID) -> list[dict[str, Any]]:
@@ -2152,6 +2154,253 @@ async def test_an_empty_map_is_declared_and_the_stage_completes(tmp_path: Path) 
         {"components_digest": components_digest({}), "components": {}}
     ]
     assert set(measurement._components_digest.values()) == {components_digest({})}
+
+
+async def test_declaration_publishes_screened_map_with_count(tmp_path: Path, capsys) -> None:
+    adapter = FakeAdapter(
+        components={**MAP, "run-secret": MAP["catalog"]},
+        used=lambda case_id, turn: ["run-secret", "catalog"],
+    )
+    rig = await build_rig(tmp_path, campaign_policy=v9_policy(), adapter=adapter, cases=corpus(1))
+    measurement = rig.measurement()
+    measurement.secrets = ("run-secret",)
+    measurement.create()
+    try:
+        outcome = await measurement.run_stage(rig.plans()[0], **rig.stage_kwargs())
+        (declaration,) = [
+            r["payload"] for r in s1_records(rig) if r["event"] == "components_declared"
+        ]
+        assert declaration == {
+            "components": MAP,
+            "components_withheld": 1,
+            "components_digest": WITHHELD_MAP_DIGEST,
+        }
+        assert set(outcome.attested_components_digest.values()) == {WITHHELD_MAP_DIGEST}
+        assert {r["components_digest"] for r in rollout_finished_payloads(rig)} == {
+            WITHHELD_MAP_DIGEST
+        }
+        assert b"run-secret" not in journal_bytes(rig)
+    finally:
+        measurement.close()
+    measurement.close()
+    assert capsys.readouterr().err == (
+        f"measurement {measurement.measurement_id}: provenance withheld for 3 sample(s) "
+        "and 1 component(s) left out of published maps because they contain a run secret\n"
+    )
+
+
+@pytest.mark.parametrize("first_withheld", [False, True])
+async def test_public_and_withheld_maps_never_share_a_declaration(
+    tmp_path: Path, monkeypatch, capsys, first_withheld: bool
+) -> None:
+    class PowerCut(BaseException):
+        pass
+
+    secret_map = {**MAP, "run-secret": MAP["catalog"]}
+    adapter = FakeAdapter(
+        max_concurrent_sessions=2,
+        components=[secret_map if first_withheld else MAP, MAP, secret_map],
+    )
+    rig = await build_rig(tmp_path, campaign_policy=v9_policy(max_concurrency=4), adapter=adapter)
+    measurement = rig.measurement()
+    measurement.secrets = ("run-secret",)
+    measurement.create()
+    original = Journal.append
+
+    def cut(self, event, payload, operation_id=None):
+        result = original(self, event, payload, operation_id)
+        if event == "components_declared":
+            raise PowerCut()
+        return result
+
+    try:
+        with monkeypatch.context() as patch:
+            patch.setattr(Journal, "append", cut)
+            with pytest.raises(PowerCut):
+                await measurement.materialize(adapter, rig.ref, STRATEGY, rig.policy)
+        declarations = [
+            r["payload"] for r in s1_records(rig) if r["event"] == "components_declared"
+        ]
+        assert declarations == [
+            {
+                "components": MAP,
+                "components_digest": WITHHELD_MAP_DIGEST if first_withheld else PUBLIC_MAP_DIGEST,
+                **({"components_withheld": 1} if first_withheld else {}),
+            }
+        ]
+        assert "rollout_started" not in s1_events(rig)
+        assert s1_events(rig).count("target_materialize_finished") == 1
+    finally:
+        measurement.close()
+    # A real power cut has no close-time warning; only the resumed warning
+    # below must account for declarations durable before the interruption.
+    capsys.readouterr()
+
+    resumed = rig.measurement()
+    resumed.secrets = ("run-secret",)
+    await resumed.resume(adapter)
+    try:
+        await resumed.materialize(adapter, rig.ref, STRATEGY, rig.policy)
+        declarations = [
+            r["payload"] for r in s1_records(rig) if r["event"] == "components_declared"
+        ]
+        assert len(declarations) == 2
+        assert {d["components_digest"]: d for d in declarations} == {
+            PUBLIC_MAP_DIGEST: {"components": MAP, "components_digest": PUBLIC_MAP_DIGEST},
+            WITHHELD_MAP_DIGEST: {
+                "components": MAP,
+                "components_digest": WITHHELD_MAP_DIGEST,
+                "components_withheld": 1,
+            },
+        }
+        public_instance, secret_instance = adapter.materialized[-2:]
+        assert dict(resumed.attested_components_digest) == {
+            public_instance: PUBLIC_MAP_DIGEST,
+            secret_instance: WITHHELD_MAP_DIGEST,
+        }
+        await resumed.run_stage(rig.plans()[0], **rig.stage_kwargs())
+        rows = rollout_finished_payloads(rig)
+        starts = {
+            (r["payload"]["case_id"], r["payload"]["sample_id"]): r["payload"]["instance_id"]
+            for r in s1_records(rig)
+            if r["event"] == "target_open_started"
+        }
+        assert {
+            row["components_digest"]
+            for row in rows
+            if starts[row["case_id"], row["sample_id"]] == secret_instance
+        } == {WITHHELD_MAP_DIGEST}
+        assert b"run-secret" not in journal_bytes(rig)
+    finally:
+        resumed.close()
+    assert "and 1 component(s)" in capsys.readouterr().err
+
+
+async def test_withheld_components_close_preserves_storage_failure(tmp_path: Path, capsys) -> None:
+    adapter = FakeAdapter(components={**MAP, "run-secret": MAP["catalog"]})
+    rig = await build_rig(tmp_path, campaign_policy=v9_policy(), adapter=adapter)
+    measurement = rig.measurement()
+    measurement.secrets = ("run-secret",)
+    measurement.create()
+    try:
+        await measurement.materialize(adapter, rig.ref, STRATEGY, rig.policy)
+        journal = measurement._require_journal()
+        journal.invalidate()
+        with pytest.raises(RuntimeError, match="original storage failure"):
+            try:
+                raise RuntimeError("original storage failure")
+            finally:
+                measurement.close()
+    finally:
+        measurement.close()
+    assert capsys.readouterr().err == (
+        f"measurement {measurement.measurement_id}: provenance withheld for 0 sample(s) "
+        "and 1 component(s) left out of published maps because they contain a run secret\n"
+    )
+
+
+@pytest.mark.parametrize("complete", [False, True])
+async def test_passive_resume_does_not_repeat_component_warning(
+    tmp_path: Path, capsys, complete: bool
+) -> None:
+    adapter = FakeAdapter(components={**MAP, "run-secret": MAP["catalog"]})
+    rig = await build_rig(tmp_path, campaign_policy=v9_policy(), adapter=adapter)
+    measurement = rig.measurement()
+    measurement.secrets = ("run-secret",)
+    measurement.create()
+    try:
+        await measurement.materialize(adapter, rig.ref, STRATEGY, rig.policy)
+        if complete:
+            await measurement.run_stage(rig.plans()[0], **rig.stage_kwargs())
+        else:
+            await measurement.release_all(adapter)
+    finally:
+        measurement.close()
+    assert "and 1 component(s)" in capsys.readouterr().err
+    before = journal_bytes(rig)
+    calls = tuple(adapter.materialized)
+
+    resumed = rig.measurement()
+    resumed.secrets = ("run-secret",)
+    try:
+        await resumed.resume(adapter)
+        assert resumed.complete() == complete
+        # A passive reopen must also remain safe to close after a storage fault.
+        resumed._require_journal().invalidate()
+    finally:
+        resumed.close()
+    resumed.close()
+    assert capsys.readouterr().err == ""
+    assert journal_bytes(rig) == before
+    assert tuple(adapter.materialized) == calls
+
+
+async def test_active_resume_counts_existing_withheld_declaration_once(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    class PowerCut(BaseException):
+        pass
+
+    adapter = FakeAdapter(components={**MAP, "run-secret": MAP["catalog"]})
+    rig = await build_rig(tmp_path, campaign_policy=v9_policy(), adapter=adapter)
+    measurement = rig.measurement()
+    measurement.secrets = ("run-secret",)
+    measurement.create()
+    original = Journal.append
+
+    def cut(self, event, payload, operation_id=None):
+        result = original(self, event, payload, operation_id)
+        if event == "components_declared":
+            raise PowerCut()
+        return result
+
+    try:
+        with monkeypatch.context() as patch:
+            patch.setattr(Journal, "append", cut)
+            with pytest.raises(PowerCut):
+                await measurement.materialize(adapter, rig.ref, STRATEGY, rig.policy)
+        declarations = [r for r in s1_records(rig) if r["event"] == "components_declared"]
+        assert len(declarations) == 1
+        assert declarations[0]["payload"]["components_withheld"] == 1
+        assert "rollout_started" not in s1_events(rig)
+    finally:
+        measurement.close()
+    capsys.readouterr()
+
+    resumed = rig.measurement()
+    resumed.secrets = ("run-secret",)
+    try:
+        await resumed.resume(adapter)
+        await resumed.materialize(adapter, rig.ref, STRATEGY, rig.policy)
+        await resumed.run_stage(rig.plans()[0], **rig.stage_kwargs())
+        assert [r for r in s1_records(rig) if r["event"] == "components_declared"] == declarations
+        assert {r["components_digest"] for r in rollout_finished_payloads(rig)} == {
+            WITHHELD_MAP_DIGEST
+        }
+    finally:
+        resumed.close()
+    resumed.close()
+    assert capsys.readouterr().err == (
+        f"measurement {measurement.measurement_id}: provenance withheld for 0 sample(s) "
+        "and 1 component(s) left out of published maps because they contain a run secret\n"
+    )
+
+
+async def test_unchanged_map_declares_today_bytes(tmp_path: Path) -> None:
+    rig = await build_rig(
+        tmp_path, campaign_policy=v9_policy(), adapter=FakeAdapter(components=MAP)
+    )
+    await run_first_stage(rig)
+    (raw,) = [line for line in journal_bytes(rig).splitlines() if b'"components_declared"' in line]
+    # Only the clock is normalized; this literal was captured before the C4 edit.
+    timestamp = json.loads(raw)["timestamp"].encode()
+    assert raw.replace(timestamp, b"CLOCK") + b"\n" == (
+        b'{"event":"components_declared","operation_id":null,"payload":{"components":{"catalog":'
+        b'{"sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",'
+        b'"sources":["skills/a/SKILL.md"]}},"components_digest":'
+        b'"ee5fff08cd2527f4787a4926c69659a6e5be86c6a4557b87ac8811cb38fe8931"},'
+        b'"run_id":"m-r00-champion","schema_version":1,"sequence":4,"timestamp":"CLOCK"}\n'
+    )
 
 
 # -- provenance and components_digest on rollout_finished (G2b1) --------------
@@ -2392,3 +2641,49 @@ async def test_a_token_set_before_dispatch_starts_no_restored_retry(tmp_path: Pa
         assert _tries(measurement, "01") == 1
     finally:
         measurement.close()
+
+
+async def screened_union_measurement(tmp_path: Path) -> tuple[Rig, Measurement]:
+    """A real sealed journal whose reported union contains a run secret."""
+    adapter = FakeAdapter(components=MAP, used=lambda case_id, turn: ["run-secret", "catalog"])
+    rig = await build_rig(tmp_path, campaign_policy=v9_policy(), adapter=adapter, cases=corpus(1))
+    measurement = rig.measurement()
+    measurement.secrets = ("run-secret",)
+    measurement.create()
+    try:
+        for plan in rig.plans():
+            await measurement.run_stage(plan, **rig.stage_kwargs())
+    finally:
+        measurement.close()
+    return rig, measurement
+
+
+async def test_overflow_row_reads_as_unknown_provenance(tmp_path: Path) -> None:
+    from evolution.tree.affected_cases import _affected, baseline_provenance
+
+    rig, measurement = await screened_union_measurement(tmp_path)
+    records = Measurement.open_frozen(rig.run_root, measurement.measurement_id).records()
+    baseline = baseline_provenance(records)
+    assert len(baseline["case-01"]) == 3
+    assert all(sample.used is None for sample in baseline["case-01"])
+    assert _affected(("case-01",), baseline, lambda entry: False) == (("case-01",), ("case-01",))
+    assert b"run-secret" not in journal_bytes(rig)
+
+
+async def test_withheld_samples_warn_once_when_measurement_closes(tmp_path: Path, capsys) -> None:
+    rig, measurement = await screened_union_measurement(tmp_path)
+    measurement.close()
+    assert capsys.readouterr().err == (
+        f"measurement {measurement.measurement_id}: provenance withheld for 3 sample(s) "
+        "and 0 component(s) left out of published maps because they contain a run secret\n"
+    )
+
+
+async def test_public_provenance_closes_without_warning(tmp_path: Path, capsys) -> None:
+    rig = await build_rig(
+        tmp_path,
+        campaign_policy=v9_policy(),
+        adapter=FakeAdapter(used=lambda case_id, turn: ["a.md"]),
+    )
+    await run_first_stage(rig)
+    assert capsys.readouterr().err == ""

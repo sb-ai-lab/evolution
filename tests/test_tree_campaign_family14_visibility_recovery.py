@@ -22,6 +22,7 @@ drivers stay untouched).
 
 from __future__ import annotations
 
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -234,6 +235,9 @@ async def test_an_interrupted_reflection_reruns_on_a_fresh_projection_under_the_
     under the same `D`, and only the second answer is journaled.
     """
 
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    monkeypatch.setattr(tempfile, "tempdir", str(scratch))
     _arrange(tmp_path, monkeypatch)
     script, listing = _reflector(tmp_path, "rewrite" if cut == "mid_run" else "none", mutations=1)
     projects = _spy_reflector_projects(monkeypatch)
@@ -256,8 +260,7 @@ async def test_an_interrupted_reflection_reruns_on_a_fresh_projection_under_the_
     (interrupted,) = _operation_records(run, "reflection_started")
     assert not payloads(run, "reflection_failed") and not payloads(run, "reflection_finished")
     assert len(_listings(listing)) == (1 if cut == "mid_run" else 0)
-    reflections = run / ".reflections"
-    assert not reflections.exists() or not any(reflections.iterdir())
+    assert list(scratch.glob("evo-tree-editor-*")) == []
 
     run, snapshot = await family14_run(tmp_path, monkeypatch, **options)
     assert snapshot.finished["outcome"] == "completed"
@@ -281,7 +284,7 @@ async def test_an_interrupted_reflection_reruns_on_a_fresh_projection_under_the_
     assert [call["expected_digest"] for call in projects] == expected
     # Every Reflector run saw a fresh, unmodified projection.
     assert _listings(listing) == [_visible_entries(READABLE)] * len(expected)
-    assert not reflections.exists() or not any(reflections.iterdir())
+    assert list(scratch.glob("evo-tree-editor-*")) == []
 
     plain, plain_snapshot = await _control(
         tmp_path,

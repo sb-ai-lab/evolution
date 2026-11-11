@@ -21,12 +21,13 @@ DIGEST = components_digest(MAP)
 OTHER = "f" * 64
 
 
-def _attempt(selection, *, inspected=MAP, epoch=1):
+def _attempt(selection, *, inspected=MAP, epoch=1, withheld=0):
     return SimpleNamespace(
         selection=selection,
         candidate_digest="cand",
         parent_digest="par",
         inspected_components=inspected,
+        inspected_withheld=withheld,
         inspected_epoch=epoch,
     )
 
@@ -58,6 +59,14 @@ def test_candidate_reference_is_the_inspected_map_in_its_epoch():
 def test_candidate_reference_is_none_unless_checked():
     assert candidate_reference(_attempt(_selection("path"))) is None
     assert candidate_reference(_attempt(None)) is None
+
+
+def test_drift_reference_uses_declaration_digest():
+    from evolution.tree.execution.journal_schema import declaration_digest
+
+    reference = candidate_reference(_attempt(_selection(), withheld=1))
+    assert reference == DriftReference("candidate", "cand", declaration_digest(MAP, 1), 1)
+    assert reference.digest != DIGEST
 
 
 def _baseline(digest):

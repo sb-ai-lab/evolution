@@ -230,6 +230,7 @@ from evolution.tree.campaign_identity import (
     admit_capabilities,
     build_identity,
     final_measurement_id_for,
+    focus_case_repeats,
     measurement_id_for,
     measurement_identity,
     observe_case_repeats,
@@ -520,14 +521,17 @@ from evolution.tree.roles.grouping.grouping_runtime import (
     AdaptiveCampaignRuntimeConfig,
     GroupingRuntime,
 )
-from evolution.tree.roles.grouping.reflect_grouping import Cohort as GroupingCohort
 from evolution.tree.roles.grouping.reflect_grouping import (
+    DESCRIPTION_CHARS,
+    FAMILY15_DESCRIPTION_CHARS,
+    GroupDescription,
     GroupingAdmissionError,
     GroupingResult,
     admit_grouping_result,
     cohorts_from_grouping,
     select_portion,
 )
+from evolution.tree.roles.grouping.reflect_grouping import Cohort as GroupingCohort
 from evolution.tree.roles.identities import EditorIdentity
 from evolution.tree.roles.reflection_reader import ReaderIntegrityError
 from evolution.tree.roles.reflector.reflect_brief import (
@@ -766,11 +770,6 @@ CAMPAIGN_HOOKS = frozenset(
         "after_connection_suspended",
     }
 )
-
-#: Where a round's read-only Reflector projections are made (spec §3.3): a
-#: private copy of the Parent per reflection, removed as soon as the call
-#: returns, kept under the run directory so nothing of a run leaves it.
-REFLECTIONS_DIR = ".reflections"
 
 # A deterministic preference order over the strategies an adapter may declare, so
 # the frozen `materialization_strategy` of the identity is a function of the
@@ -1668,6 +1667,62 @@ class _GroupingCheckpoints:
         campaign = self.campaign
         campaign.append(event, campaign.journal_value(body, campaign.secrets))
         campaign.hook(hook)
+
+
+def _full_descriptions_digest(entries: Mapping[int, Mapping[str, str]]) -> str:
+    """The one digest `grouping_finished` binds the full descriptions by
+    (ADR-0057): their group numbers and contents, in group-number order."""
+
+    return hashlib.sha256(
+        canonical_json(
+            [
+                {
+                    "description": entries[number]["description"],
+                    "group": number,
+                    "label": entries[number]["label"],
+                }
+                for number in sorted(entries)
+            ]
+        )
+    ).hexdigest()
+
+
+def _screened_full_descriptions(
+    full: Mapping[int, Mapping[str, str]],
+    *,
+    oracle_check: Callable[[str], bool],
+    secret_check: Callable[[Any], bool],
+    field_ids: tuple[str, ...],
+    secrets: Sequence[str],
+) -> dict[int, dict[str, str]]:
+    """The journaled form of the full descriptions (ADR-0057).
+
+    Each record passes the screening and the admission bound a descriptions
+    map entry passes: the run-secret redaction, the family-15 description
+    bound, the label bound and the oracle predicate -- an invalid
+    description removes that description, not the grouping. A run secret in
+    any of the texts is an integrity failure, as it is in the result.
+    ``full`` is empty for a fit that changed nothing.
+    """
+
+    from evolution.tree.execution.check_modes import quiet_forbidden
+
+    screened: dict[int, dict[str, str]] = {}
+    for number, entry in full.items():
+        redacted = redact_for_journal(dict(entry), secrets)
+        label, description = redacted["label"], redacted["description"]
+        if not isinstance(label, str) or not isinstance(description, str):
+            continue
+        if len(label) > 128 or len(description) > FAMILY15_DESCRIPTION_CHARS:
+            continue
+        if quiet_forbidden(oracle_check, label) or quiet_forbidden(oracle_check, description):
+            continue
+        screened[number] = {"label": label, "description": description}
+    if screened:
+        payload = {"descriptions": {str(number): entry for number, entry in screened.items()}}
+        if scan_grouping_value(secret_check, payload, field_ids):
+            raise GroupingExecutionError("secret_detected")
+    return screened
 
 
 def _resumable_grouping(grouping: Any) -> bool:
@@ -6288,7 +6343,12 @@ class _Campaign:
                 # b16 §11.1: the grouping's own policy digest and the Grouper
                 # kind recorded when it started, so a bound round keeps its
                 # group and cohort ids across a Grouper rebase.
-                return admit_grouping_result(
+                #
+                # A family-15 run admits by its own description bound
+                # (ADR-0057): a recorded b17 grouping can carry a whole
+                # description of up to `FAMILY15_DESCRIPTION_CHARS`, and a
+                # stored b16 one of at most 512 re-admits unchanged.
+                admitted = admit_grouping_result(
                     inputs.registry,
                     GroupingResult(
                         result["registry_digest"],
@@ -6299,7 +6359,17 @@ class _Campaign:
                     ),
                     policy_identity=str(grouping["policy_digest"]),
                     unavailable_unassigned=_unassigns_unavailable(grouping["grouper_kind"]),
+                    description_chars=(
+                        FAMILY15_DESCRIPTION_CHARS
+                        if self.family_version == 15
+                        else DESCRIPTION_CHARS
+                    ),
                 )
+                # ADR-0057: a group's admitted description is its
+                # full-description record when the grouping bound one, else
+                # its map entry, so the Reflector's brief carries the whole
+                # text whether or not the map held it.
+                return self._with_full_descriptions(grouping, admitted)
             except GroupingAdmissionError:
                 raise
             except ValueError as exc:
@@ -6310,6 +6380,89 @@ class _Campaign:
                 raise _grouping_evidence_fault(exc, measurement_id) from exc
         except (GroupingAdmissionError, ReaderIntegrityError, BaselineUnavailable) as exc:
             raise _grouping_evidence_fault(exc, measurement_id) from exc
+
+    def _write_full_descriptions(
+        self,
+        grouping_id: str,
+        full: Mapping[int, Mapping[str, str]],
+        oracle_check: Callable[[str], bool],
+        secret_check: Callable[[Any], bool],
+        field_ids: tuple[str, ...],
+    ) -> str | None:
+        """Journal one full-description record per overflow group (ADR-0057).
+
+        A `grouping_full_description` record carries the whole label and
+        description of one model group whose descriptions-map entry the fit
+        trimmed or dropped. The records are operationless, name the grouping,
+        and are bound by the digest this returns, which the terminal's
+        `grouping_finished` carries as `full_descriptions_digest`. A fit that
+        changed nothing writes none and binds nothing.
+        """
+
+        screened = _screened_full_descriptions(
+            full,
+            oracle_check=oracle_check,
+            secret_check=secret_check,
+            field_ids=field_ids,
+            secrets=self.secrets,
+        )
+        for number in sorted(screened):
+            self.append(
+                "grouping_full_description",
+                {
+                    "grouping_id": grouping_id,
+                    "group": number,
+                    "label": screened[number]["label"],
+                    "description": screened[number]["description"],
+                },
+            )
+        return _full_descriptions_digest(screened) if screened else None
+
+    def _with_full_descriptions(self, stored: Any, admitted: Any):
+        """Give a recorded family-15 grouping its whole descriptions back (ADR-0057).
+
+        A group's admitted description is its full-description record when the
+        grouping's `grouping_finished` bound one by `full_descriptions_digest`,
+        else its map entry; the assignments, group ids and cohort ids are
+        untouched, and the recorded result stays the trimmed map it was. A
+        grouping that wrote none admits from its map as before. Replay verifies
+        the terminal binding; a record without a terminal is ignored on resume.
+        """
+
+        if self.family_version != 15:
+            return admitted
+        digest = stored.get("full_descriptions_digest")
+        if not digest:
+            return admitted
+        family15 = self.snapshot().family15
+        assert family15 is not None
+        grouping = family15.groupings.get(str(stored["grouping_id"]))
+        if grouping is None or not grouping.descriptions:
+            raise GroupingAdmissionError("full_descriptions_unavailable")
+        entries = {
+            int(number): {
+                "label": record.envelope.payload["label"],
+                "description": record.envelope.payload["description"],
+            }
+            for number, record in grouping.descriptions.items()
+        }
+        if _full_descriptions_digest(entries) != digest:
+            raise GroupingAdmissionError("full_descriptions_mismatch")
+        descriptions = dict(admitted.result.descriptions)
+        neighborhoods = []
+        for neighborhood in admitted.neighborhoods:
+            entry = entries.get(neighborhood.group_number)
+            if entry is not None:
+                descriptions[neighborhood.group_number] = entry
+                neighborhood = replace(
+                    neighborhood, description=GroupDescription(entry["label"], entry["description"])
+                )
+            neighborhoods.append(neighborhood)
+        return replace(
+            admitted,
+            result=replace(admitted.result, descriptions=dict(descriptions)),
+            neighborhoods=tuple(neighborhoods),
+        )
 
     def _grouping_checks(
         self, witness: NeedleWitness, hits: HitSink | None = None
@@ -6684,6 +6837,10 @@ class _Campaign:
         # policy is `model` (spec §10).
         fallback: dict[str, Any] | None = None
         calls: dict[str, Any] | None = None
+        # Family 15 only (ADR-0057): the whole descriptions the descriptions
+        # map fit trimmed or dropped, keyed by the admitted group number; the
+        # terminal journals each as a full-description record.
+        full: Mapping[int, Mapping[str, str]] = {}
         # The `command` and `fields` scans below; `_model_grouping` takes the
         # same set for `chat` (family 14 narrows it per baseline, R51).
         needles = self._reflection_needles_for(inputs)
@@ -6705,6 +6862,7 @@ class _Campaign:
                     grouped = outcome.grouped
                     fallback = None if outcome.fallback is None else asdict(outcome.fallback)
                     calls = dict(outcome.calls)
+                    full = outcome.full_descriptions
                     reader.verify_admission(inputs.verify_admission)
                     reads = self._reader_reads(reader)
                 finally:
@@ -6750,6 +6908,7 @@ class _Campaign:
                     grouped = outcome.grouped
                     fallback = None if outcome.fallback is None else asdict(outcome.fallback)
                     calls = dict(outcome.calls)
+                    full = outcome.full_descriptions
                     # The model read the registry's lazy sources while it ran;
                     # the admission scan closes that interval before the result
                     # can become durable, as it does for a command policy.
@@ -6774,6 +6933,7 @@ class _Campaign:
                         cancelled=lambda: self.cancelled() or self.stopping,
                         forbidden=combine_checks(oracle_check, secret_check),
                         scorer_diagnostics=inputs.scorer_diagnostics,
+                        family15=self.family_version == 15,
                     )
                     reader.verify_admission(inputs.verify_admission)
                     reads = self._reader_reads(reader)
@@ -6849,6 +7009,7 @@ class _Campaign:
                 # (and checked for secrets) in the first link's
                 # `grouping_finished` and this grouping's `grouping_started`.
                 raise GrouperRoleFailure(str(fallback["reason"]), "content")
+            full_digest = None
             if self.family_version == 15:
                 result = self.journal_value(result, self.secrets)
                 admit_grouping_result(
@@ -6862,6 +7023,22 @@ class _Campaign:
                     ),
                     policy_identity=started["policy_digest"],
                     unavailable_unassigned=_unassigns_unavailable(started["grouper_kind"]),
+                    # The journaled form re-admits by the family-15 bound, the
+                    # one the projection admitted it by (ADR-0057).
+                    description_chars=FAMILY15_DESCRIPTION_CHARS,
+                )
+                # ADR-0057: a map entry the fit trimmed or dropped is not the
+                # end of that description. Its whole text becomes one
+                # full-description record per group, journaled before the
+                # terminal after the screening a map entry passes, and the
+                # terminal binds them by one digest. A fit that changed
+                # nothing writes none.
+                full_digest = self._write_full_descriptions(
+                    grouping_id,
+                    full,
+                    oracle_check,
+                    secret_check,
+                    tuple(row.evidence_id for row in inputs.registry.records),
                 )
             self.append(
                 "grouping_finished",
@@ -6872,6 +7049,7 @@ class _Campaign:
                     "result_digest": hashlib.sha256(canonical_json(result)).hexdigest(),
                     "reads": reads,
                     **({"fallback": fallback, "calls": calls}),
+                    **({"full_descriptions_digest": full_digest} if full_digest else {}),
                 },
                 operation,
                 **hits.terminal_fields(),
@@ -7230,7 +7408,7 @@ class _Campaign:
         )
         # #282 (R3, design C6): the round's limit, fixed when the round opened,
         # never `self.adaptive`'s current one, so a reflection retried after a
-        # mid-round rebase keeps its brief, tool schema and input digest.
+        # mid-round rebase keeps its brief and input digest.
         group_text_chars = snapshot.round_group_text_chars(round_number)
         adaptive_brief = build_adaptive_reflect_brief(
             champion_digest=snapshot.champion[1],
@@ -7242,6 +7420,9 @@ class _Campaign:
             inputs=inputs,
             cycle=int(stored_portion["cycle"]),
             focus_cases=self.adaptive.selection.focus_cases,
+            min_claim_cases=self.adaptive.identity.min_claim_cases
+            if self.family_version == 15
+            else None,
             compact_history=None
             if source is None
             else render_history(source, initial_layout(len(source.rounds))),
@@ -7439,7 +7620,6 @@ class _Campaign:
             # read-only tree.
             control_prefix = getattr(self.reflector, "control_prefix", None)
             with _file_boundary("reflection_workspace_unavailable"):
-                reflections_root = ensure_private_directory(self.run_root / REFLECTIONS_DIR)
                 try:
                     # Family 14: only `readable ∪ writable`, bound to `D`. A
                     # mismatch is `WorkspaceChanged`: the published Parent
@@ -7447,7 +7627,6 @@ class _Campaign:
                     projection = project(
                         parent.root,
                         control_prefix=control_prefix,
-                        tmp_root=reflections_root,
                         visible=None if view is None else view.visible,
                         expected_digest=role_digest,
                     )
@@ -7846,7 +8025,7 @@ class _Campaign:
         terminal carries no reason and decides nothing here.
         """
 
-        reason = reflection_reason(error_class, code)
+        reason = reflection_reason(error_class, code, family_version=self.family_version)
         self.append(
             "reflection_failed",
             dict(
@@ -7920,6 +8099,7 @@ class _Campaign:
             family_membership=membership,
             corpus_order=[case.case_id for case in self.corpus],
             evaluable_cases=evaluable,
+            min_claim_cases=self.adaptive.identity.min_claim_cases,
         )
         payload: dict[str, Any] = dict(
             round=round_number, source=scope.source, cases=list(scope.cases)
@@ -8026,7 +8206,9 @@ class _Campaign:
             parallel=policy.parallel_attempts,
             rounds=policy.rounds,
             cases=len(self.corpus),
-            repeats=policy.repeats,
+            # b18: focus repeats can exceed R on Attempt measurements; the
+            # floor stays a floor by using the larger count for every case.
+            repeats=max(policy.repeats, getattr(policy, "focus_repeats_per_question", None) or 0),
             fresh_parent=bool(policy.fresh_parent),
             refresh=bool(policy.baseline_refresh_after_rounds),
             stability=policy.stability or "unstable",
@@ -8681,8 +8863,21 @@ class _Campaign:
         case_subset = None
         layers = self.attempt_layers(snapshot, attempt)
         case_subset = subset_of(snapshot.identity["corpus_cases"], layers.candidate_cases)
+        scope = snapshot.rounds[attempt.round].gate_scope
+        assert attempt.selection is not None and scope is not None
+        # b18: the lifecycle derives the same `case_repeats` from this policy.
+        case_repeats = focus_case_repeats(
+            self.policy,
+            confidence_scopes(attempt.selection, snapshot.identity["corpus_cases"], scope["cases"])[
+                0
+            ],
+        )
         measurement = self.derive(
-            measurement_id, attempt.candidate_digest, "candidate", case_subset=case_subset
+            measurement_id,
+            attempt.candidate_digest,
+            "candidate",
+            case_subset=case_subset,
+            case_repeats=case_repeats,
         )
         self.append(
             "measurement_bound",
@@ -8722,7 +8917,9 @@ class _Campaign:
         )
         case_subset = sorted(focus + causal)
         case_repeats = (
-            None if self.family_version == 15 else observe_case_repeats(self.policy, causal)
+            focus_case_repeats(self.policy, focus)
+            if self.family_version == 15
+            else observe_case_repeats(self.policy, causal)
         )
         measurement_id = parent_measurement_id_for(attempt_id)
         measurement = self.derive(
@@ -10438,6 +10635,7 @@ class _Campaign:
             self.same_run_records,
         )
         candidate_map = attempt.inspected_components
+        candidate_withheld = attempt.inspected_withheld
         failed = False
         if kind == "reported" and attempt.inspections == 0:
             mode, _digest, fallback = parent_mode(baseline, known)
@@ -10452,7 +10650,7 @@ class _Campaign:
                     # fault names none (`capacity_exhausted` refuses an
                     # unbound `measurement_id`).
                     with _boundary("measurement_journal"):
-                        candidate_map = await inspect_candidate(
+                        candidate_map, candidate_withheld = await inspect_candidate(
                             run_root=self.run_root,
                             campaign_run_id=self.run_id,
                             attempt_id=attempt_id,
@@ -10480,6 +10678,11 @@ class _Campaign:
                             attempt=attempt_id,
                             inspection=inspection,
                             components=candidate_map,
+                            **(
+                                {"components_withheld": candidate_withheld}
+                                if candidate_withheld
+                                else {}
+                            ),
                         ),
                     )
                     self.hook("after_candidate_inspected")
@@ -10491,6 +10694,7 @@ class _Campaign:
             changes=changes,
             labels=self.adaptation_in_force().provenance_labels,
             candidate_map=candidate_map,
+            candidate_withheld=candidate_withheld,
             inspection_failed=failed,
         )
         self.append(

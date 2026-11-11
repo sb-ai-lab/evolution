@@ -4,7 +4,7 @@ This is the detailed configuration reference. For your first run, use the [Quick
 
 A campaign manifest declares the Target Service to evolve against, the seed tree, the artifact policy, campaign policy, Environment, scorer, Grouper, editor, Reflector, role visibility and corpus. The scaffold emits `evolution-v2-manifest/15` with the recommended values of the stable family. `evo tree evolve --manifest PATH --run-dir DIR` takes this document and a run directory and nothing else.
 
-The document is strict JSON. A `/15` or `/16` document has twelve required top-level keys and optional `linked_from` and `verbatim_answers`. Unknown keys, missing keys and wrong types are refused at every level, with a closed code and the dotted path of the key at fault. The manifest path is resolved first: relative paths for the seed, programs, documentation, corpus and predecessor use the directory of the real file, never the directory of a symbolic link to it.
+The document is strict JSON. A `/15` or `/16` document has twelve required top-level keys and optional `linked_from` and `verbatim_answers`. `/16` also accepts [`secret_oracle_paths`](#secretoraclepaths), [`evidence`](#evidence-manifest-16) and [`checks`](#checks-manifest-16). Unknown keys, missing keys and wrong types are refused at every level, with a closed code and the dotted path of the key at fault. The manifest path is resolved first: relative paths for the seed, programs, documentation, corpus and predecessor use the directory of the real file, never the directory of a symbolic link to it.
 
 File loading accepts only `/15` and `/16`, including through `load_manifest_v2`, `admit_manifest`, `evo tree evolve`, `evo tree conformance`, `evo tree trace --manifest` and `evo-target serve`. Every other campaign schema is refused with `manifest_schema` and `expected evolution-v2-manifest/15 or /16`.
 
@@ -431,12 +431,15 @@ Before it measures a Candidate, the campaign chooses the affected train cases fr
 
 In component mode (`reported` provenance where the Target declares components), it inspects the Candidate once with a fresh instance, so it can compare the two trees' component maps.
 
+In `/15` and `/16`, Evolution omits a component whose ID contains a run secret from every published map and records `components_withheld` only when the omitted count is positive. Withheld components in either the baseline or Candidate map make every case affected. This preserves the added-or-removed-component rule even when the omitted component uses a path another component already covers. A sample's provenance becomes unknown only if its `used` union itself contains a run secret (or meets another unknown-provenance condition); omitting a map entry does not make all sample unions unknown. Keep secrets out of IDs and `sources` paths; a secret in a `sources` path still causes `persistence_failed`. See [stored provenance](target-server.md#replies-and-events).
+
 It journals the choice in `affected_cases_selected`, and the status and result documents show it as the Attempt's `affected` block ([report fields](cli.md#affected-case-reports-family-12)).
 
 A fallback measures every case instead of a chosen set. The `fallback_reason` is one of these:
 
 - `changes_unrecorded`: more parts changed than one record can hold (more than 4096 entries or 256 KiB). The campaign records only their count and measures every case. This reason takes precedence over `none` and over every other reason.
 - `components_unstable`, `components_unavailable` and `inspection_failed`: the campaign cannot tell which parts changed or which cases use them.
+- `components_withheld`: the baseline or Candidate map has a positive `components_withheld` count because component IDs containing run secrets were omitted.
 - `component_added_or_removed`: a component was added or removed, so no baseline row can show who would use it.
 - `unaccounted_path`: a path the editor changed is accounted for by no component and no baseline sample. A changed file is accounted for when some component's `sources` lists it, or when some baseline sample used it directly.
 - `file_added_or_removed`: in path mode, no baseline row can show who would use a new file.
@@ -592,6 +595,14 @@ A passing focus decision opens stage 2 on all causal cases at all R repeats, wit
 Each scope uses its existing threshold and comparison method. Under `statistical`, each stage has its own reproducible bootstrap seed; there are no interim looks over repeats. A fresh Parent's `measured_noise` allowance is computed after its causal rows exist. Seeded quantities can differ from a `single` document because the policy and binding digests differ. With numeric causal tolerance, the point, confidence and unfiltered numbers and Attempt outcomes match `single` over the same rows. The reason can differ when focus rejects before a causal critical failure or unavailable estimate would have been seen.
 
 Adding, removing or changing `stages` on an unfinished run is an ordinary [policy change](running-campaigns.md#accept-a-reported-input-change): authorize `rebaseline` or `close`. An authorized condition change after a passing focus decision carries that decision; it never recomputes it.
+
+#### Focus repeats
+
+Set `campaign.evaluation.focus_repeats_per_question` to measure the focus cases of each Attempt more often than the rest, for example `{"repeats_per_question": 1, "focus_repeats_per_question": 3}`. This optional `/16` key is an integer greater than `repeats_per_question`, with no upper bound. It is admitted only with `gate.mode: point` and `gate.fresh_parent: true`; any other combination is refused `bad_value at campaign.evaluation.focus_repeats_per_question` before a run directory is written. `/15` refuses the key.
+
+The Candidate and its fresh Parent measure every focus case at repeats 1 to R_focus and every causal case at R. The point gate compares per-case means, so each focus case weighs the same as before and its mean comes from R_focus samples on both sides. The baseline, the full-train completion and `fresh` verification, the Champion and baseline refreshes keep R. Under `verification: reuse` the completion imports the gate's rows up to R; the further focus repeats stay in the gate evidence only. With `stages: focus_first` stage 1 measures the focus cases at R_focus.
+
+A focus case costs R_focus rollouts per side instead of R. Cost reports and the inode floor count them. Absent, the policy keeps its digest and every measurement its identity. Adding, removing or changing the key on an unfinished run is an ordinary [policy change](running-campaigns.md#handle-a-refusal). `2.0.0b17` and earlier refuse a manifest with the key.
 
 #### Repeat-bootstrap acceptance
 
@@ -920,11 +931,11 @@ Unchanged: `argv`, `cwd`, `dependency_paths` and `allowed_env`, all four require
 
 ### `editor.kind: chat`
 
-An OpenAI-compatible tool-loop editor. Required: `model` (a non-blank string, passed verbatim as the chat-completions `model`), `base_url` (HTTPS or HTTP, with no userinfo, query or fragment, else `bad_value at editor.base_url`; plain HTTP to a host other than `127.0.0.1`, `localhost` or `::1` is allowed, and `evo tree evolve` prints a warning for it, as [Choose how failures are grouped](running-campaigns.md#choose-how-failures-are-grouped) shows for every chat role). `api_key_env` is optional: when declared it is an environment-variable name (a non-string is `bad_type at editor.api_key_env`; blank or containing `=` is `bad_value at editor.api_key_env`) whose value the Editor sends as its Bearer token. Omit it, or declare it `null`, for an endpoint that needs no credential ([endpoints without credentials](#endpoints-without-credentials)). Every provider attempt is recorded in the role's private log ([provider attempts](#provider-attempts)).
+An OpenAI-compatible tool-loop editor. Both schemas require `retry`, `context_compact_chars` and `context_message_max_chars` ([compaction settings](#compaction-keys-in-15)), plus `model` (a non-blank string, passed verbatim as the chat-completions `model`) and `base_url` (HTTPS or HTTP, with no userinfo, query or fragment, else `bad_value at editor.base_url`; plain HTTP to a host other than `127.0.0.1`, `localhost` or `::1` is allowed, and `evo tree evolve` prints a warning for it, as [Choose how failures are grouped](running-campaigns.md#choose-how-failures-are-grouped) shows for every chat role). `api_key_env` is optional: when declared it is an environment-variable name (a non-string is `bad_type at editor.api_key_env`; blank or containing `=` is `bad_value at editor.api_key_env`) whose value the Editor sends as its Bearer token. Omit it, or declare it `null`, for an endpoint that needs no credential ([endpoints without credentials](#endpoints-without-credentials)). Every provider attempt is recorded in the role's private log ([provider attempts](#provider-attempts)).
 
 | Key | Type and rule | Default |
 |---|---|---|
-| `system_prompt` | path or `null`; must exist, be a regular file and lie outside `seed_root` (`program_inside_seed at editor.system_prompt`) | `null` — `prompts/tree_editor.md` in `/15`, `prompts/tree_editor_v2.md` in `/16` |
+| `system_prompt` | path or `null`; must exist, be a regular file and lie outside `seed_root` (`program_inside_seed at editor.system_prompt`) | `null` — `prompts/tree_editor.md` in `/15`, `prompts/tree_editor_v3.md` in `/16` |
 | `proxy_env` | environment-variable name or `null`; its value is the proxy URL, validated at bind (`editor_invalid at editor.proxy_env`) | `null` |
 | `reasoning_effort` | one of `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`, or `null` | `null` |
 | `provider_only` | non-empty list of non-empty strings, or `null` | `null` |
@@ -933,11 +944,12 @@ An OpenAI-compatible tool-loop editor. Required: `model` (a non-blank string, pa
 | `require_parameters` | `/16` only: boolean; requires `provider_only` or `provider_order`; `false` accepts parameters that the provider silently ignores | `true` |
 | `nearest_paths` | `/16` only: non-negative integer; maximum listed-path suggestions for a missing file; `0` disables suggestions | `5` |
 | `quantizations` | non-empty list of non-empty strings, or `null`; non-null requires `provider_only` or `/16` `provider_order`, else `bad_value at editor.quantizations` | `null` |
-| `max_output_tokens` | positive integer | `8192` |
+| `max_output_tokens` | positive integer; reasoning models can spend the whole default on reasoning, so raise it for them. A provider with a lower cap can refuse a larger value | `8192` |
 | `verify_ssl_certs` | boolean | `true` |
 | `max_turns` | positive integer; a live cap the tool loop enforces one call at a time, failing the attempt as `turns_exhausted` on the call after the limit | `64` |
-| `context_compact_chars` | positive integer; the size, in characters of the JSON-rendered conversation, above which the tool loop folds everything between the opening and the last few messages into one summary, aiming at half this size | `128000` |
-| `context_message_max_chars` | positive integer, at most half of `context_compact_chars` (else `bad_value at editor.context_message_max_chars`); the truncation limit for older retained results and other non-assistant tail messages after a fold. Retained assistant messages and the latest complete tool exchange stay whole, even above the target. Below the fold nothing is truncated | `12000` |
+| `retry` | required `role_call_retry/1` object ([retry contract](#the-chat-grouper-in-portions-16)) | Required; no default |
+| `context_compact_chars` | positive integer; the size, in characters of the JSON-rendered conversation, above which the tool loop folds everything between the opening and the last few messages into one summary, aiming at half this size | Required; no default |
+| `context_message_max_chars` | positive integer, at most half of `context_compact_chars` (else `bad_value at editor.context_message_max_chars`); the truncation limit for older retained results and other non-assistant tail messages after a fold. Retained assistant messages and the latest complete tool exchange stay whole, even above the target. Below the fold nothing is truncated | Required; no default |
 | `max_changed_files` | positive integer or `null` | `null` |
 | `max_written_bytes` | positive integer | `16777216` |
 | `max_payload_bytes` | positive integer | `1048576` |
@@ -987,7 +999,15 @@ When `max_changed_files` is set, the Editor's opening states it, and the tool lo
   "model": "gpt-5.5",
   "base_url": "https://api.example.com/v1",
   "api_key_env": "OPENAI_API_KEY",
-  "max_turns": 32
+  "max_turns": 32,
+  "retry": {
+    "version": "role_call_retry/1",
+    "max_attempts": 4,
+    "total_budget_seconds": 120,
+    "backoff": {"initial_seconds": 1, "multiplier": 2, "max_seconds": 20, "jitter": "full"}
+  },
+  "context_compact_chars": 800000,
+  "context_message_max_chars": 64000
 }
 ```
 
@@ -995,7 +1015,7 @@ When `max_changed_files` is set, the Editor's opening states it, and the tool lo
 
 In `/16`, `record_plan` derives `create` or `update` from the current file system. A mutation of a writable file outside the plan adds it with the derived verb, within `max_changed_files`; an addition over the limit gets the existing budget tool error. A later mutation can also normalize a planned `create` to `update` or the reverse. A mismatch involving `delete` is left for the finish check. Each normalization is logged privately as `plan_normalized`, with the path, declared verb (`null` for an added path) and recorded verb.
 
-The latest accepted plan replaces earlier plans. Files already changed under an earlier plan are added back to it, so withdrawing a path never hides a change. A planned file left unchanged is still a mismatch: record a new plan without it. Unsafe or unwritable paths, repeated paths, a planned delete of a missing file, mutation or finish before a plan, and finish-time mismatches return corrections in the same conversation. Each costs a model turn and spends neither the two protocol repairs nor the consecutive-tool-failure counter. `max_turns` and the Editor timeout bound a model that never complies. Malformed calls still spend `MAX_PROTOCOL_REPAIRS = 2`.
+The latest accepted plan replaces earlier plans. Files already changed under an earlier plan are added back to it, so withdrawing a path never hides a change. A planned file left unchanged is still a mismatch: record a new plan without it. Unsafe or unwritable paths, repeated paths, a planned delete of a missing file, mutation or finish before a plan, and finish-time mismatches return corrections in the same conversation. Each costs a model turn and spends neither the protocol repair budget nor the consecutive-tool-failure counter. `max_turns` and the Editor timeout bound a model that never complies. Malformed calls still spend `editor.max_protocol_repairs`, whose default is `2` ([role-loop limits](#role-loop-limits-manifest-16)).
 
 The private Editor log uses closed categories: `no_tool_call`, `unknown_tool`, `invalid_arguments`, `plan_path_not_writable`, `plan_path_unsafe`, `plan_repeated_path`, `plan_delete_missing`, `mutation_before_plan`, `finish_before_plan` and `plan_mismatch`. Repairs use `protocol_repair_requested`; plan corrections use `plan_correction_requested`. The journal's `editor_failed` gains no error text. `watch` shows the last category and `editor-logs/<attempt_id>.jsonl`, or just that path when no valid category can be read.
 
@@ -1023,7 +1043,7 @@ Every provider attempt of a chat Editor, Reflector or Grouper writes a `phase: p
 
 #### Compaction keys in `/15`
 
-In `/15` a `chat` Editor and a `chat` Reflector must declare both compaction keys; there is no default, and a missing key is refused `missing_key` with a sentence that names the recommended value. Every example writes `context_compact_chars: 800000` and `context_message_max_chars: 64000`:
+In `/15` and `/16`, a `chat` Editor and a `chat` Reflector must declare both compaction keys; there is no default, and a missing key is refused `missing_key` with a sentence that names the recommended value. Every example writes `context_compact_chars: 800000` and `context_message_max_chars: 64000`:
 
 ```json
 {
@@ -1056,7 +1076,7 @@ A coding-agent CLI editor. Required: `model`, a string for which `evolution.llm.
 | `permission` | `safe` or `unsafe` | `safe` |
 | `agent_bin` | path or `null`; when declared it must exist, be a regular file, be executable and lie outside `seed_root` (`program_inside_seed at editor.agent_bin`); when `null` the CLI is resolved once at bind against the bound `PATH`, and a CLI that resolves nowhere is `editor_program_missing at editor.agent_bin`. Either way the resolved executable is sealed and passed to the backend directly; the backend's own `<TOOL>_BIN` and `.bashrc` resolution are not consulted | `null` — resolved from `PATH` at bind |
 | `allowed_env` | list of environment-variable names; in `safe` mode forwarded to the CLI on top of the backend's curated allowlist for that CLI, in `unsafe` mode the whole operator environment is forwarded regardless | `[]` |
-| `system_prompt` | as for `chat` | `null` — the packaged `prompts/tree_agent_editor.md` |
+| `system_prompt` | as for `chat` | `null` — the packaged `prompts/tree_agent_editor.md` in `/15`, `prompts/tree_agent_editor_v2.md` in `/16` |
 | `reasoning_effort` | as for `chat` | `null` |
 | `max_turns` | positive integer or `null`; a post-run acceptance limit checked after the CLI returns (see below), refused at load as `bad_value at editor.max_turns` when the selected CLI reports no turn telemetry | `null` — the deadline alone governs |
 | `max_changed_files`, `max_written_bytes`, `max_payload_bytes` | as for `chat` | as for `chat` |
@@ -1110,9 +1130,13 @@ The editor's log directory is not a manifest field either: it is always `<run_di
 
 A `fields` fallback without `critical` can join a critical failure with an ordinary failure of the same criteria.
 
+In `/16`, each newly formed model group's description carries the whole observed failure, expected behaviour and question, with the whole title as its label. The admitted header bounds derive a 1,568-character description bound. When the 64 KiB descriptions map fills, shortened entries keep the question whole and mark shortened observed and expected fields with `…[cut]`. Each shortened or dropped model description is also stored whole in a separate journal record bound by `grouping_finished`; the Reflector receives that whole text. A first request that cannot hold it fails visibly as `input_too_large`. `/15` keeps its 512-character projection and admission bound.
+
+The default `/16` chat Grouper prompt asks for concise group texts that stand alone, without grouping-local references or sibling groups. These are prompt requests; admission does not check their meaning. A declared `system_prompt` takes precedence.
+
 In `/16`, each newly formed `fields` group, including a `fields` fallback of a chat or agent Grouper, carries a code-built label and description when they fit. The key lists `name=value` in declared feature order, with canonical JSON values and `<absent>` for missing values. For example: `3 failing observations in 2 cases share error_code="timeout", tool="search". What do they have in common, and why do they fail?` This asks for an investigation; it asserts no cause or repair. A one-member fields group also gets text; singleton fallbacks keep null descriptions.
 
-Labels stay within 128 characters and distinguish distinct rendered keys. Descriptions stay within 512 characters; long keys are cut with `…[cut]`, keeping the counts and question. All descriptions together stay within the existing 64 KiB map limit, including model descriptions already present. When the map fills, later fields groups keep null descriptions. A secret or oracle hit drops that group's whole text entry. Text never invalidates a grouping. An already finished grouping keeps its recorded result across an upgrade or rebase; only later groupings gain these texts. `/15` keeps null fields descriptions.
+Labels stay within 128 characters and distinguish distinct rendered keys. In `/16`, descriptions stay within the derived 1,568-character model-description bound; long keys are cut with `…[cut]`, keeping the counts and question. All descriptions together stay within the existing 64 KiB map limit, including model descriptions already present. When the map fills, later fields groups keep null descriptions. A secret or oracle hit drops that group's whole text entry. Text never invalidates a grouping. An already finished grouping keeps its recorded result across an upgrade or rebase; only later groupings gain these texts. `/15` keeps null fields descriptions.
 
 `command` takes the keys of a grouping command. `timeout_seconds` is a positive number of seconds, such as `30` or `2.5`:
 
@@ -1128,36 +1152,7 @@ Labels stay within 128 characters and distinguish distinct rendered keys. Descri
 }
 ```
 
-`chat` takes the keys of the [grouping model](#groupingkind-model) and the same rules, under `grouper.*`:
-
-```json
-{
-  "kind": "chat",
-  "backend": "openai_chat",
-  "model": "your-grouping-model",
-  "base_url": "https://api.example.com/v1",
-  "api_key_env": "GROUPING_API_KEY",
-  "timeout_seconds": 600,
-  "concurrency": 4,
-  "max_input_chars": 120000,
-  "max_output_tokens": 8192,
-  "retry": {
-    "version": "role_call_retry/1",
-    "max_attempts": 3,
-    "total_budget_seconds": 90,
-    "backoff": {"initial_seconds": 1, "multiplier": 2, "max_seconds": 15, "jitter": "full"}
-  },
-  "representatives_per_case": 3,
-  "fallback": {
-    "kind": "fields",
-    "features": [
-      {"name": "failed_criteria", "source": "observation", "path": "/failed_criteria", "description": "Failed criteria."},
-      {"name": "terminal", "source": "observation", "path": "/terminal", "description": "Terminal observation status."},
-      {"name": "critical", "source": "observation", "path": "/critical", "description": "Whether the failure is critical."}
-    ]
-  }
-}
-```
+`chat` takes the keys of the [chat Grouper settings](#chat-grouper-settings), which include a complete example.
 
 `agent_cli` takes `model` (an agent CLI model, as for [`editor.kind: agent_cli`](#editorkind-agentcli)) and `timeout_seconds`, an integer from `10` to `7200` for the whole grouping operation. It may also take `permission`, `agent_bin`, `allowed_env`, `system_prompt`, `reasoning_effort`, `max_turns` (not with a `hermes` model), `max_payload_bytes` and `fallback`, with the agent Reflector's rules:
 
@@ -1204,9 +1199,9 @@ The provider-attempt line that `evo tree evolve` prints after a `grouper_provide
 
 A fallback is reported as a `grouping_fallback` caveat with its `reason`, `fallback_kind` (`fields` or `singletons`) and `scope` (`uncovered` or `all`). It changes no statistic, decision or exit code.
 
-A fallback for every failure (scope `all`) usually means a misconfigured Grouper, so a second one in a row suspends the campaign `grouper_failing`, and its answer is not used. A grouping with no fallback starts the count again, a partial fallback leaves it as it is, and every suspension starts it again. An accepted change of the Grouper and a Promotion do not. A linked run starts its own count at 0. After that suspension, the next full fallback finishes with a caveat as the first one did.
+A fallback for every failure (scope `all`) usually means a misconfigured Grouper, so reaching the consecutive full-fallback limit suspends the campaign `grouper_failing`, and its answer is not used. The limit is `2` in `/15` and defaults to `2` in `/16`, where `grouper.max_consecutive_full_fallbacks` can change it ([role-loop limits](#role-loop-limits-manifest-16)). A grouping with no fallback starts the count again, a partial fallback leaves it as it is, and every suspension starts it again. An accepted change of the Grouper and a Promotion do not. A linked run starts its own count at 0. After that suspension the chain starts again; with the default limit, the next full fallback finishes with a caveat as the first one did.
 
-A suspended Grouper writes `grouping_failed` with the code `role_failed`, its `reason` and its class as `error_class`, then `campaign_suspended` with owner `grouper`. `evo tree evolve` prints one of:
+A suspended Grouper writes `grouping_failed` with the code `role_failed`, its `reason` and its class as `error_class`, then `campaign_suspended` with owner `grouper`. `evo tree evolve` prints one of these lines with the default limit of `2`:
 
 ```text
 evo tree evolve: suspended: grouper_provider_failed — the Grouper's provider failed after retries
@@ -1223,7 +1218,7 @@ The Grouper's binding refusals are hard, before anything is written: `grouper_en
 
 ### Criterion ids are the scorer's publication
 
-In family 14 a criterion id that the scorer published in a verdict of the baseline may appear in the Grouper's groups and in the Reflector's note and diagnosis, and so can reach the Editor, even when the oracle holds the same string. Verdict notes, scorer `diagnostics` and longer oracle text stay hidden from the Editor, and the Candidate seal keeps its full check. The scorer author is responsible for making sure that every field the scorer publishes to the roles, criterion ids in particular, neither contains nor encodes the reference answer, the oracle or another private hint. Evolution does not check this. See [what the scorer program reads and writes](#what-the-scorer-program-reads-and-writes). A canned answer that your agent must give word for word is not a criterion id. Declare it in [`verbatim_answers`](#verbatimanswers) instead.
+In family 14 a criterion id that the scorer published in a verdict of the baseline may appear in the Grouper's groups and in the Reflector's note and diagnosis, and so can reach the Editor, even when the oracle holds the same string. Verdict notes, scorer `diagnostics` and longer oracle text stay hidden from the Editor, and the Candidate seal keeps its full check. Scorer authors must ensure fields published to roles, especially criterion ids, neither contain nor encode reference answers, oracle data or other private hints. Evolution does not check this. See [what the scorer program reads and writes](#what-the-scorer-program-reads-and-writes). A canned answer that your agent must give word for word is not a criterion id. Declare it in [`verbatim_answers`](#verbatimanswers) instead.
 
 ## `reflector`
 
@@ -1232,7 +1227,7 @@ In family 14 a criterion id that the scorer published in a verdict of the baseli
 `reflector.kind` is required and selects the same three closed shapes `editor.kind` does — `subprocess`, `chat` or `agent_cli` — with exactly the editor's types, rules and defaults for every key, checked the same way and in the same order: a missing `kind` is `missing_key at reflector`, a non-string `kind` is `bad_type at reflector.kind`, and a string outside the three is `bad_value at reflector.kind`. The refusals are the editor's under the `reflector` prefix: `reflector_invalid`, `reflector_env_missing` and `reflector_program_missing` at the offending field, and `program_inside_seed at reflector.<key>` and `run_dir_overlaps_program` for a declared path that lies inside the seed or under the run directory.
 
 - `subprocess`: `argv`, `cwd`, `dependency_paths` and `allowed_env`, all four required on top of `kind`, following the scorer's rules exactly, the refusal of `python -m` programs included. There is no `timeout_seconds`: the deadline is always `campaign.reflection_timeout_seconds`.
-- `chat`: `model` and `base_url` required; `api_key_env` ([endpoints without credentials](#endpoints-without-credentials)), `system_prompt`, `proxy_env`, `reasoning_effort`, `provider_only`, `quantizations`, `/16` `provider_order`, `allow_fallbacks`, `require_parameters` and `nearest_paths`, `max_output_tokens`, `verify_ssl_certs`, `max_turns` and `max_payload_bytes` optional; `context_compact_chars` and `context_message_max_chars` optional (required in `/15`, see [compaction keys](#compaction-keys-in-15)) — the key table of [`editor.kind: chat`](#editorkind-chat) with `max_changed_files` and `max_written_bytes` removed. The packaged default `system_prompt` is `prompts/tree_reflector.md`; a campaign started by `evo tree evolve` uses `prompts/tree_reflector_v3.md` in `/15` and `prompts/tree_reflector_v5.md` in `/16`, which states the one-call rule, case-ID filter and [checked `finish_reflection`](#a-16-chat-reflector-corrects-its-answer) contract. Its provider attempts are recorded as for the Editor ([provider attempts](#provider-attempts)).
+- `chat`: `model` and `base_url` required; `api_key_env` ([endpoints without credentials](#endpoints-without-credentials)), `system_prompt`, `proxy_env`, `reasoning_effort`, `provider_only`, `quantizations`, `/16` `provider_order`, `allow_fallbacks`, `require_parameters` and `nearest_paths`, `max_output_tokens`, `verify_ssl_certs`, `max_turns` and `max_payload_bytes` optional; `retry`, `context_compact_chars` and `context_message_max_chars` required in both schemas (see [compaction keys](#compaction-keys-in-15)) — the key table of [`editor.kind: chat`](#editorkind-chat) with `max_changed_files` and `max_written_bytes` removed. Reasoning models can spend the whole default output budget on reasoning; raise it for them. A provider with a lower cap can refuse a larger value. The packaged default `system_prompt` is `prompts/tree_reflector.md`; a campaign started by `evo tree evolve` uses `prompts/tree_reflector_v3.md` in `/15` and `prompts/tree_reflector_v6.md` in `/16`, which states the one-call rule, case-ID filter and [checked `finish_reflection`](#a-16-chat-reflector-corrects-its-answer) contract. Its provider attempts are recorded as for the Editor ([provider attempts](#provider-attempts)).
 - `agent_cli`: `model` required; `permission`, `agent_bin`, `allowed_env`, `system_prompt`, `reasoning_effort`, `max_turns` and `max_payload_bytes` optional — the key table of [`editor.kind: agent_cli`](#editorkind-agentcli) with the same two keys removed, the same per-CLI turn-telemetry table and the same load-time refusal of a non-null `max_turns` with a `hermes` model. The packaged default `system_prompt` is `prompts/tree_agent_reflector.md`.
 
 | `/16` chat Reflector key | Rule | Default |
@@ -1248,7 +1243,7 @@ In family 14 the Reflector's opening states the `max_changed_files` of the Edito
 
 Every Reflector kind requires `selection`, `families`, `environment_docs` and `probe`. Grouping belongs to the top-level [`grouper`](#grouper), never `reflector.grouping`.
 
-In `/16`, the chat loops execute only the first tool call in a response. Its result names the parallel calls that did not run and asks the role to send them separately; every skipped call ID still receives `not_executed`. `list_evidence` resolves its `case_id` filter as a case handle first, then as an exact case ID from the catalog. Offset errors name the measured valid range. Missing-file errors name the absent path and suggest up to `nearest_paths` readable files that `list_files` already shows. These tool errors keep their codes and use no protocol repair. The `/16` chat Editor and Reflector identities bind `role_contracts/1` even with a declared prompt. Session-limit text is outside frozen payloads, so an interrupted Attempt retains its common input after the role identity rebase.
+In `/16`, the chat loops execute only the first tool call in a response. Its result names the parallel calls that did not run and asks the role to send them separately; every skipped call ID still receives `not_executed`. `list_evidence` resolves its `case_id` filter as a case handle first, then as an exact case ID from the catalog. Offset errors name the measured valid range. Missing-file errors name the absent path and suggest up to `nearest_paths` readable files that `list_files` already shows. These tool errors keep their codes and use no protocol repair. Arguments must be one JSON object: invalid JSON or markup, `NaN` or `Infinity`, an empty string or a value that is not an object do not qualify. A first call whose arguments do not qualify is never run and takes the existing protocol repair. Every retained call whose arguments do not qualify, skipped calls included, carries `{}` in the retained assistant message, and the correction lists it by `characters` and `sha256` without a preview. The original arguments stay in the role's private log. `/15` sends a broken call back unchanged. The `/16` chat Editor and Reflector identities bind `role_contracts/2` even with a declared prompt; the chat Grouper identity is unchanged. Session-limit text is outside frozen payloads, so an interrupted Attempt retains its common input after the role identity rebase.
 
 ### The Reflector group text limit (`/15` and `/16`)
 
@@ -1292,7 +1287,7 @@ The top-level `grouper` selects field equality, a sealed command, a chat model o
 
 `features` is an ordered list of 1–16 definitions with unique short `name` identifiers, a `source`, JSON Pointer `path` and `description` of at most 512 characters. `case` reads `reflection_metadata`; `public` reads agent-visible input; `observation` reads admitted terminal, critical status, failed criteria and projected behavior; `feedback` reads bounded scorer public feedback; `diagnostics` reads the scorer's diagnostic object. Read paths, tool names and outcomes come from admitted events, never raw tool arguments or results. Missing pointers, JSON null, empty arrays, zero and the string `"0"` remain distinct. These features index symptoms, not causes.
 
-A custom policy replaces only `grouping`:
+A custom policy replaces only the top-level `grouper`:
 
 ```json
 {
@@ -1308,21 +1303,14 @@ A custom policy replaces only `grouping`:
 
 These command fields follow the scorer's executable/script sealing, child-environment and containment rules. `config` is finite JSON bounded at 16 KiB. The [custom grouping protocol](#custom-grouping-protocol) provides paged and streamed input without copying the complete baseline into the request.
 
-`selection` is required and declares all three fields:
+`selection` is required; its fields are optional and use the defaults below:
 
-| Field | Sample default | Allowed range | Meaning |
+| Field | Default | Allowed range | Meaning |
 |---|---|---|---|
 | `focus_cases` | 16 | 1–64 | Distinct cases in the initial portion |
-| `group_output_tokens` | `/16` only: integer, minimum 1, no upper bound; the output tokens one group or merge is expected to need; sets how many fit in one answer | `256` | only when declared |
-| `glimpse_chars` | `/16` only: integer, minimum 1, no upper bound; characters of each observation shown in the portion opening | `800` | only when declared |
-| `max_set_members` | `/16` only: integer, minimum 2, no upper bound; most members of one group in one answer | `64` | only when declared |
-| `read_chars` | `/16` only: integer, minimum 1, no upper bound; characters one tool result may hold | `16000` | only when declared |
-| `max_turns` | `/16` only: integer, minimum 1, no upper bound; model turns in one portion session | `8` | only when declared |
-| `card_examples` | `/16` only: integer, minimum 0, no upper bound; example members shown for each group in a consolidation batch | `2` | only when declared |
-| `max_reduce_levels` | `/16` only: integer, minimum 1, no upper bound; most consolidation levels | `4` | only when declared |
-| `max_requests` | `/16` only: integer, minimum 1, no upper bound; total provider requests of one grouping, preflight included | none, no cap | only when declared |
 | `representatives_per_case` | 2 | 1–8 | Failing representatives selected per case/cohort |
 | `context_page_size` | 32 | 1–64 | Entries in a catalog/family page, or evidence entries in a single-case page |
+| `min_claim_cases` | 2 | `/16` only: integer, minimum 1, no upper bound | Smallest distinct claim across hypotheses that sets the gate's focus; a smaller claim is examined on the whole portion. A value no claim reaches means every round falls back |
 
 Page size never caps visible cases, family size or hypothesis admission. `families` is `{"kind": "none"}` or `{"kind": "metadata", "path": "/family"}`. The pointer reads `reflection_metadata`: a present value must be a nonblank string; missing/null means no family. Configured families widen the frozen exam to train cases sharing a family with a selected case, without changing statistical `group_id`/`stratum`. The gate judges the aggregate over evaluable cases, not a per-member guarantee. Creation and identity-rebase records include `[case_id, family]` pairs and must fit the 1 MiB record bound; oversized or secret-bearing records withhold the effect or refuse `corpus_too_large`/`record_matches_secret` before writes. Conflict annotations never remove cases from reflection, measurement or the gate.
 
@@ -1404,7 +1392,7 @@ The grouping client needs the `tree` extra (`openai` and `httpx`). Without it, t
 | `provider_order` | `/16` only: distinct non-empty provider names, as for [chat routing](#prefer-providers-with-fallbacks-16) | Absent | only when declared |
 | `allow_fallbacks` | `/16` only: boolean, requires `provider_order` | Absent, behaves as `false` | only when declared |
 | `require_parameters` | `/16` only: boolean, requires `provider_only` or `provider_order`; applies to portion and consolidation requests | `true` | only when declared |
-| `system_prompt` | path or `null`; must be a regular file outside `seed_root` (`program_inside_seed at grouper.system_prompt`) | `null` — the packaged `prompts/tree_grouping_model.md`; in `/16`, `prompts/tree_grouping_model_v2.md` | by content digest |
+| `system_prompt` | path or `null`; must be a regular file outside `seed_root` (`program_inside_seed at grouper.system_prompt`) | `null` — the packaged `prompts/tree_grouping_model.md`; in `/16`, `prompts/tree_grouping_model_v3.md` | by content digest |
 | `representatives_per_case` | integer `1`–`8`; how many failing observations of one case the model sees in full text | `3` | yes |
 | `fallback` | `null`, or `{"kind": "fields", "features": [...]}` with the feature rules of a top-level `fields` policy; `command` is not admitted (`bad_value at grouper.fallback.kind`) | `null` — singleton groups | yes |
 
@@ -1416,9 +1404,22 @@ The chat Grouper has a reporting limitation: its failure carries the reason and 
 
 #### The chat Grouper in portions (`/16`)
 
-A `/16` chat Grouper uses the protocol `model_grouping/2` and the packaged prompt `tree_grouping_model_v2.md`. `/15` keeps `model_grouping/1` and `tree_grouping_model.md` unchanged. The rest of this section describes `/16`.
+A `/16` chat Grouper uses the protocol `model_grouping/2` and the packaged prompt `tree_grouping_model_v3.md`. `/15` keeps `model_grouping/1` and `tree_grouping_model.md` unchanged. The portion workflow below describes `/16`; the shared retry/result rules and the separately labeled `/15` repair path follow it.
 
 The Grouper splits the failing observations into portions. A portion holds failing observations, and sets of observations that share one glimpse, up to the groups one answer can hold and the characters one request can hold. A case may continue in the next portion; every portion of a case repeats its case header, so the model sees the whole case's counts. Each portion runs as a short tool session. The model sees a glimpse of each observation and may call `read_observation`, `read_trace` and `list_case` to read more grouping evidence. It never reads the repository. It ends the session with `finish_portion`, which names the groups. When there is more than one portion, consolidation merges groups across portions, including the groups of a case that spans portions, in batches over alternating levels, up to `max_reduce_levels`.
+
+Declare these optional keys directly under `grouper`, not under `reflector.selection`. `/15` refuses them.
+
+| Key | Type and rule | Default | Enters identity |
+|---|---|---|---|
+| `group_output_tokens` | `/16` only: integer, minimum 1, no upper bound; the output tokens one group or merge is expected to need; sets how many fit in one answer | `256` | only when declared |
+| `glimpse_chars` | `/16` only: integer, minimum 1, no upper bound; characters of each observation shown in the portion opening | `800` | only when declared |
+| `max_set_members` | `/16` only: integer, minimum 2, no upper bound; most members of one group in one answer | `64` | only when declared |
+| `read_chars` | `/16` only: integer, minimum 1, no upper bound; characters one tool result may hold | `16000` | only when declared |
+| `max_turns` | `/16` only: integer, minimum 1, no upper bound; model turns in one portion session | `8` | only when declared |
+| `card_examples` | `/16` only: integer, minimum 0, no upper bound; example members shown for each group in a consolidation batch | `2` | only when declared |
+| `max_reduce_levels` | `/16` only: integer, minimum 1, no upper bound; most consolidation levels | `4` | only when declared |
+| `max_requests` | `/16` only: integer, minimum 1, no upper bound; total provider requests of one grouping, preflight included | none, no cap | only when declared |
 
 How the limits work:
 
@@ -1426,7 +1427,7 @@ How the limits work:
 - `read_chars` bounds the content of one tool result. Every request carries a fixed opening: the system prompt, the portion lead and the tool definitions. Each portion also keeps a reserve of `read_chars`, a 512-character result envelope and 600 characters for repairs. With the packaged prompt and the default keys, the opening and the reserve take 26,942 characters, so `max_input_chars` must be at least 26,943; a declared `system_prompt` changes this number. Leave room above it for the portion itself: a failing observation shown in full text carries up to 4,000 characters per text field. If `max_input_chars` leaves no room after the opening and the reserve, the grouping takes the declared fallback with reason `input_too_large` before any request, and the private log names the limits (`input_budget_refused`). Raise `max_input_chars` or lower `read_chars`. When a session's tool results grow past the limit, the oldest ones are replaced by an elision marker; a request that still does not fit is not sent, and the portion splits. The tool-dialect preflight is bounded the same way: a preflight repair that does not fit is not sent, the private log says `preflight_context_exhausted`, and every failure takes the declared fallback with reason `invalid_output`.
 - `max_output_tokens` bounds every answer. One answer holds `max(1, max_output_tokens // group_output_tokens)` groups or merges. When an answer is cut, the portion is split and run again. Only a single observation that still does not fit needs a larger limit; the private log then says `portion_unsplittable`.
 - `timeout_seconds` bounds one map session or one consolidation batch, not the whole grouping. Total time grows with the data. `concurrency` sessions run at once.
-- `max_requests` caps the total spend of one grouping. The connection preflight request counts toward it. A portion stopped by the cap is not checkpointed, and its failures use the declared fallback. Without the key, only the other limits apply.
+- `max_requests` caps the total spend of one grouping. The tool-dialect preflight request counts toward it. A portion stopped by the cap is not checkpointed, and its failures use the declared fallback. Without the key, only the other limits apply.
 - A declared `system_prompt` must describe the portion session and `finish_portion`. A `/15`-style prompt makes the answers `invalid_output`, which takes the declared fallback.
 
 Finished portions and batches are checkpointed in the journal (`grouping_portion_finished` and `grouping_batch_finished`). Each checkpoint names the grouping, the plan digest and its own input digest. If grouping is interrupted, the next run of the same command adopts the checkpoints whose baseline, grouping policy, plan and inputs still match, and pays only for the rest. A changed plan, for example after a limit change, adopts no portion and no batch.
@@ -1437,14 +1438,18 @@ The reported provenance of failing rows reaches the Grouper as per-component cou
 
 **Provider attempts.** Every provider attempt of a chat Grouper is recorded in its private log, as for every chat role ([provider attempts](#provider-attempts)).
 
-**Output and repair.** The model returns error groups: a title, the observed failure mode, the expected behaviour, an investigation question and the exact failing observation IDs. When the input does not fit one request, cases are split into map requests and a reduce request may merge compatible groups; a case is never split between requests. An invalid answer gets at most two repair requests. A repair first continues the conversation with the previous answer and its defects. When that would exceed `max_input_chars`, the original request is sent again with a short note naming the defects. Map and reduce requests leave 600 characters for that note; a reduce request that cannot leave them is not sent, and the map groups stay. A repair that still does not fit is not sent, and the answer counts as still invalid. The engine derives each group's identity from its members, orders groups by distinct cases and then by failing observations, and stores the title as the group's `description.label` and the failure mode, expected behaviour and question as its `description.description`. Every failing, available observation belongs to exactly one group. Passing observations belong to no group. Failing observations whose sample produced no usable evidence (unavailable) also belong to no group under this policy; they stay counted in the case's totals. The journal limits all descriptions together, and all variant labels together, to 64 KiB each. When many groups or long non-ASCII text would exceed a limit, the groups are all kept: starting from the lowest-ranked group, descriptions are shortened and then removed, and variant labels are shortened and then removed, until each limit is met. What was trimmed is written only to the private grouping log.
+**Output and repair.** In `/16`, portion sessions and consolidation batches use `grouper.max_repairs` (default `2`; see [role-loop limits](#role-loop-limits-manifest-16)). Cases may span portions, and cut answers split a portion as described above.
+
+**The `/15` output and repair path.** The model returns error groups: a title, the observed failure mode, the expected behaviour, an investigation question and the exact failing observation IDs. When the input does not fit one request, cases are split into map requests and a reduce request may merge compatible groups; a case is never split between requests. An invalid answer gets at most two repair requests. A repair first continues the conversation with the previous answer and its defects. When that would exceed `max_input_chars`, the original request is sent again with a short note naming the defects. Map and reduce requests leave 600 characters for that note; a reduce request that cannot leave them is not sent, and the map groups stay. A repair that still does not fit is not sent, and the answer counts as still invalid.
+
+**Shared result admission.** The engine derives each group's identity from its members, orders groups by distinct cases and then by failing observations, and stores the title as the group's `description.label` and the failure mode, expected behaviour and question as its `description.description`. Every failing, available observation belongs to exactly one group. Passing observations belong to no group. Failing observations whose sample produced no usable evidence (unavailable) also belong to no group under this policy; they stay counted in the case's totals. The journal limits all descriptions together, and all variant labels together, to 64 KiB each. When many groups or long non-ASCII text would exceed a limit, the groups are all kept: starting from the lowest-ranked group, descriptions are shortened and then removed, and variant labels are shortened and then removed, until each limit is met. What was trimmed is written only to the private grouping log.
 
 **Fallback.** An unusable model answer falls back to declared `fields` (`fallback_kind: fields`) or singleton groups (`singletons`). Provider and unexplained failures suspend, not fall back, under the [current Grouper failure rules](#when-the-grouper-fails). A fallback is never a score. The content fallback reasons are:
 
 | Reason | Meaning | Scope |
 |---|---|---|
 | `input_too_large` | In `/15`, one case's compact rows do not fit `max_input_chars` minus the system prompt, the map request's opening line and the 600-character repair reserve. In `/16`, the fixed opening plus the session reserve leaves no room in `max_input_chars` (checked before any request), or one observation's glimpse with its case header does not fit what is left | `all` |
-| `invalid_output` | The answer was still invalid after two repairs. Valid groups are kept and only uncovered failures fall back; if the groups cannot be admitted at all, everything falls back | `uncovered` or `all` |
+| `invalid_output` | The answer was still invalid after its repair budget. Valid groups are kept and only uncovered failures fall back; if the groups cannot be admitted at all, everything falls back | `uncovered` or `all` |
 
 The journal's `grouping_finished` record carries `fallback` (`{kind, scope, reason}`, or `null`) and `calls` (`{map_requests, reduce, attempts, repairs}`); both are `null` under `fields` and `command`. Status and result report each fallback as a caveat:
 
@@ -1575,13 +1580,13 @@ The Reflector's log directory is not a manifest field: it is always `<run_dir>/r
 
 `corpus` is `{"path": <file>}`, resolved against the manifest's directory. The file is JSON Lines: one JSON object per line, blank lines ignored but still counted for line numbers. The order of the lines is the corpus order the campaign schedules and briefs in.
 
-Each row has keys exactly within `case_id`, `group_id`, `stratum`, `tags`, `public`, `private`, `oracle` and `reflection_metadata`. The required keys are `case_id`, `group_id`, `stratum` and `public`. `tags` defaults to `[]`, `private` and `oracle` default to `{}`. `case_id`, `group_id` and `stratum` are strings, `tags` an array of strings, and `public`, `private` and `oracle` objects. Every `case_id` is unique across the file, and the file must hold at least one row.
+Each row has keys exactly within `case_id`, `group_id`, `stratum`, `tags`, `public`, `private`, `oracle`, `reflection_metadata` and `split`. The required keys are `case_id`, `group_id`, `stratum` and `public`. `tags` defaults to `[]`, `private` and `oracle` default to `{}`. `case_id`, `group_id` and `stratum` are strings, `tags` an array of strings, and `public`, `private` and `oracle` objects. Every `case_id` is unique across the file, and the file must hold at least one row.
 
 ```json
 {"case_id": "route-01", "group_id": "routing", "stratum": "short", "tags": ["smoke"], "public": {"text": "Where do I file an expense?"}, "private": {}, "oracle": {"expected": "expenses"}}
 ```
 
-`public` is what the Environment and the editor may see. `private` is what only the Environment reads — the `scripted` kind's `script` lives here. `oracle` is what only the scorer reads. Neither `private` nor `oracle` ever reaches the editor. If an oracle value is a canned answer that the agent must give word for word, declare it in [`verbatim_answers`](#verbatimanswers) so that it is not guarded as a secret.
+`public` is what the Environment and the Editor may see. The Environment reads `private` — the `scripted` kind's `script` lives here — and the scorer reads `oracle`. Neither object is supplied directly to the Editor. The `/16` [full evidence view](#evidence-manifest-16) includes scripted messages and fields already sent to the agent; future script entries, other private corpus fields and the oracle object stay excluded. If an oracle value is a canned answer that the agent must give word for word, declare it in [`verbatim_answers`](#verbatimanswers) so that it is not guarded as a secret.
 
 The `case_id`, `group_id` and `stratum` of every case are recorded in the campaign identity, and are therefore in the run directory's campaign journal; `tags`, `public`, `private` and `oracle` are not. None of the three may contain a forwarded `allowed_env` value of eight characters or more: the run's redaction would refuse the creation record, and the campaign refuses `record_matches_secret` instead, before the run directory exists.
 
@@ -1628,7 +1633,7 @@ The audit proves that the carried rows are the declared ones (`pairs_digest`), t
 
 ## Program containment
 
-No declared program may live inside the tree it acts on. For `scorer`, `editor`, `reflector` and `reflector.grouping` commands alike, `cwd`, every `dependency_paths` entry, and every program path derived from `argv` — the resolved executable, the directory the executable is started from and the script file — must lie outside `seed_root` after symbolic links are resolved. The start directory matters for a symlinked interpreter: `<seed>/.venv/bin/python` linking to a system Python outside the seed would still load the seed's virtual environment, so it is refused. A path inside the seed is `program_inside_seed`, raised before anything is written: at load, against the dotted field the document names, and at bind, against the section, for the resolved executable, which the document does not name. A `python -m` program has no such path to check, which is why it is not supported: declare a script path, and the executed file is the sealed script.
+No declared program may live inside the tree it acts on. For `scorer`, `editor`, `reflector` and command `grouper` programs alike, `cwd`, every `dependency_paths` entry, and every program path derived from `argv` — the resolved executable, the directory the executable is started from and the script file — must lie outside `seed_root` after symbolic links are resolved. The start directory matters for a symlinked interpreter: `<seed>/.venv/bin/python` linking to a system Python outside the seed would still load the seed's virtual environment, so it is refused. A path inside the seed is `program_inside_seed`, raised before anything is written: at load, against the dotted field the document names, and at bind, against the section, for the resolved executable, which the document does not name. A `python -m` program has no such path to check, which is why it is not supported: declare a script path, and the executed file is the sealed script.
 
 The check exists because the seed tree is what evolves. A scorer, an editor or a Reflector that lived under `seed_root` would be a program the campaign is allowed to rewrite, and its bytes are part of the Candidate digest the target attests. Put the programs beside the seed, not in it, as the example's `scorer/`, `editor/` and `reflector/` directories do.
 
@@ -1638,7 +1643,7 @@ A `chat` or `agent_cli` role's own declared files carry the same rule twice over
 
 A subprocess scorer, editor or Reflector is an operator-declared program running under the operator's own account. Evolution is not an operating-system sandbox.
 
-What the campaign guarantees is what it hands the program. The editor receives exactly the redacted brief, the workspace path, the writable set and the deadline; no oracle, no private case data, no target address and no secret value travels through that channel, and the child environment is the restricted default plus the names declared in `allowed_env`. The scorer receives one case and one trajectory view on stdin, and the Candidate root in `EVO_CANDIDATE_ROOT`. The Reflector receives the evidence brief, a frozen read-only copy of the Parent, the writable globs, the optional documentation catalog and read helpers, and the deadline; it never receives the corpus `oracle` or `private` fields, the scorer's `details`, the scorer's stderr or the target's address. Under `/9` it also receives what the scorer addresses to it in `diagnostics`, which the scorer may derive from the oracle; that channel is the scorer's choice and reaches no other role.
+What the campaign guarantees is what it hands the program. The editor receives exactly the redacted brief, the workspace path, the writable set and the deadline; no oracle object or target address travels through that channel, and run secrets are redacted under the active [check modes](#checks-manifest-16). The child environment is the restricted default plus the names declared in `allowed_env`. The scorer receives one case and one trajectory view on stdin, and the Candidate root in `EVO_CANDIDATE_ROOT`. The Reflector receives the evidence brief, a frozen read-only copy of the Parent, the writable globs, the optional documentation catalog and read helpers, and the deadline; it is not supplied the corpus `oracle` or `private` objects, the scorer's `details`, the scorer's stderr or the target's address. In `/16` full view, both roles can read already received scripted messages, fields and raw tool arguments/results; future script entries and other private corpus fields stay excluded. The Grouper and Reflector also receive what the scorer addresses to them in `diagnostics`, which the scorer may derive from the oracle; those diagnostics never go directly to the Editor.
 
 These are not isolation guarantees. A declared program can read any file the operator can — including this manifest and the corpus with its oracle — open the network, or write outside its workspace. What the campaign enforces is what it can observe: the Promotion path refuses a Candidate whose changes leave `writable_paths` or touch dependency bytes, the campaign classifies every outcome, and the editor's process group is terminated on cancellation. Descendant lifetime is best-effort: a descendant that starts a session of its own outlives the group kill and is the operator's process to deal with.
 
@@ -1654,15 +1659,13 @@ The scorer is spawned once per scored sample, from its declared `cwd`, with the 
 
 Scorer stdout is exactly one JSON object with keys within `metrics`, `critical_pass`, `verdicts`, `public_feedback`, `details` and `diagnostics`. Required `metrics` maps names to finite numbers and includes `campaign.metric.primary`; a missing primary is `scorer_metric_missing`, and a primary outside `[0, 1]` is `scorer_metric_out_of_range`. Both suspend rather than support Promotion. `critical_pass` is a boolean required exactly when `oracle.critical` is true; one false Candidate result vetoes the Attempt. `verdicts` has at most 32 unique-criterion objects, `{"criterion": <identifier>, "passed": <bool>, "note": <optional string, at most 256 characters>}`. Verdict text goes to reflection, not the Editor or gate; use `diagnostics` for longer private reasoning. A nonzero exit, timeout, duplicate JSON field, nonstandard constant, unknown key or non-object stdout is a scorer-owned failure.
 
-Oracle strings shorter than eight characters are not protected by leak checks. Grouping and diagnosis checks allow exact public case identifiers, tags and evidence ids already visible to the Editor, not longer oracle values merely containing them. Baseline criterion ids are the scorer's publication under the rule below. The Candidate seal retains its oracle checks, subject to explicit `verbatim_answers` and a `/16` `secret_oracle_paths` declaration; publishing private hints in scorer-visible fields remains the scorer author's responsibility.
+Oracle strings shorter than eight characters are not protected by leak checks. Grouping and diagnosis checks allow exact public case identifiers, tags and evidence ids already visible to the Editor, not longer oracle values merely containing them. Baseline criterion ids follow the [scorer's publication rule](#criterion-ids-are-the-scorers-publication). The Candidate seal retains its oracle checks, subject to explicit `verbatim_answers` and a `/16` `secret_oracle_paths` declaration.
 
 `public_feedback` is the one output field the brief carries to the editor, under a closed scalar grammar: at most 16 entries whose key matches `[A-Za-z0-9._-]{1,64}` and whose value is a boolean, a finite number or a whitespace-free string (`[A-Za-z0-9._:-]+`), serialized in at most 64 characters — codes and flags, never sentences; every other entry is dropped and counted. The grammar excludes prose, not provenance: `public_feedback` is public because this contract declares it so, and a scorer that copies an oracle value into a code has published it, exactly as it would have in `metrics`.
 
 Optional `diagnostics` is a JSON object of at most 64 KiB canonical UTF-8 and depth 8, with finite values. It is addressed to the Grouper and Reflector, kept in scorer traces and private role logs, and sent to a grouping model when selected. It is not journaled or sent to the Editor, attempt feedback or gate. The role's own derived diagnosis is journaled and reaches the Editor subject to leak checks. `/16` can separately carry bounded private diagnostics in a linked-baseline bundle with explicit gaps; those diagnostics still never enter Editor inputs.
 
 A scorer's forwarded `allowed_env` values are run secrets (values of eight characters or more). Before any role sees the scorer's output, every run secret in a verdict note, in `public_feedback` and in `diagnostics` is replaced by `[REDACTED]`, in keys and in values. The Reflector and the Grouper read the redacted text, and a grouping model receives it. The Editor's `public_feedback` grammar drops an entry that holds a run secret and counts it like any other dropped entry. A verdict whose criterion id holds a run secret makes that sample's output unavailable to the roles, as an unreadable output is. A number whose JSON text holds a run secret is replaced as a whole. Redaction uses the secrets of the current `evo tree evolve` invocation: if you rotate a key while a run is suspended, evidence the scorer printed with the old key is not redacted, so revoke the old key. The scorer trace keeps the scorer's own bytes; do not print credentials from a scorer.
-
-In family 14 (manifest `/15`) a criterion id that the scorer published in a verdict of the baseline may appear in the Grouper's groups and in the Reflector's note and diagnosis, and so can reach the Editor, even when the oracle holds the same string ([criterion ids](#criterion-ids-are-the-scorers-publication)). The scorer author is responsible for making sure that every field the scorer publishes to the roles, criterion ids in particular, neither contains nor encodes the reference answer, the oracle or another private hint. Evolution does not check this.
 
 The scorer's bytes are verified before and after every run: a program replaced around a scoring run fails the sample rather than returning a score for a tree it may not have read.
 
@@ -1786,7 +1789,7 @@ Grouping creates cross-case **neighborhoods** of failing observations. A **cohor
 
 `focus_portion_selected` freezes the neighborhood, cohort/case IDs and coverage cycle. After a focused non-promoting round, an admitted quality look yields `stalled`; no assessed Candidate yields `unscored`. Both advance visitation, so no-op, leak-only and other unscored portions cannot pin the first sixteen cases. Once all cohorts have been visited the cycle restarts; promotion starts visitation under the new baseline while retaining old evidence. A visit is not a measurement claim.
 
-The round receives one admitted reflection result and shared diagnosis. `gate_scope_selected` freezes the union of cases claimed by validated groups when at least two distinct cases are claimed; otherwise it uses the selected portion's cases. `claimed_cases` records the claim before expansion. Full-baseline claims may include passing or cross-neighborhood train cases. A declined, empty or content-failed diagnosis closes the round [unplanned](#unplanned-rounds-family-9), without a blind Editor Attempt. Provider and unknown failures suspend instead, leaving the round open.
+The round receives one admitted reflection result and shared diagnosis. `gate_scope_selected` freezes the union of cases claimed by validated groups when the number of distinct cases reaches the minimum (two in `/15`, `min_claim_cases` in `/16`); otherwise it uses the selected portion's cases, with source `single-case` for one case or `/16` source `below-minimum` for more. `claimed_cases` records the claim before expansion. Changing the minimum on resume takes `rebase`. Full-baseline claims may include passing or cross-neighborhood train cases. A declined, empty or content-failed diagnosis closes the round [unplanned](#unplanned-rounds-family-9), without a blind Editor Attempt. Provider and unknown failures suspend instead, leaving the round open.
 
 `gate_scope_selected` also records `selected_cases` (the claim or selected portion), `cases` (expanded by configured family membership) and `unevaluable_cases` (members whose baseline pairs are all excluded). With `families: none`, `cases` equals `selected_cases`. Empty evaluable focus closes `insufficient_evidence(no_evaluable_focus)`. The gate judges an aggregate, not a per-member guarantee. The audit re-derives these fields from journaled family membership and the same `derive_gate_scope` function as execution; it requires `claimed ⊆ selected ⊆ cases` for claims and `selected ⊆ cases` always.
 
@@ -1806,7 +1809,7 @@ A declined or empty result advances visitation. Failure classes decide these act
 
 | Failure class | Current action |
 |---|---|
-| `content` | Close `unplanned/reflection_failed`. Below `reflector.max_consecutive_failures`, retry the same error group in the next round; at that many consecutive content failures, set `visitation: "skipped"` and advance past it. After two consecutive skips, suspend `reflector_failing`. |
+| `content` | Close `unplanned/reflection_failed`. Below `reflector.max_consecutive_failures`, retry the same error group in the next round; at that many consecutive content failures, set `visitation: "skipped"` and advance past it. At the consecutive-skip limit, suspend `reflector_failing`: two consecutive skips in `/15` and by default in `/16`; `/16` can set `reflector.max_consecutive_skips`. |
 | `provider` | Suspend `reflector_provider_failed` immediately; the round stays open. |
 | `unknown` | Suspend `reflector_failing` immediately; the round stays open. A `timeout` is in this class, not a content failure. |
 
@@ -1836,7 +1839,8 @@ Only a settled failure proven to be about diagnosis or edit content may close a 
 | `invalid_result` | `invalid_result` | the campaign's `validate_groups` refused the result | `content` |
 | `oracle_leak` | `oracle_leak` | the campaign found an oracle string in the result | `content` |
 | `reported` | `agent_error` | the agent CLI itself failed | `unknown` |
-| `reported` | `unclassified` | any other role-reported failure, a code outside this table, or a `reflector.kind: command` program's `failed` | `unknown` |
+| `reported` | `unclassified` | any other role-reported failure, a code outside this table, or, in `/15`, a `reflector.kind: subprocess` program's failure | `unknown` |
+| `reported` | `program_failed` | `/16` only: a `reflector.kind: subprocess` program exited non-zero, wrote an oversized, missing or malformed result, or reported `failed` | `unknown` |
 | `timeout` | `timeout` | the role exceeded its deadline; a hung provider and a slow model cannot be told apart | `unknown` |
 | `control_collision` | `control_collision` | a campaign helper was unavailable or collided | `unknown` |
 | `reader_integrity` | `reader_integrity` | the frozen evidence reader failed its integrity check | `unknown` |
@@ -1848,19 +1852,11 @@ The provider-attempt line that `evo tree evolve` prints after a `provider` failu
 
 The Grouper's `input_too_large` is class `content` because the Grouper falls back to deterministic grouping; the Reflector has no fallback.
 
-Only a failure proven to be about the diagnosis content closes a round:
+Apply the [failure actions and skip limits](#unplanned-rounds-family-9) above. For provider or unknown failures, the journal records `reflection_failed` followed by `campaign_suspended` with `owner: "reflector"`, `evidence_kind: "stage_record"` and the table's suspension reason. For a content failure, the round close and any skip are recorded before a resulting suspension.
 
-- **`provider`:** the campaign writes `reflection_failed` and then `campaign_suspended{reason: "reflector_provider_failed", owner: "reflector", evidence_kind: "stage_record"}`. The round is not closed.
-- **`unknown`:** the same, with `reason: "reflector_failing"`.
-- On resume after either, reflection runs again under a new id, exactly as after an `unresponsive` failure. A resumed reflection that fails the same way suspends again; the operator repairs the role or its environment.
-- **`content`:** the round closes `unplanned` with `reason: reflection_failed`. When this is the `reflector.max_consecutive_failures`-th consecutive `content` failure on the selected error group, the round is a **skip**: `round_closed` carries `visitation: "skipped"` and visitation advances past the group. The group stays in the grouping and is eligible again in the next visitation cycle, as a declined group is.
-- **Two skips in a row suspend.** If a skip happens and the previous skip is not followed by any settled reflection other than a `content` failure, the campaign writes the skip and then `campaign_suspended{reason: "reflector_failing", owner: "reflector", evidence_kind: "stage_record"}`. One hard group is skipped silently; a second hard group in a row looks like a misconfigured role (an incompatible prompt, too small `max_turns`) that would otherwise walk the whole grouping.
+Content-failure skips are the exception to the rule that operational failures do not advance visitation.
 
-A turn budget that is too small is therefore a `content` failure, not an `unknown` one: an agent-CLI Reflector whose `max_turns` cannot fit a diagnosis reports `budget` on every group, each such failure counts toward that group's skip, and the second consecutive skip suspends `reflector_failing`. The suspension is where a misconfigured budget surfaces.
-
-This content-failure skip is the retained resilience exception to the ordinary rule that operational failures do not advance visitation.
-
-**Worked example.** `reflector.max_consecutive_failures: 2`, two error groups `g1` and `g2`, `fields` grouping.
+**Worked example.** `reflector.max_consecutive_failures: 2`, the default consecutive-skip limit of `2`, two error groups `g1` and `g2`, `fields` grouping.
 
 1. Round 1 selects `g1`; the Reflector reports `content` (1st on `g1`). Round closes `unplanned/reflection_failed`, no skip.
 2. Round 2 selects `g1` again because round 1's content failure was below the threshold. The Reflector reports `content` again — the 2nd consecutive `content` failure on `g1`, so the threshold is met. Round 2 closes `unplanned/reflection_failed` with `visitation: "skipped"`, and visitation now advances past `g1`. This is skip 1; there is no prior skip to chain to, so the campaign does not suspend.
@@ -1899,7 +1895,7 @@ Both counters — the per-group `content` streak and the consecutive-skip chain 
 | Reason | Owner | Meaning |
 |---|---|---|
 | `reflector_provider_failed` | `reflector` | A Reflector failure classified `provider`. |
-| `reflector_failing` | `reflector` | A Reflector failure classified `unknown`, or two consecutive skips. |
+| `reflector_failing` | `reflector` | A Reflector failure classified `unknown`, or reaching the consecutive-skip limit. |
 | `editor_provider_failed` | `editor` | An Editor failure classified `provider`. |
 | `editor_failing` | `editor` | An Editor failure classified `unknown`. |
 
@@ -1960,11 +1956,11 @@ while True:
 observation = json.loads("".join(chunks))
 ```
 
-A Reflector's observation evidence is projected through its own serializer, not the editor's: it carries a turn's `index`, `outcome`, `input`, `events`, `events_omitted` and `events_truncated`, and never the editor-only `reason` (`observation` in `reflect_brief/1`, `behavior` in a `read_evidence` body). The admitted key set is an allowlist, so a field added to the editor's projection does not appear here until it is named.
+In `/15` and the `/16` allowlist view, a Reflector's observation evidence is projected through its own serializer, not the Editor's: it carries a turn's `index`, `outcome`, `input`, `events`, `events_omitted` and `events_truncated`, and never the editor-only `reason` (`observation` in `reflect_brief/1`, `behavior` in a `read_evidence` body). The admitted key set is an allowlist, so a field added to the Editor's projection does not appear here until it is named. In `/16` full view, the Reflector shares the full observation payload, including received input fields, `reason` and every event key ([evidence settings](#evidence-manifest-16)).
 
 `list_evidence` accepts `offset` and either `case_id` (the returned opaque case handle) or `family_id`, never both. Unfiltered/family pages contain case entries; a case page contains its observation IDs and flags. Every page returns `total` and `next_offset`; continue until the latter is null. `read_evidence` takes `evidence_id` and an optional character `offset`, and returns at most 16000 Unicode characters of canonical JSON with `content_digest`, `total_characters` and `next_offset`. Concatenate content before JSON decoding. IDs supplied by the catalog or portion are the lookup contract.
 
-The observation body contains `identity`, `metadata`, `public`, `observation` and `feedback`, with explicit source truncation markers. The Reflector can read scorer verdicts and bounded public feedback: up to 32 verdicts with 256-character notes, and 16 feedback keys with each string bounded at 512 characters. Nested JSON types are preserved, and `feedback_omitted`/`feedback_truncated` disclose source cuts. Paging does not truncate the underlying admitted projection. No oracle, private corpus field, raw tool argument/result, scorer details/stderr or target address enters the reader.
+The observation body contains `identity`, `metadata`, `public`, `observation` and `feedback`, with explicit source truncation markers. The Reflector can read scorer verdicts and bounded public feedback: up to 32 verdicts with 256-character notes, and 16 feedback keys with each string bounded at 512 characters. Nested JSON types are preserved, and `feedback_omitted`/`feedback_truncated` disclose source cuts. Paging does not truncate the underlying admitted projection. The reader is not supplied oracle or private corpus objects, scorer details/stderr or the Target address. In `/15` and the `/16` allowlist view, it also excludes raw tool arguments/results and scripted input. `/16` full view includes received scripted input and raw tool arguments/results; future script entries and other private corpus fields stay excluded.
 
 When present, `list_documents({offset})` returns up to 32 catalog entries with `document_id`, relative `path`, `title`, byte `size` and `digest`. `read_document({document_id, offset})` returns `content`, `content_digest`, `total_characters` and `next_offset`, at most 16000 Unicode characters at a time. Invoke their argv arrays exactly like evidence helpers. Documents supply reference context; only cited case observations establish behavior.
 
@@ -2077,7 +2073,7 @@ Each `Dependency` carries `role` (`seed`, `artifacts`, `scorer`, `editor`, `refl
 | `agent_bin` of an `agent_cli` role | `executable` | `manifest_dir`, `absolute`, or `path_lookup` when `null` | as parsed, or `None` |
 | `reflector.environment_docs` | `documentation` | `manifest_dir`, or `absolute` | as parsed |
 | `corpus.path` | `file` | `manifest_dir`, or `absolute` | as parsed |
-| `linked_from` (role `linked`, only when declared; for `/6` and `/7` the `run_dir` value) | `run_dir` | `manifest_dir`, or `absolute` | `manifest_dir / linked_from`, lexically |
+| `linked_from` (role `linked`, only when declared; the `linked_from.run_dir` value) | `run_dir` | `manifest_dir`, or `absolute` | `manifest_dir / linked_from.run_dir`, lexically |
 
 "A command" includes the scorer, subprocess roles and a command Grouper. `target`, `reflector.probe`, `reflector.families.path`, artifact excludes and writable patterns are not file dependencies and are not listed.
 

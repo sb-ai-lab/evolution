@@ -34,6 +34,10 @@ from typing import Any, Final, Literal, Protocol
 
 from evolution.tree.execution.json_pointer import pointer_value
 from evolution.tree.roles.grouping.reflect_grouping import (
+    DESCRIPTION_CHARS,
+    DESCRIPTION_FIELD_CHARS,
+    DESCRIPTION_FIELD_PREFIXES,
+    FAMILY15_DESCRIPTION_CHARS,
     MAX_SPARSE_MAP_BYTES,
     AdmittedGrouping,
     FieldFeature,
@@ -41,6 +45,7 @@ from evolution.tree.roles.grouping.reflect_grouping import (
     GroupingRegistry,
     GroupingResult,
     _canonical_json,
+    _cut,
     _digest,
     admit_grouping_result,
     fields_group_texts,
@@ -452,7 +457,10 @@ def chunk_bundles(
 # --- Response parsing, admission and projection --------
 
 _TITLE_CHARS: Final = 128
-_HEADER_CHARS: Final = 512
+#: Each described header field's admitted bound in the Grouper's answer: the
+#: same constant the family-15 description bound derives from, so the answer
+#: bounds and the projection bound cannot drift (ADR-0057).
+_HEADER_CHARS: Final = DESCRIPTION_FIELD_CHARS
 _PRIORITY_CHARS: Final = 256
 _VARIANT_CHARS: Final = 64
 _MAX_VARIANTS: Final = 16
@@ -461,7 +469,9 @@ _CITATION_CHARS: Final = 256
 _MAX_METRICS: Final = 16
 _METRIC_NAME_CHARS: Final = 128
 _PROVENANCE_CHARS: Final = 512
-_DESCRIPTION_CHARS: Final = 512
+#: The description cut outside family 15 (ADR-0057 removes it for family 15,
+#: which projects whole and admits up to `FAMILY15_DESCRIPTION_CHARS`).
+_DESCRIPTION_CHARS: Final = DESCRIPTION_CHARS
 _TOKEN_CHARS: Final = 64
 _MAX_DEFECTS: Final = 32
 
@@ -1274,12 +1284,17 @@ def _clip(text: str, maximum: int) -> str:
     return text if len(text) <= maximum else text[: maximum - 1] + "\u2026"
 
 
-def _description(group: ModelGroup, *, trimmed: bool = False) -> dict[str, str] | None:
+def _description(
+    group: ModelGroup, *, trimmed: bool = False, whole: bool = False, family15: bool = False
+) -> dict[str, str] | None:
     """Label and observed-error summary; none for a blanked header.
 
     The runtime blanks all four header texts to drop a description carrying
-    an oracle needle ("invalid descriptions are removed"). ``trimmed``
-    renders the shorter form `_fit_descriptions` falls back to.
+    an oracle needle ("invalid descriptions are removed"). ``whole`` (family
+    15, ADR-0057) renders every field and the whole title: nothing is cut.
+    ``trimmed`` renders the shorter form `_fit_descriptions` falls back to;
+    with ``family15`` that form marks each shortened field (`…[cut]`) and
+    keeps the question whole.
     """
 
     if not (group.title or group.failure_mode or group.expected_behaviour or group.question):
@@ -1292,10 +1307,26 @@ def _description(group: ModelGroup, *, trimmed: bool = False) -> dict[str, str] 
     )
     if trimmed:
         title = _clip(title, _TRIMMED_TITLE_CHARS)
-        observed, expected, question = (
-            _clip(value, _TRIMMED_FIELD_CHARS) for value in (observed, expected, question)
+        if family15:
+            observed = _cut(observed, _TRIMMED_FIELD_CHARS)
+            expected = _cut(expected, _TRIMMED_FIELD_CHARS)
+        else:
+            observed, expected, question = (
+                _clip(value, _TRIMMED_FIELD_CHARS) for value in (observed, expected, question)
+            )
+    text = "\n".join(
+        f"{prefix}{value}"
+        for prefix, value in zip(
+            DESCRIPTION_FIELD_PREFIXES, (observed, expected, question), strict=True
         )
-    text = f"Observed: {observed}\nExpected: {expected}\nQuestion: {question}"
+    )
+    if whole or trimmed:
+        # A whole (family 15) projection cuts nothing (ADR-0057): admission
+        # bounds it by `FAMILY15_DESCRIPTION_CHARS`. A trimmed entry is
+        # bounded by its own form -- 384 characters in family 14; the
+        # family-15 form keeps the question whole and stays within the
+        # family-15 bound -- so the description cut never applies to it.
+        return {"label": title, "description": text}
     return {"label": title[:_TITLE_CHARS], "description": text[:_DESCRIPTION_CHARS]}
 
 
@@ -1347,7 +1378,9 @@ def _eligible(record: GroupingRecord) -> bool:
     return record.failing and record.available
 
 
-def _project_model_groups(registry: GroupingRegistry, groups: Sequence[ModelGroup]) -> _Projection:
+def _project_model_groups(
+    registry: GroupingRegistry, groups: Sequence[ModelGroup], *, family15: bool = False
+) -> _Projection:
     index_of = {record.evidence_id: index for index, record in enumerate(registry.records)}
     projection = _Projection([None] * len(registry.records), {}, {})
     for number, group in enumerate(_admission_order(groups)):
@@ -1362,7 +1395,7 @@ def _project_model_groups(registry: GroupingRegistry, groups: Sequence[ModelGrou
             projection.assignments[index] = number
             projection.variants[index] = variant
             projection.members[number].append(index)
-        description = _description(group)
+        description = _description(group, whole=family15)
         if description is not None:
             projection.descriptions[number] = description
     return projection
@@ -1400,11 +1433,15 @@ def _short_labels(labels: Iterable[str]) -> dict[str, str]:
     return short_labels(labels, width=_TRIMMED_VARIANT_CHARS)
 
 
-def _fit_descriptions(projection: _Projection, key_width: int) -> tuple[int, int]:
+def _fit_descriptions(
+    projection: _Projection, key_width: int, *, family15: bool = False
+) -> tuple[int, int]:
     """Truncate, then remove, descriptions from the lowest-ranked group up.
 
     Keys are padded to the widest group number admission can assign, so the
     estimate bounds the canonical map whatever numbers the groups receive.
+    ``family15`` re-renders with the family-15 trimmed form (ADR-0057): the
+    shortened fields carry the `…[cut]` mark and the question stays whole.
     """
 
     sizes = _SparseMap(projection.descriptions, lambda n: f"{n:0{key_width}d}")
@@ -1413,7 +1450,7 @@ def _fit_descriptions(projection: _Projection, key_width: int) -> tuple[int, int
     for number in ranked:
         if sizes.fits():
             return truncated, dropped
-        shorter = _description(projection.groups[number], trimmed=True)
+        shorter = _description(projection.groups[number], trimmed=True, family15=family15)
         if shorter is not None and shorter != projection.descriptions[number]:
             projection.descriptions[number] = shorter
             sizes.put(number, shorter)
@@ -1455,7 +1492,9 @@ def _fit_variants(projection: _Projection) -> tuple[int, int]:
     return shortened, dropped
 
 
-def _fit_sparse_maps(projection: _Projection, record_count: int) -> dict[str, int] | None:
+def _fit_sparse_maps(
+    projection: _Projection, record_count: int, *, family15: bool = False
+) -> dict[str, int] | None:
     """Fit the model groups' descriptions and variants under the sparse caps.
 
     A large but valid grouping -- many groups with long or non-ASCII text --
@@ -1467,7 +1506,7 @@ def _fit_sparse_maps(projection: _Projection, record_count: int) -> dict[str, in
     """
 
     key_width = len(str(max(record_count - 1, 0)))
-    truncated, dropped = _fit_descriptions(projection, key_width)
+    truncated, dropped = _fit_descriptions(projection, key_width, family15=family15)
     shortened, variants_dropped = _fit_variants(projection)
     if not (truncated or dropped or shortened or variants_dropped):
         return None
@@ -1490,6 +1529,8 @@ def project(
     on_trim: Callable[[Mapping[str, int]], None] | None = None,
     describe_fields: bool = False,
     fields_screens: Sequence[Callable[[str], bool]] = (),
+    family15: bool = False,
+    on_full_descriptions: Callable[[Mapping[int, Mapping[str, str]]], None] | None = None,
 ) -> tuple[AdmittedGrouping, FallbackOutcome | None]:
     """Project model groups plus any fallback through one admission.
 
@@ -1506,16 +1547,38 @@ def project(
     (`resolve_overlaps` first); without a fallback, every failing record
     must be covered.
 
+    ``family15`` (campaign family 15, manifest `/16`; ADR-0057) projects each
+    model group's description whole, trims with the family-15 trimmed form,
+    bounds `fields` descriptions and the admission by
+    `FAMILY15_DESCRIPTION_CHARS` instead of `DESCRIPTION_CHARS`.
+
     Descriptions and variant labels that would exceed the sparse-map caps
     are trimmed first (`_fit_sparse_maps`); ``on_trim`` receives the counts
-    when anything was trimmed, for the private log only.
+    when anything was trimmed, for the private log only. A family-15 fit
+    that trimmed or dropped a map entry hands the whole description of that
+    group to ``on_full_descriptions``, keyed by the group number the
+    admitted result uses -- the campaign journals it as a full-description
+    record (ADR-0057).
     """
 
+    description_chars = FAMILY15_DESCRIPTION_CHARS if family15 else DESCRIPTION_CHARS
     scope = fallback[0] if fallback is not None else None
-    projection = _project_model_groups(registry, () if scope == "all" else groups)
-    trimmed = _fit_sparse_maps(projection, len(registry.records))
+    projection = _project_model_groups(
+        registry, () if scope == "all" else groups, family15=family15
+    )
+    whole: dict[int, dict[str, str]] = (
+        {
+            number: dict(entry)
+            for number, entry in projection.descriptions.items()
+            if isinstance(number, int)
+        }
+        if family15
+        else {}
+    )
+    trimmed = _fit_sparse_maps(projection, len(registry.records), family15=family15)
+    overflow = sorted(n for n in whole if projection.descriptions.get(n) != whole[n])
     if trimmed is not None and on_trim is not None:
-        on_trim(trimmed)
+        on_trim({**trimmed, **({"full_descriptions": len(overflow)} if overflow else {})})
     uncovered = [
         index
         for index, record in enumerate(registry.records)
@@ -1544,6 +1607,7 @@ def project(
                     first_number=first,
                     reserved=projection.descriptions,
                     screens=fields_screens,
+                    description_chars=description_chars,
                 ).items()
             )
         outcome = FallbackOutcome("fields", fallback[0], fallback[1])
@@ -1559,5 +1623,24 @@ def project(
         policy_identity=policy_identity,
         forbidden_string_predicates=forbidden_string_predicates,
         unavailable_unassigned=True,
+        description_chars=description_chars,
     )
+    if overflow and on_full_descriptions is not None:
+        # The fit keyed its trim and drop by projection number; the record
+        # binds the number the admitted result uses. Membership identifies
+        # the group across the renumbering.
+        numbers = {
+            frozenset(neighborhood.member_ids): neighborhood.group_number
+            for neighborhood in admitted.neighborhoods
+        }
+        full: dict[int, Mapping[str, str]] = {}
+        for number in overflow:
+            members = frozenset(
+                registry.records[index].evidence_id for index in projection.members[number]
+            )
+            group_number = numbers.get(members)
+            if group_number is not None:
+                full[group_number] = whole[number]
+        if full:
+            on_full_descriptions(full)
     return admitted, outcome

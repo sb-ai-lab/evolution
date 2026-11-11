@@ -35,6 +35,31 @@ def test_v16_loads_connection_grouper_and_policy_and_dependency_inventory(tmp_pa
     assert manifest.workflow.grouper is not None
 
 
+@pytest.mark.parametrize("minimum", [1, 3])
+def test_minimum_claim_setting_is_bound_in_adaptation(tmp_path, minimum):
+    document = chat_roles_document(v16_document())
+    baseline = _role_adaptation(load(tmp_path, document), tmp_path)
+    document["reflector"]["selection"]["min_claim_cases"] = minimum
+    changed = _role_adaptation(load(tmp_path, document), tmp_path)
+    assert changed.min_claim_cases == minimum
+    assert changed.digest != baseline.digest
+
+
+@pytest.mark.parametrize(
+    ("minimum", "code"), [(0, "bad_value"), (True, "bad_type"), ("2", "bad_type")]
+)
+def test_minimum_claim_refuses_invalid_values(tmp_path, minimum, code):
+    document = v16_document()
+    document["reflector"]["selection"]["min_claim_cases"] = minimum
+    assert refused(tmp_path, document)[:2] == (code, "reflector.selection.min_claim_cases")
+
+
+def test_v15_refuses_minimum_claim(tmp_path):
+    document = v15_document()
+    document["reflector"]["selection"]["min_claim_cases"] = 1
+    assert refused(tmp_path, document)[:2] == ("unknown_key", "reflector.selection.min_claim_cases")
+
+
 def test_read_only_policy_dispatch_selects_family15_before_parent_classes(tmp_path):
     policy = load(tmp_path, v16_document()).workflow.campaign
     assert campaign._family_for_policy_class(type(policy), "campaign_adaptation/7") == 15
@@ -585,9 +610,11 @@ def _role_adaptation(manifest, root):
         ),
         (
             "16",
-            # b17 explicitly binds role_contracts/1 in /16 chat identities.
-            "4deb6a18607ccff8ea7da62839468f6c5480162181f69496c48e847268038dda",
-            "f3142d1978c61a962f848674e6729b946a921c1620f83c3fe7fcbc45f6f06bb2",
+            # b17 bound role_contracts/1 in /16 chat identities.
+            # b18: role_contracts/2 (ADR-0061)
+            "f9f23a1f62890025c0f39e7d1c3f2da4f7aea4700e4049f6108a31a601b9aa68",
+            # b18: role_contracts/2 (ADR-0061)
+            "ac4fb162fcaf8d91346c01fe2dd5ccc393b8dcfc7baaf80a2f7100ac944d7ff4",
             "86246b9b3ffa57dcf6b755364ee67092d74ee96fb7c12941cdbb665c4008c531",
         ),
     ],
@@ -619,8 +646,8 @@ def test_absent_role_loop_keys_keep_role_and_adaptation_digests(
         == reflector_digest
     )
     adaptation = _role_adaptation(manifest, tmp_path).to_payload()
-    # /16 records `model_grouping/2` and the `_v2` prompt (b16 spec §11), so
-    # only /15 keeps the earlier Grouper digest.
+    # /16 records `model_grouping/2` and the packaged `_v3` prompt (b17,
+    # ADR-0057), so only /15 keeps the earlier Grouper digest.
     assert hashlib.sha256(canonical_json(adaptation["grouping"])).hexdigest() == (
         "fd0979b1a99fb81c518a37e2c72d0190bd86454fcc0411702bfc00dac409a4aa"
         if schema == "15"
@@ -630,8 +657,8 @@ def test_absent_role_loop_keys_keep_role_and_adaptation_digests(
 
 
 #: The undeclared `/16` chat Grouper's adaptation payload under
-#: `model_grouping/2` with the packaged `_v2` prompt (b16 spec §11).
-V16_GROUPING_DIGEST = "57c007823c44e8a6b4f159cd244794b49966479108acdde2e1810e959963dea8"
+#: `model_grouping/2` with the packaged `_v3` prompt (b17, ADR-0057).
+V16_GROUPING_DIGEST = "ab826a3e6e8a1b41b2573803f3fdf915c50189bf070af767547aad011dfd391d"
 
 
 def test_declared_role_loop_keys_bind_role_and_adaptation_payloads(tmp_path):
@@ -727,16 +754,18 @@ def test_v16_grouping_effective_defaults_and_declared_values(tmp_path):
 def test_v16_identity_records_protocol_v2_and_declared_keys(tmp_path):
     import hashlib
 
-    from evolution.prompts import TREE_GROUPING_MODEL_SYSTEM, TREE_GROUPING_MODEL_V2_SYSTEM
+    from evolution.prompts import TREE_GROUPING_MODEL_SYSTEM, TREE_GROUPING_MODEL_V3_SYSTEM
 
     def grouping(document):
         return _role_adaptation(load(tmp_path, document), tmp_path).to_payload()["grouping"]
 
-    v2 = hashlib.sha256(TREE_GROUPING_MODEL_V2_SYSTEM.encode()).hexdigest()
+    # b17 seals the packaged `_v3` prompt for a `/16` chat Grouper (ADR-0057);
+    # `/15` keeps `_v1`.
+    v3 = hashlib.sha256(TREE_GROUPING_MODEL_V3_SYSTEM.encode()).hexdigest()
     v1 = hashlib.sha256(TREE_GROUPING_MODEL_SYSTEM.encode()).hexdigest()
-    assert v1 != v2
+    assert v1 != v3
     undeclared = grouping(chat_roles_document(v16_document()))
-    assert (undeclared["protocol"], undeclared["prompt_sha256"]) == ("model_grouping/2", v2)
+    assert (undeclared["protocol"], undeclared["prompt_sha256"]) == ("model_grouping/2", v3)
     assert not {key for key, _ in GROUPING_V2_KEYS} & undeclared.keys()
     old = grouping(chat_roles_document(v15_document()))
     assert (old["protocol"], old["prompt_sha256"]) == ("model_grouping/1", v1)
@@ -750,3 +779,26 @@ def test_v16_identity_records_protocol_v2_and_declared_keys(tmp_path):
         document["grouper"][key] = minimum
     every = grouping(document)
     assert {key: every[key] for key, _ in GROUPING_V2_KEYS} == dict(GROUPING_V2_KEYS)
+
+
+def test_b18_keeps_chat_grouper_identity_and_grouping_policy_digest(tmp_path):
+    import hashlib
+
+    from evolution.tree.evolve import _chat_grouper_identity
+    from evolution.tree.execution.journal_identity import canonical_json
+    from tests import test_tree_b17_manifest_identity as b17
+
+    # The b17 literals live in the parametrization of the pinning test; read them
+    # from there instead of copying the hex strings.
+    (mark,) = [
+        m
+        for m in b17.test_absent_b17_role_keys_keep_identity_bytes.pytestmark
+        if m.name == "parametrize"
+    ]
+    b17_grouper_digest = dict(mark.args[1])["grouper"]
+    section = b17.parse_role(tmp_path, "grouper", manifest_v2.SCHEMA_V16)
+    identity = _chat_grouper_identity(section, family15=True)
+    assert hashlib.sha256(canonical_json(identity)).hexdigest() == b17_grouper_digest
+    # V16_GROUPING_DIGEST is the policy digest asserted in
+    # test_absent_role_loop_keys_keep_role_and_adaptation_digests for "16".
+    assert V16_GROUPING_DIGEST == "ab826a3e6e8a1b41b2573803f3fdf915c50189bf070af767547aad011dfd391d"

@@ -151,6 +151,7 @@ class SelectionSection:
     focus_cases: int = 16
     representatives_per_case: int = 2
     context_page_size: int = 32
+    min_claim_cases: int | None = None
 
 
 @dataclass(frozen=True)

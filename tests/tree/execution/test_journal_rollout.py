@@ -700,3 +700,65 @@ def test_concurrent_tries_under_one_token_write_exactly_one_admission():
 
     admissions = asyncio.run(run())
     assert sorted(admissions, key=lambda a: a is None) == [admission_payload(), None]
+
+
+@pytest.mark.parametrize(
+    ("used", "secrets"),
+    [
+        (["run-secret"], ("run-secret",)),
+        (["prefix-run-secret-suffix"], ("run-secret",)),
+        (["first-secret", "second-secret"], ("first-secret", "second-secret")),
+        (["catalog"], ("catalog",)),
+    ],
+    ids=["equal", "contained", "two-secrets", "real-component-name"],
+)
+def test_secret_bearing_union_is_recorded_as_overflow(used, secrets):
+    sink = Sink()
+    sink.secrets = secrets
+    adapter = JournalRolloutAdapter(sink, row_provenance=True, components_digest="a" * 64)
+    adapter.append(
+        dict(
+            event="rollout_finished",
+            operation_id="op-1",
+            case_id="case-1",
+            sample_id="01",
+            candidate_digest="candidate",
+            terminal="completed",
+            used=used,
+        )
+    )
+    assert sink.records[-1]["payload"] == {
+        "case_id": "case-1",
+        "sample_id": "01",
+        "candidate_digest": "candidate",
+        "outcome": "completed",
+        "provenance_overflow": True,
+        "components_digest": "a" * 64,
+    }
+    assert adapter.withheld_samples == 1
+
+
+def test_public_union_bytes_unchanged():
+    sink = Sink()
+    sink.secrets = ("run-secret", "")
+    adapter = JournalRolloutAdapter(sink, row_provenance=True, components_digest="a" * 64)
+    adapter.append(
+        dict(
+            event="rollout_finished",
+            operation_id="op-1",
+            case_id="case-1",
+            sample_id="01",
+            candidate_digest="candidate",
+            terminal="completed",
+            used=["a.md", "catalog"],
+        )
+    )
+    # Captured from the unmodified C2 writer before C3 production edits.
+    assert Envelope.from_payload(sink.records[-1], family=S1_FAMILY).encode() == (
+        b'{"event":"rollout_finished","operation_id":"op-1","payload":'
+        b'{"candidate_digest":"candidate","case_id":"case-1","components_digest":'
+        b'"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",'
+        b'"outcome":"completed","provenance":["a.md","catalog"],"sample_id":"01"},'
+        b'"run_id":"r","schema_version":1,"sequence":1,"timestamp":"2026-09-06T00:00:00Z"}\n'
+    )
+    assert adapter.withheld_samples == 0

@@ -72,7 +72,7 @@ def test_current_campaign_admission():
 async def test_current_campaigns_enable_diagnostics_resilience_and_bounds_repair(
     tmp_path, monkeypatch, schema
 ):
-    from evolution.prompts import TREE_REFLECTOR_SYSTEM_V3, TREE_REFLECTOR_SYSTEM_V5
+    from evolution.prompts import TREE_REFLECTOR_SYSTEM_V3, TREE_REFLECTOR_SYSTEM_V6
     from tests.family15_fakes import v16_document
     from tests.tree.manifest.test_manifest_v15 import BOTH, chat_document
 
@@ -96,7 +96,7 @@ async def test_current_campaigns_enable_diagnostics_resilience_and_bounds_repair
     # #318 (ADR-0048): only `/16` chat checks `finish_reflection` in role and
     # b17 sends V5 with that contract; `/15` keeps V3 and its identity.
     assert seen["reflector"].result_repair is (schema == SCHEMA_V16)
-    packaged = TREE_REFLECTOR_SYSTEM_V5 if schema == SCHEMA_V16 else TREE_REFLECTOR_SYSTEM_V3
+    packaged = TREE_REFLECTOR_SYSTEM_V6 if schema == SCHEMA_V16 else TREE_REFLECTOR_SYSTEM_V3
     assert seen["reflector"].prompt.sha256 == hashlib.sha256(packaged.encode()).hexdigest()
     assert seen["adaptive"].identity.profile == "campaign_adaptation/7"
     assert seen["adaptive"].identity.to_payload()["corpus_partition"]["mode"] == "implicit_train"

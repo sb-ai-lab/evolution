@@ -655,3 +655,59 @@ def test_declared_b17_campaign_keys_round_trip_through_payload():
 def test_reflector_operator_context_resolution(extra, want):
     policy = parse(payload() | {"editor_context": "editor"} | extra)
     assert policy.reflector_operator_context == want
+
+
+def _focus_repeats_payload(value=3, *, mode="point", fresh_parent=True):
+    document = payload(mode)
+    document["gate"]["fresh_parent"] = fresh_parent
+    document["evaluation"]["focus_repeats_per_question"] = value
+    return document
+
+
+def test_focus_repeats_round_trip_and_absent_key_keeps_digest():
+    document = _focus_repeats_payload()
+    policy = parse(document)
+    assert policy.focus_repeats_per_question == 3 and policy.repeats == 1
+    assert policy.to_payload() == document
+    plain = parse(payload())
+    assert plain.focus_repeats_per_question is None
+    assert "focus_repeats_per_question" not in plain.to_payload()["evaluation"]
+    assert plain.digest != policy.digest
+
+
+@pytest.mark.parametrize(
+    "value,code", [(0, "bad_value"), (-1, "bad_value"), (True, "bad_type"), ("3", "bad_type")]
+)
+def test_focus_repeats_is_a_positive_integer(value, code):
+    with pytest.raises(policies.PolicyError) as caught:
+        parse(_focus_repeats_payload(value))
+    assert (caught.value.code, caught.value.path) == (
+        code,
+        "evaluation.focus_repeats_per_question",
+    )
+
+
+@pytest.mark.parametrize("repeats,value", [(1, 1), (2, 2), (3, 2)])
+def test_focus_repeats_must_exceed_repeats(repeats, value):
+    document = _focus_repeats_payload(value)
+    document["evaluation"]["repeats_per_question"] = repeats
+    with pytest.raises(policies.PolicyError) as caught:
+        parse(document)
+    assert (caught.value.code, caught.value.path) == (
+        "bad_value",
+        "evaluation.focus_repeats_per_question",
+    )
+    assert "greater than repeats_per_question" in str(caught.value.expected)
+
+
+@pytest.mark.parametrize(
+    "mode,fresh_parent", [("point", False), ("confidence", True), ("unfiltered", True)]
+)
+def test_focus_repeats_needs_point_mode_and_fresh_parent(mode, fresh_parent):
+    with pytest.raises(policies.PolicyError) as caught:
+        parse(_focus_repeats_payload(mode=mode, fresh_parent=fresh_parent))
+    assert (caught.value.code, caught.value.path) == (
+        "bad_value",
+        "evaluation.focus_repeats_per_question",
+    )
+    assert "gate.fresh_parent true" in str(caught.value.expected)

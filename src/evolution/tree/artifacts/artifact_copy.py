@@ -6,6 +6,7 @@ import errno
 import os
 import shutil
 import stat
+import sys
 import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -25,6 +26,15 @@ from evolution.tree.artifacts.artifact_policy import (
 
 _WRITE_BITS = stat.S_IWUSR | stat.S_IWGRP | stat.S_IWOTH
 _NO_FOLLOW = getattr(os, "O_NOFOLLOW", 0)
+# CPython 3.14's shutil copies with os.copy_file_range on Linux (reflinks and
+# server-side copy); 3.8-3.13 use os.sendfile, so the backport adds reflinks
+# and server-side copy there.
+_USE_COPY_FILE_RANGE = (
+    sys.platform == "linux" and sys.version_info < (3, 14) and hasattr(os, "copy_file_range")
+)
+_FALLBACK_ERRNOS = frozenset(
+    {errno.EXDEV, errno.ENOSYS, errno.EOPNOTSUPP, errno.EINVAL, errno.ETXTBSY, errno.EPERM}
+)
 
 
 @dataclass(frozen=True)
@@ -87,7 +97,55 @@ def _copy_entries(source: Path, destination: Path, entries: tuple[Entry, ...]) -
         if entry.kind == "directory":
             target.mkdir(mode=0o700)
         else:
-            shutil.copy2(source / entry.path, target)
+            if _USE_COPY_FILE_RANGE:
+                _copy_file(source / entry.path, target)
+            else:
+                shutil.copy2(source / entry.path, target)
+
+
+def _copy_file(source: Path, target: Path) -> None:
+    """`shutil.copy2` for a regular file through `os.copy_file_range`, as CPython
+    3.14's shutil does. Falls back to `shutil.copy2` only while nothing has been
+    copied; a later error propagates, and ENOSPC/EDQUOT never fall back.
+    """
+
+    # The pre-open checks shutil.copyfile makes: a FIFO would block in open().
+    try:
+        same = os.path.samefile(source, target)
+    except OSError:
+        same = False
+    if same:
+        raise shutil.SameFileError(f"{source!r} and {target!r} are the same file")
+    for path in (source, target):
+        try:
+            is_fifo = stat.S_ISFIFO(os.stat(path).st_mode)
+        except OSError:
+            continue
+        if is_fifo:
+            raise shutil.SpecialFileError(f"`{path}` is a named pipe")
+    with open(source, "rb") as fsrc, open(target, "wb") as fdst:
+        infd, outfd = fsrc.fileno(), fdst.fileno()
+        blocksize = max(os.fstat(infd).st_size, 2**23)
+        if sys.maxsize < 2**32:
+            blocksize = min(blocksize, 2**30)
+        offset = 0
+        fall_back = False
+        while True:
+            try:
+                copied = os.copy_file_range(infd, outfd, blocksize, offset_dst=offset)
+            except OSError as exc:
+                if offset == 0 and exc.errno in _FALLBACK_ERRNOS:
+                    fall_back = True
+                    break
+                raise
+            if copied == 0:
+                fall_back = offset == 0 and os.fstat(infd).st_size > 0
+                break
+            offset += copied
+    if fall_back:
+        shutil.copy2(source, target)
+    else:
+        shutil.copystat(source, target)
 
 
 def stage_copy(

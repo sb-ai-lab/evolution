@@ -81,15 +81,6 @@ only-include = [
     "/CITATION.cff",
     "/pyproject.toml",
 ]
-exclude = [
-    "/.agents",
-    "/tasks",
-    "/results",
-    "/dist",
-    "/papers",
-    "/data",
-    "/models",
-]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

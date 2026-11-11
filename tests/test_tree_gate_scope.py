@@ -8,7 +8,9 @@ CORPUS = ["a", "b", "c", "d", "e", "f"]
 FAMILIES = {"a": "q1", "b": "q1", "c": "q1", "d": "q2", "e": "q3"}  # f has no family
 
 
-def scope(groups, *, failed=False, fallback=("d", "f"), families=FAMILIES, evaluable=None):
+def scope(
+    groups, *, failed=False, fallback=("d", "f"), families=FAMILIES, evaluable=None, **kwargs
+):
     return derive_gate_scope(
         reflection_failed=failed,
         groups=groups,
@@ -16,7 +18,28 @@ def scope(groups, *, failed=False, fallback=("d", "f"), families=FAMILIES, evalu
         family_membership=families,
         corpus_order=CORPUS,
         evaluable_cases=evaluable,
+        **kwargs,
     )
+
+
+def test_configurable_minimum_counts_distinct_union_before_expansion():
+    same = [{"affected_cases": ["a"]}, {"affected_cases": ["a"]}]
+    assert (scope(same).source, scope(same).claimed_cases) == ("single-case", ("a",))
+    one = scope(same, min_claim_cases=1, evaluable=frozenset())
+    assert (one.source, one.selected_cases, one.cases, one.unevaluable_cases) == (
+        "claim",
+        ("a",),
+        ("a", "b", "c"),
+        ("a", "b", "c"),
+    )
+    two = [{"affected_cases": ["a"]}, {"affected_cases": ["b"]}]
+    assert scope(two).selected_cases == ("a", "b")
+    assert (scope(two, min_claim_cases=3).source, scope(two, min_claim_cases=3).selected_cases) == (
+        "below-minimum",
+        ("d", "f"),
+    )
+    assert scope(same, min_claim_cases=3).source == "single-case"
+    assert scope([{"affected_cases": ["a", "b", "c"]}], min_claim_cases=3).source == "claim"
 
 
 def test_claim_expands_to_whole_families_after_the_selection():

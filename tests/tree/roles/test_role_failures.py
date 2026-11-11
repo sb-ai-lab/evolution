@@ -166,3 +166,14 @@ def test_the_budget_reason_family_is_the_final_campaign_family():
     from evolution.tree.campaign_schema import FINAL_CAMPAIGN_FAMILY_VERSION
 
     assert rf.EDITOR_BUDGET_REASON_FAMILY == FINAL_CAMPAIGN_FAMILY_VERSION
+
+
+PROGRAM_CODES = ["exit_status", "result_too_large", "bad_result", "no_result", "program_failed"]
+
+
+@pytest.mark.parametrize("code", PROGRAM_CODES)
+def test_reflection_program_codes_are_named_from_family_15(code):
+    assert rf.reflection_reason("reported", code, family_version=15) == "program_failed"
+    assert rf.reflection_reason("reported", code, family_version=14) == "unclassified"
+    assert rf.reflection_reason("reported", code) == "unclassified"
+    assert rf.reflection_class("reported", "program_failed") == "unknown"

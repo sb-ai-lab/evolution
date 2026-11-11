@@ -14,6 +14,13 @@ repair budget (`Correct`). Every other call goes to `run_tool`. A
 `ToolError`/`OSError` becomes the tool's error result, and after
 `tool_failures` consecutive failures of one tool it is no longer offered.
 
+With `family15` (`/16`, ADR-0061) the retained assistant message carries
+`{}` for each call whose arguments are not one JSON object, a call is admitted
+with the same strict predicate (`NaN` is not JSON), the correction shows such
+a call by its measures without a preview, and the turn's repair record (or its
+`parallel_calls_dropped` and `tool_call` records, when the first call was
+valid) names them in `replaced_calls`. `/15` is unchanged.
+
 The provider protocol (`provider_request`, `record_request`, compaction, the
 call readers) stays `chat_editor`'s; the preflight stays with the caller,
 which passes the negotiated `request_style`. Nothing here knows a role's
@@ -31,7 +38,12 @@ from collections.abc import Awaitable, Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from evolution.tree.roles.chat_history import tool_exchange, with_dropped_note
+from evolution.tree.roles.chat_history import (
+    ReplacedCall,
+    is_object_arguments,
+    tool_exchange,
+    with_dropped_note,
+)
 from evolution.tree.roles.config import ChatEditorSection
 from evolution.tree.roles.editor.chat_editor import (  # noqa: PLC2701 - one tool loop, not two
     EditFailure,
@@ -41,8 +53,10 @@ from evolution.tree.roles.editor.chat_editor import (  # noqa: PLC2701 - one too
     _call_name,
     _compact_messages,
     _protocol_correction,
+    _raw_call_arguments,
     _response_audit,
     _response_message,
+    _retained_response,
     _tool_calls,
     _tool_result_messages,
     provider_request,
@@ -323,9 +337,14 @@ async def run_tool_loop(
     consecutive_failures = 0
     assistant: dict[str, Any] | None = None
     dropped: list[str] = []
+    #: `/16` (ADR-0061): this turn's calls retained with `{}` arguments.
+    replaced: tuple[ReplacedCall, ...] = ()
 
     def noted(output: dict[str, Any]) -> dict[str, Any]:
         return with_dropped_note(output, dropped) if family15 else output
+
+    def replaced_calls() -> dict[str, Any]:
+        return {"replaced_calls": [item.to_record() for item in replaced]} if replaced else {}
 
     def record(value: dict[str, Any]) -> None:
         log.record(hooks.screen(value) if hooks.screen is not None else value)
@@ -354,7 +373,7 @@ async def run_tool_loop(
         if hooks.reads is not None:
             for message in appended:
                 if message is not assistant:
-                    hooks.reads.add(message, _call_name(call), _arguments_of(call))
+                    hooks.reads.add(message, _call_name(call), _arguments_of(call, strict=family15))
         return appended
 
     def next_turn() -> int:
@@ -374,8 +393,20 @@ async def run_tool_loop(
             messages.extend(
                 tool_exchange(assistant, noted({"error": error})) if calls else [assistant]
             )
-        messages.append({"role": "user", "content": _protocol_correction(error, calls, tools)})
-        record({"phase": "protocol_repair_requested", "repair": protocol_repairs, "error": error})
+        messages.append(
+            {
+                "role": "user",
+                "content": _protocol_correction(error, calls, tools, family15=family15),
+            }
+        )
+        record(
+            {
+                "phase": "protocol_repair_requested",
+                "repair": protocol_repairs,
+                "error": error,
+                **replaced_calls(),
+            }
+        )
 
     def request_correction(name: str, correction: str, calls: list[Any]) -> None:
         """Return a semantic refusal in the same conversation.
@@ -450,7 +481,10 @@ async def run_tool_loop(
         if stop is not None:
             record(_response_audit(response, section, request_style, turn))
             raise stop
-        assistant = _response_message(response, request_style)
+        if family15:
+            assistant, replaced = _retained_response(response, request_style)
+        else:
+            assistant = _response_message(response, request_style)
         record(_response_audit(response, section, request_style, turn))
         calls = _tool_calls(response)
         dropped = [_call_name(item) for item in calls[1:]] if family15 else []
@@ -467,6 +501,13 @@ async def run_tool_loop(
                         {"id": _call_id(item), "name": _call_name(item), "arguments": ""}
                         for item in calls[1:]
                     ],
+                    # A broken first call always ends this turn in a repair,
+                    # whose record carries the replacements instead.
+                    **(
+                        replaced_calls()
+                        if replaced and is_object_arguments(_raw_call_arguments(calls[0]))
+                        else {}
+                    ),
                 }
             )
         call = calls[0]
@@ -476,7 +517,7 @@ async def run_tool_loop(
             continue
         try:
             # A copy, so a callback completing it never touches the response.
-            arguments = dict(_call_arguments(call))
+            arguments = dict(_call_arguments(call, strict=family15))
         except ToolError as exc:
             request_repair(str(exc), calls)
             continue
@@ -521,6 +562,7 @@ async def run_tool_loop(
                 "tool": name,
                 "arguments": arguments,
                 "result": output,
+                **replaced_calls(),
             }
         )
         messages.extend(results(call, output))
@@ -528,9 +570,9 @@ async def run_tool_loop(
             messages.append({"role": "user", "content": follow_up})
 
 
-def _arguments_of(call: Any) -> Any:
+def _arguments_of(call: Any, *, strict: bool = False) -> Any:
     try:
-        return _call_arguments(call)
+        return _call_arguments(call, strict=strict)
     except ToolError:
         return None
 
