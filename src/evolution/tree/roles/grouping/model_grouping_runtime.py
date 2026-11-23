@@ -79,7 +79,7 @@ from evolution.tree.roles.role_failures import GrouperRoleFailure, GroupingExecu
 if TYPE_CHECKING:
     from openai import AsyncOpenAI
 
-    from evolution.tree.roles.config import ModelGroupingSection
+    from evolution.tree.roles.config import ChatEditorSection, ModelGroupingSection
     from evolution.tree.roles.editor.chat_editor import ChatCredentials
     from evolution.tree.roles.workspace import AttemptLog
 
@@ -165,7 +165,9 @@ def split_prompt(prompt: str) -> tuple[str, str]:
     return prompt.strip(), prompt.strip()
 
 
-def new_grouping_client(section: ModelGroupingSection, credentials: ChatCredentials) -> AsyncOpenAI:
+def new_grouping_client(
+    section: ModelGroupingSection | ChatEditorSection, credentials: ChatCredentials
+) -> AsyncOpenAI:
     """The default client: one network attempt per call over an env-blind `httpx`.
 
     ``max_retries=0`` leaves retries to `call_with_retry`; ``timeout=None``

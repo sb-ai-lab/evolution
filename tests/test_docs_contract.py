@@ -27,6 +27,7 @@ CORE_DOCS = (
     "CHANGELOG.md",
     "docs/SUMMARY.md",
     "docs/after-bench-import.md",
+    "docs/agentlab-protocol.md",
     "docs/api-usage.md",
     "docs/architecture.md",
     "docs/cli.md",

@@ -28,6 +28,7 @@ See [Contributing](../CONTRIBUTING.md) for issue reports, pull requests and loca
 | Campaign JSON settings and role protocols | [Manifest v2](manifest-v2.md) |
 | Generated demo files and their exact contents | [Reference target](reference-target.md) |
 | Backend callbacks, seeds and server lifecycle | [Target server library](target-server.md) |
+| Run individual Evolution stages from AgentLab | [AgentLab integration](agentlab-protocol.md) |
 | A run failed and you need to find the cause | [A run failed: start here](running-campaigns.md#a-run-failed-start-here) |
 | Run files, logs and inspection | [Run storage layout](run-storage-layout.md#the-v2-run-directory) |
 | Live progress and status snapshots | [Watch a running campaign](running-campaigns.md#watch-a-running-campaign) |

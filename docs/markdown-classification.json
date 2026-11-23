@@ -9,6 +9,7 @@
   "SECURITY.md": "maintained_documentation",
   "docs/SUMMARY.md": "maintained_documentation",
   "docs/after-bench-import.md": "maintained_documentation",
+  "docs/agentlab-protocol.md": "maintained_documentation",
   "docs/api-usage.md": "maintained_documentation",
   "docs/architecture.md": "maintained_documentation",
   "docs/child-process-environment.md": "maintained_documentation",

@@ -143,6 +143,7 @@ If a run stopped and you do not know why, start with [A run failed: start here](
 - [How Evolution works](docs/architecture.md) explains the terms and the campaign cycle.
 - [Running campaigns](docs/running-campaigns.md) covers your own cases, results and recovery.
 - [Connecting an agent](docs/connecting-an-agent.md) takes you from the example target to your agent.
+- [Using Evolution from AgentLab](docs/agentlab-protocol.md) covers the pip installation and the offline connection check.
 - [Contributing](CONTRIBUTING.md) explains how to work on Evolution itself.
 
 For the separate task/skill workflow that starts with `evo quickstart -m mock` and creates `hello-evolution` and `hello-skill`, use the [manual workflow guide](docs/manual-workflow.md).

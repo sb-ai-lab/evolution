@@ -248,6 +248,10 @@ def input_budget(
     return section.max_input_chars - reserve, reserve
 
 
+class _LogSink(Protocol):
+    def record(self, value: Mapping[str, Any]) -> None: ...
+
+
 class _Log:
     """The private log as one grouping writes it: counts provider attempts.
 
@@ -255,7 +259,7 @@ class _Log:
     whichever path (the shared runner or `/15`'s text request) wrote them.
     """
 
-    def __init__(self, log: AttemptLog) -> None:
+    def __init__(self, log: _LogSink) -> None:
         self._log = log
         self.attempts = 0
 
@@ -375,7 +379,7 @@ async def run_model_grouping_v2(
     metric_primary: str,
     policy_identity: str,
     credentials: ChatCredentials,
-    log: AttemptLog,
+    log: _LogSink,
     session_seconds: float,
     reader: ReflectionReadSession,
     provenance: Mapping[str, tuple[str, ...] | None] | None,

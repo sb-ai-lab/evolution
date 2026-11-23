@@ -1236,6 +1236,29 @@ def _evidence_chunk(content: str, offset: int, *, family15: bool = False) -> tup
     return content[offset:end], None if end == len(content) else end
 
 
+def read_evidence_page(
+    catalog: Sequence[EvidenceRecord], evidence_id: str, offset: int, *, family15: bool = False
+) -> dict[str, Any]:
+    """Read a page using the Editor catalog's ID and alias resolution."""
+    record = next(
+        (
+            item
+            for item in catalog
+            if item.evidence_id == evidence_id or evidence_id in item.aliases
+        ),
+        None,
+    )
+    if record is None:
+        raise ToolError("unknown evidence ID")
+    content, following_offset = _evidence_chunk(record.content, offset, family15=family15)
+    return {
+        "id": record.evidence_id,
+        "content": content,
+        "next_offset": following_offset,
+        "total_chars": len(record.content),
+    }
+
+
 # --------------------------------------------------------------------------
 # Unified diff
 # --------------------------------------------------------------------------
@@ -2251,7 +2274,7 @@ class _Session:
         self.plan_correction = editor.plan_correction
         self.family15 = editor.family15
         self.deadline = time.monotonic() + request.deadline_seconds
-        self.catalog = render_catalog(request.brief)
+        self.catalog = render_catalog(request.brief) + request.additional_evidence
         self.tools = TOOLS if request.traces is None else TOOLS_V16
         self._turns = 0
         #: `/11` (PDR-0019, ADR-0023): true once this attempt has taken its one
@@ -3004,21 +3027,9 @@ class _Session:
         if name == "read_evidence":
             _expect(arguments, {"evidence_id"}, optional={"offset"})
             offset = _offset(arguments)
-            record = next(
-                (item for item in self.catalog if item.evidence_id == arguments["evidence_id"]),
-                None,
-            )
-            if record is None:
-                raise ToolError("unknown evidence ID")
-            content, following_offset = _evidence_chunk(
-                record.content, offset, family15=self.family15
-            )
-            return {
-                "id": record.evidence_id,
-                "content": content,
-                "next_offset": following_offset,
-                "total_chars": len(record.content),
-            }, 0
+            return read_evidence_page(
+                self.catalog, arguments["evidence_id"], offset, family15=self.family15
+            ), 0
         if name == "record_plan":
             return {"recorded": arguments}, 0
         if name == "finish_edit":

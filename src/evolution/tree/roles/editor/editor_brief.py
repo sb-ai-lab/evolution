@@ -103,9 +103,12 @@ class EvidenceRecord:
     #: id to its case without decoding the id's own escape grammar.
     case_id: str | None = None
 
+    aliases: tuple[str, ...] = ()
+
     def __post_init__(self) -> None:
-        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}", self.evidence_id):
-            raise ValueError("evidence_id must be a short ASCII identifier")
+        for evidence_id in (self.evidence_id, *self.aliases):
+            if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}", evidence_id):
+                raise ValueError("evidence_id must be a short ASCII identifier")
         if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}", self.kind):
             raise ValueError("evidence kind must be a short ASCII identifier")
 

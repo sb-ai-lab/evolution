@@ -143,6 +143,7 @@ cat ./demo/run-1/artifacts/champions/v1/skills/SKILL.md
 - [Как работает Evolution](docs/architecture.md): термины и цикл кампании.
 - [Запуск кампаний](docs/running-campaigns.md): собственные кейсы, результаты и восстановление.
 - [Подключение агента](docs/connecting-an-agent.md): переход от target из примера к вашему агенту.
+- Как установить Evolution через `pip` и проверить подключение к AgentLab, описано в [руководстве по интеграции](docs/agentlab-protocol.md).
 - [Участие в разработке](CONTRIBUTING.md): работа над самим Evolution.
 
 Для отдельного процесса работы с задачами и навыками, который начинается с `evo quickstart -m mock` и создаёт `hello-evolution` и `hello-skill`, используйте [руководство по ручному процессу](docs/manual-workflow.md).

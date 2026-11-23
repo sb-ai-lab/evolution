@@ -17,6 +17,7 @@ from evolution.tree.roles.role_call import AttemptRecorder
 if TYPE_CHECKING:
     from evolution.tree.baseline_traces import BaselineTraces
     from evolution.tree.campaign_schema import RoundState
+    from evolution.tree.roles.editor.editor_brief import EvidenceRecord
 
 
 BRIEF_VERSION = "edit_brief/4"
@@ -658,6 +659,7 @@ class EditRequest:
     #: the `edit_request/1` document, never journaled.
     attempts: AttemptRecorder | None = field(default=None, repr=False, compare=False)
     traces: BaselineTraces | None = field(default=None, repr=False, compare=False)
+    additional_evidence: tuple[EvidenceRecord, ...] = field(default=(), repr=False)
 
 
 @dataclass(frozen=True)
