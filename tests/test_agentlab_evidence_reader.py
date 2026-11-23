@@ -7,7 +7,7 @@ import pytest
 
 from evolution.agentlab_protocol import _Failure, dispatch
 from evolution.tree.roles.editor.chat_editor import read_evidence_page
-from evolution.tree.roles.editor.editor_brief import EvidenceRecord
+from evolution.tree.roles.editor_contracts import EvidenceRecord
 
 
 def test_installed_protocol_without_wheel(tmp_path):

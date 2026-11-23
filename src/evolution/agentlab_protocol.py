@@ -28,13 +28,13 @@ from evolution.tree.roles.editor.chat_editor import ChatEditor, ToolError, read_
 from evolution.tree.roles.editor.editor_brief import (
     DIAGNOSIS_ID,
     SUMMARY_ID,
-    EvidenceRecord,
 )
 from evolution.tree.roles.editor_contracts import (
     Diagnosis,
     DiagnosisGroup,
     EditBrief,
     EditRequest,
+    EvidenceRecord,
     RoleProjection,
 )
 from evolution.tree.roles.role_failures import GrouperRoleFailure, GroupingExecutionError

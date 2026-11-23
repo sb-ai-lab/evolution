@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import re
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from pathlib import Path
@@ -17,7 +18,6 @@ from evolution.tree.roles.role_call import AttemptRecorder
 if TYPE_CHECKING:
     from evolution.tree.baseline_traces import BaselineTraces
     from evolution.tree.campaign_schema import RoundState
-    from evolution.tree.roles.editor.editor_brief import EvidenceRecord
 
 
 BRIEF_VERSION = "edit_brief/4"
@@ -640,6 +640,29 @@ class RoleProjection:
 
     visible: Callable[[str], bool]
     expected_digest: str
+
+
+@dataclass(frozen=True)
+class EvidenceRecord:
+    """Read-only, typed editor evidence."""
+
+    evidence_id: str
+    content: str
+    kind: str = "observation"
+    #: The case this record belongs to, when it is one of the case-scoped
+    #: kinds (`case`, `observation`, `cohort`); `None` otherwise. Set at
+    #: render time so a caller (`reflect_brief.catalog_case_ids`) can map an
+    #: id to its case without decoding the id's own escape grammar.
+    case_id: str | None = None
+
+    aliases: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        for evidence_id in (self.evidence_id, *self.aliases):
+            if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}", evidence_id):
+                raise ValueError("evidence_id must be a short ASCII identifier")
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}", self.kind):
+            raise ValueError("evidence kind must be a short ASCII identifier")
 
 
 @dataclass(frozen=True)

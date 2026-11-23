@@ -37,7 +37,6 @@ import hashlib
 import json
 import re
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Any
 
@@ -46,6 +45,7 @@ from evolution.tree.roles.editor_contracts import BRIEF_VERSION as BRIEF_VERSION
 from evolution.tree.roles.editor_contracts import (
     BriefHistory,
     EditBrief,
+    EvidenceRecord,
     history_payload,
     observation_payload,
     plain_public,
@@ -88,29 +88,6 @@ def budget_reason_sentences(
     if feedback is not None:
         shown |= {row.get("reason") for row in feedback.get("attempts", ())}
     return [BUDGET_REASON_SENTENCES[r] for r in sorted(EDITOR_BUDGET_REASONS & shown)]
-
-
-@dataclass(frozen=True)
-class EvidenceRecord:
-    """Read-only, typed editor evidence."""
-
-    evidence_id: str
-    content: str
-    kind: str = "observation"
-    #: The case this record belongs to, when it is one of the case-scoped
-    #: kinds (`case`, `observation`, `cohort`); `None` otherwise. Set at
-    #: render time so a caller (`reflect_brief.catalog_case_ids`) can map an
-    #: id to its case without decoding the id's own escape grammar.
-    case_id: str | None = None
-
-    aliases: tuple[str, ...] = ()
-
-    def __post_init__(self) -> None:
-        for evidence_id in (self.evidence_id, *self.aliases):
-            if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}", evidence_id):
-                raise ValueError("evidence_id must be a short ASCII identifier")
-        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}", self.kind):
-            raise ValueError("evidence kind must be a short ASCII identifier")
 
 
 # The safe alphabet deliberately excludes `.`: `.` is the escape marker, so
