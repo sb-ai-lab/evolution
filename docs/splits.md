@@ -42,8 +42,8 @@ evo run solve test-a -m MODEL \
 ## Use the scopes correctly
 
 - Diagnose and rewrite on `skill_evolution` only.
-- Use validation only to retain or reject a candidate. It must not guide another edit.
-- Use `reporting` only after selection. Test evidence must not change skill content, select a candidate, or promote a version.
+- Use validation only to retain or reject a Candidate. It must not guide another edit.
+- Use `reporting` only after selection. Test evidence must not change skill content, select a Candidate, or promote a version.
 - Keep the manifest and seeds fixed when comparing models or framework settings.
 
 For the manifest fields and command options, see the [CLI reference](cli.md) and [configuration guide](configuration.md).

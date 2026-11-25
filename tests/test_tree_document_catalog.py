@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 
 import pytest
@@ -251,6 +252,7 @@ def test_v2_resume_repairs_only_matching_live_bytes_without_merging_snapshot(
     )
 
 
+@pytest.mark.skipif(sys.platform == "darwin", reason="APFS refuses non-UTF-8 file names")
 @pytest.mark.parametrize("filename", [b"bad\xff.md", b"\xc3\xa9\xff.md"])
 def test_v2_resume_repairs_a_snapshot_with_a_non_utf8_filename(
     tmp_path: Path, filename: bytes

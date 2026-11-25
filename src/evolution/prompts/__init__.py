@@ -82,6 +82,7 @@ __all__ = [
     "TREE_REFLECTOR_SYSTEM_V4",
     "TREE_REFLECTOR_SYSTEM_V5",
     "TREE_REFLECTOR_SYSTEM_V6",
+    "TREE_REFLECTOR_SYSTEM_V7",
     "TREE_GROUPING_MODEL_SYSTEM",
     "TREE_GROUPING_MODEL_V2_SYSTEM",
     "TREE_GROUPING_MODEL_V3_SYSTEM",
@@ -169,6 +170,7 @@ TREE_REFLECTOR_SYSTEM_V3 = load_prompt("tree_reflector_v3").removesuffix("\n")
 TREE_REFLECTOR_SYSTEM_V4 = load_prompt("tree_reflector_v4").removesuffix("\n")
 TREE_REFLECTOR_SYSTEM_V5 = load_prompt("tree_reflector_v5").removesuffix("\n")
 TREE_REFLECTOR_SYSTEM_V6 = load_prompt("tree_reflector_v6").removesuffix("\n")
+TREE_REFLECTOR_SYSTEM_V7 = load_prompt("tree_reflector_v7").removesuffix("\n")
 #: The packaged default system prompt of a `/10` model grouping role and a
 #: `/15` Chat Grouper using `model_grouping/1`; a declared
 #: `system_prompt` file wins over it. Its digest is bound into the adaptation

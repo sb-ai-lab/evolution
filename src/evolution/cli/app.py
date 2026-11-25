@@ -26,19 +26,29 @@ from evolution.workflow import get_task, skill_store
 
 app = typer.Typer(
     name="evo",
-    help="Evolution: trace-driven skill lifecycle for LLM agents.",
+    help="Evolution Core: campaign engine and manual task and skill workflow. Use lab as the primary path for evaluating and evolving an agent.",
     no_args_is_help=True,
     rich_markup_mode=None,
 )
 console = Console()
 
-task_app = typer.Typer(help="Create, list, prepare, and evaluate task corpora.")
-skill_app = typer.Typer(help="Create, inspect, validate, and version skills.")
-container_app = typer.Typer(help="Create, inspect, and snapshot skill containers.")
-run_app = typer.Typer(help="Run task attempts and benchmark loops.")
-trace_app = typer.Typer(help="List and inspect recorded task traces.")
-evolve_app = typer.Typer(help="Reflect on traces and rewrite candidate skills.")
-split_app = typer.Typer(help="Inspect train/test split manifests.")
+task_app = typer.Typer(
+    help="Manual task and skill workflow: create, list, prepare, and evaluate task corpora."
+)
+skill_app = typer.Typer(
+    help="Manual task and skill workflow: create, inspect, validate, and version skills."
+)
+container_app = typer.Typer(
+    help="Manual task and skill workflow: create, inspect, and snapshot skill containers."
+)
+run_app = typer.Typer(help="Manual task and skill workflow: run task attempts and benchmark loops.")
+trace_app = typer.Typer(
+    help="Manual task and skill workflow: list and inspect recorded task traces."
+)
+evolve_app = typer.Typer(
+    help="Manual task and skill workflow: reflect on traces and rewrite candidate skills."
+)
+split_app = typer.Typer(help="Manual task and skill workflow: inspect train/test split manifests.")
 
 app.add_typer(task_app, name="task")
 app.add_typer(skill_app, name="skill")

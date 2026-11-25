@@ -300,6 +300,15 @@ def manifest_dependencies(manifest: ManifestV2) -> DependencyInventory:
             "manifest_dir",
         )
 
+    if manifest.baseline_import is not None:
+        walk.declared_path(
+            "linked",
+            "baseline_import.source",
+            "run_dir",
+            manifest.path.parent / manifest.baseline_import,
+            "manifest_dir",
+        )
+
     workflow = manifest.workflow
     if workflow is not None:
         walk.command("scorer", "scorer", workflow.scorer)

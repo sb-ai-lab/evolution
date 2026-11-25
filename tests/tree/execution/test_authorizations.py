@@ -160,6 +160,19 @@ def test_baseline_source_unavailable_is_hard_with_the_manifest_door() -> None:
     )
 
 
+def test_baseline_import_inputs_changed_is_hard_and_says_to_rerun() -> None:
+    """ADR-0065 amendment 2026-11-16: an input edited during start has no decision to take."""
+
+    assert "baseline_import_inputs_changed" in HARD_CODES
+    assert "baseline_import_inputs_changed" not in AUTHORIZABLE_CODES
+    assert refusal_class("baseline_import_inputs_changed") == "hard"
+    assert HARD_REASONS["baseline_import_inputs_changed"] == (
+        "the seed tree, scorer or metric plan changed while the campaign was starting "
+        "(the differs: lines name which); nothing was written, so rerun the same command "
+        "once they are stable"
+    )
+
+
 def test_verbatim_answer_unmatched_is_hard_with_the_manifest_door() -> None:
     """ADR-0038: a declared answer equal to no oracle value is the manifest's to correct."""
 
@@ -1231,4 +1244,38 @@ def test_artifact_ledger_missing_is_hard_with_its_door() -> None:
     assert HARD_REASONS["artifact_ledger_missing"] == (
         "the artifact ledger artifacts.jsonl is missing or empty while the campaign "
         "journal records measurements; restore it from a trusted copy of the run directory"
+    )
+
+
+def test_baseline_import_codes_effect_and_digest_preimages():
+    from evolution.tree.evolve import _PRE_WRITE_CODES
+    from evolution.tree.execution.authorizations import (
+        baseline_import_held_out_digest,
+        baseline_import_incompatible_digest,
+        effect_sentence,
+    )
+
+    observed = {
+        "scorer": {"kind": "judge", "digest": "new", "recovery": "non_replayable"},
+        "candidate_digest": "seed",
+    }
+    held_out = {"split": "test", "cases": ["held"]}
+    for code, function, detail in (
+        (
+            "baseline_import_incompatible",
+            baseline_import_incompatible_digest,
+            {"fields": sorted(observed), "observed": observed},
+        ),
+        ("baseline_import_held_out", baseline_import_held_out_digest, {"held_out": held_out}),
+    ):
+        assert code in AUTHORIZABLE_CODES and code in _PRE_WRITE_CODES
+        assert (
+            function(DIGEST, observed if code.endswith("incompatible") else held_out)
+            == hashlib.sha256(
+                canonical_json({"code": code, "source_identity_digest": DIGEST, **detail})
+            ).hexdigest()
+        )
+    assert effect_sentence("import") == (
+        "accepting imports the source's scored rows although they were measured with another scorer, metric plan or tree;",
+        "the decision is recorded with the campaign and reported with the imported rows",
     )

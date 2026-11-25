@@ -142,6 +142,7 @@ from evolution.tree.campaign_epochs import (
 from evolution.tree.campaign_identity import (
     AdaptationIdentityV1,
     CampaignIdentityV1,
+    declared_baseline,
     derived_identity,
     measurement_id_for,
 )
@@ -555,6 +556,9 @@ def _validate(data: Any) -> None:
         | (_RESILIENCE_TOP if resilience_top else set())
         | (_FINAL_TOP if final else set())
         | ({"corpus_split"} if "corpus_split" in data else set())
+        # b20: optional on the read side, so a document written before the key
+        # existed (absence means "no import") still validates. Writers emit null.
+        | ({"baseline_import"} if final and "baseline_import" in data else set())
         | (
             {name for name in ("check_modes", "shadow_hits") if name in data}
             if independent
@@ -1088,6 +1092,39 @@ def _validate_caveats(
                 and all(type(field) is str for field in fields)
             )
             _require(type(item["origin_runs"]) is int and item["origin_runs"] >= 0)
+        elif kind == "baseline_imported":
+            _keys(
+                item,
+                {
+                    "kind",
+                    "from_run",
+                    "source_kind",
+                    "source_measurement_id",
+                    "imported",
+                    "scheduled",
+                    "fields",
+                    "authorization_id",
+                },
+            )
+            _require(item["source_kind"] in ("evaluation", "measurement"))
+            _identifier(item["source_measurement_id"])
+            _count(item["imported"])
+            _count(item["scheduled"])
+            _require(item["imported"] > 0 and item["imported"] <= item["scheduled"])
+            _require(
+                type(item["fields"]) is list
+                and all(type(field) is str for field in item["fields"])
+                and item["fields"] == sorted(set(item["fields"]))
+            )
+            if item["authorization_id"] is not None:
+                _sha(item["authorization_id"])
+        elif kind == "imported_provenance_unknown":
+            _keys(item, {"kind", "from_run", "imported", "unknown", "source_recorded"})
+            _count(item["imported"])
+            _count(item["unknown"])
+            _require(
+                0 < item["unknown"] <= item["imported"] and type(item["source_recorded"]) is bool
+            )
         else:  # predecessor_unfinished
             _keys(item, {"kind", "from_run", "authorization_id"})
             _sha(item["authorization_id"])
@@ -1177,6 +1214,8 @@ def _validate_continuable(
             _count(baseline["scheduled"])
             if abandoned:
                 _sha(baseline["authorization_id"])
+    if final and "baseline_import" in data:
+        _validate_baseline_import_status(data["baseline_import"])
     _validate_caveats(
         data["caveats"],
         model_grouping=model_grouping,
@@ -1786,6 +1825,102 @@ def _add_grouping_caveats(snapshot: CampaignSnapshot, payload: dict[str, Any]) -
     payload["caveats"] = [*lineage, *(item for _, item in sorted(ordered, key=lambda e: e[0]))]
 
 
+def _baseline_import_status(snapshot: CampaignSnapshot) -> dict[str, Any] | None:
+    declared = (snapshot.identity or {}).get("baseline_import")
+    if declared is None:
+        return None
+    source = declared["source"]
+    return dict(
+        source_kind=source["kind"],
+        from_run=source["run_id"],
+        source_measurement_id=declared["source_measurement_id"],
+        imported=declared["imported"],
+        scheduled=declared["scheduled"],
+        fields=list(declared["fields"]),
+        not_imported=dict(declared["not_imported"]),
+        components_carried=len(declared["components"]),
+        provenance=dict(declared["provenance"]),
+        abandoned=snapshot.baseline_abandoned is not None,
+        authorization_id=None
+        if declared["authorization"] is None
+        else declared["authorization"]["id"],
+        held_out=declared["held_out"],
+        held_out_authorization_id=None
+        if declared["held_out_authorization"] is None
+        else declared["held_out_authorization"]["id"],
+    )
+
+
+def _validate_baseline_import_status(block: Any) -> None:
+    if block is None:
+        return
+    _keys(
+        block,
+        {
+            "source_kind",
+            "from_run",
+            "source_measurement_id",
+            "imported",
+            "scheduled",
+            "fields",
+            "not_imported",
+            "components_carried",
+            "provenance",
+            "abandoned",
+            "authorization_id",
+            "held_out",
+            "held_out_authorization_id",
+        },
+    )
+    _require(block["source_kind"] in ("evaluation", "measurement"))
+    _identifier(block["from_run"])
+    _identifier(block["source_measurement_id"])
+    for name in ("imported", "scheduled", "components_carried"):
+        _count(block[name])
+    _require(0 <= block["imported"] <= block["scheduled"] and block["scheduled"] >= 1)
+    _require(type(block["abandoned"]) is bool)
+    fields = block["fields"]
+    _require(
+        type(fields) is list
+        and all(type(field) is str for field in fields)
+        and fields == sorted(set(fields))
+    )
+    _keys(
+        block["not_imported"],
+        {
+            "not_scheduled",
+            "seed_differs",
+            "not_scored",
+            "primary_missing",
+            "out_of_range",
+            "dependency_differs",
+        },
+    )
+    for count in block["not_imported"].values():
+        _count(count)
+    provenance = block["provenance"]
+    _keys(provenance, {"reported", "unknown", "source_recorded"})
+    _count(provenance["reported"])
+    _count(provenance["unknown"])
+    _require(
+        type(provenance["source_recorded"]) is bool
+        and provenance["reported"] + provenance["unknown"] == block["imported"]
+    )
+    for name in ("authorization_id", "held_out_authorization_id"):
+        if block[name] is not None:
+            _sha(block[name])
+    held = block["held_out"]
+    _require((held is None) == (block["held_out_authorization_id"] is None))
+    if held is not None:
+        _keys(held, {"split", "cases"})
+        _require(held["split"] in (None, "train", "test"))
+        _require(
+            type(held["cases"]) is list
+            and all(type(case) is str for case in held["cases"])
+            and held["cases"] == sorted(set(held["cases"]))
+        )
+
+
 def _add_final_blocks(snapshot: CampaignSnapshot, payload: dict[str, Any]) -> None:
     """Family 14's top-level blocks (H12b plan choices 9-11; F0 M7, C§6.3).
 
@@ -1798,6 +1933,7 @@ def _add_final_blocks(snapshot: CampaignSnapshot, payload: dict[str, Any]) -> No
     payload["connection"] = connection_block(snapshot)
     payload["roles"] = roles_block(snapshot)
     payload["settings"] = settings_block(snapshot)
+    payload["baseline_import"] = _baseline_import_status(snapshot)
 
 
 # -- the two projections --------------------------------------------------
@@ -1892,6 +2028,13 @@ def project_result(
     payload["caveats"] = own_caveats(
         snapshot.identity.get("linked_from") if snapshot.identity else None,
         baseline_abandoned=snapshot.baseline_abandoned is not None,
+        baseline_import=(snapshot.identity or {}).get("baseline_import"),
+        provenance_reported=(snapshot.identity or {})
+        .get("policy", {})
+        .get("gate", {})
+        .get("provenance", {})
+        .get("kind")
+        == "reported",
     )
     payload["suspensions"] = _suspensions(snapshot)
     payload["suspended"] = snapshot.suspended
@@ -2039,6 +2182,13 @@ def project_status(
     payload["caveats"] = own_caveats(
         snapshot.identity.get("linked_from") if snapshot.identity else None,
         baseline_abandoned=snapshot.baseline_abandoned is not None,
+        baseline_import=(snapshot.identity or {}).get("baseline_import"),
+        provenance_reported=(snapshot.identity or {})
+        .get("policy", {})
+        .get("gate", {})
+        .get("provenance", {})
+        .get("kind")
+        == "reported",
     )
     payload["suspensions"] = _suspensions(snapshot)
     payload["suspended"] = snapshot.suspended
@@ -2721,9 +2871,18 @@ def _imported_copy_findings(context: _Evidence) -> list[dict[str, Any]]:
         # there is no declaration to hold a copy to.
         return []
     identity = context.records[0].payload.get("identity")
-    linked = identity.get("linked_from") if isinstance(identity, Mapping) else None
-    declared = linked.get("baseline") if isinstance(linked, Mapping) else None
+    declared = declared_baseline(identity) if isinstance(identity, Mapping) else None
     findings: list[dict[str, Any]] = []
+    if isinstance(identity, Mapping):
+        try:
+            _check_import_decisions(identity)
+        except (_PreconditionFailed, ValueError, KeyError, TypeError) as exc:
+            detail = (
+                exc.detail
+                if isinstance(exc, _PreconditionFailed)
+                else "an import decision is invalid"
+            )
+            findings.append(_campaign_finding(context, 0, "baseline_import_mismatch", detail))
     seen: set[str] = set()
     for index, record in enumerate(context.records, start=1):
         if context.family_version == 15 and record.event == "final_measurement_bound":
@@ -4872,6 +5031,116 @@ def _baseline_abandoned(context: _Evidence) -> bool:
     return False
 
 
+def _import_need(ok: bool, detail: str) -> None:
+    if not ok:
+        raise _PreconditionFailed(detail, "baseline_import_mismatch")
+
+
+def _check_import_decisions(identity: Mapping[str, Any]) -> None:
+    """Authenticate creation decisions against that campaign's own values."""
+    from evolution.tree.execution.authorizations import (
+        Authorization,
+        baseline_import_held_out_digest,
+        baseline_import_incompatible_digest,
+    )
+
+    declared = identity.get("baseline_import")
+    if declared is None:
+        return
+    _import_need(identity.get("linked_from") is None, "a baseline import also declares a link")
+    source = declared["source"]
+    incompatible = declared["incompatible"]
+    decision = declared["authorization"]
+    _import_need(
+        bool(incompatible) == (decision is not None), "incompatible fields and decision disagree"
+    )
+    if decision is not None:
+        parsed = Authorization.from_decision_payload(decision)
+        own = dict(
+            candidate_digest=identity["artifact_store"]["seed_candidate_digest"],
+            scorer=identity["scorer"],
+            metric_plan_digest=identity["metric_plan_digest"],
+        )
+        digest = baseline_import_incompatible_digest(
+            source["identity_digest"], {name: own[name] for name in incompatible}
+        )
+        _import_need(
+            parsed.code == "baseline_import_incompatible" and parsed.digest == digest,
+            "the incompatible import decision does not recompute",
+        )
+    held = declared["held_out"]
+    decision = declared["held_out_authorization"]
+    _import_need(
+        (held is not None) == (decision is not None), "held-out finding and decision disagree"
+    )
+    if decision is not None:
+        parsed = Authorization.from_decision_payload(decision)
+        _import_need(
+            held["split"] == source["split"], "held-out split differs from the declared source"
+        )
+        digest = baseline_import_held_out_digest(source["identity_digest"], held)
+        _import_need(
+            parsed.code == "baseline_import_held_out" and parsed.digest == digest,
+            "the held-out import decision does not recompute",
+        )
+
+
+def _check_carried_metadata(
+    declared: Mapping[str, Any],
+    records: Sequence[Envelope],
+    imported: Sequence[Mapping[str, Any]],
+    identity: Mapping[str, Any],
+) -> None:
+    if "components" in declared:
+        count = int(declared["imported"])
+        _import_need(
+            [record.event for record in records[: count + 1]]
+            == ["run_created", *(["sample_imported"] * count)],
+            "the imported birth is not contiguous",
+        )
+        maps = []
+        for record in records[count + 1 :]:
+            if record.event != "components_declared":
+                break
+            maps.append(record.payload["components_digest"])
+        _import_need(
+            maps == list(declared["components"]),
+            "carried component records differ from the declared ordered maps",
+        )
+    if declared.get("mode") != "import":
+        return
+    source = declared["source"]
+    seed_candidate_digest = identity["artifact_store"]["seed_candidate_digest"]
+    for row in imported:
+        origin = row["source"]
+        _import_need(
+            all(
+                origin[name] == source[name]
+                for name in ("run_id", "measurement_id", "identity_digest")
+            ),
+            "an imported row names another standalone source",
+        )
+        # Spec §5: another tree enters only by a recorded decision. Each row
+        # carries the tree it was measured on, so the audit needs no source.
+        _import_need(
+            "candidate_digest" in declared["incompatible"]
+            or origin["candidate_digest"] == seed_candidate_digest,
+            "an imported row was measured on another tree without a decision",
+        )
+    reported = sum("provenance" in row for row in imported)
+    _import_need(
+        dict(declared["provenance"])
+        == dict(
+            reported=reported,
+            unknown=len(imported) - reported,
+            source_recorded=source["row_provenance"],
+        ),
+        "imported provenance counts do not recompute",
+    )
+    fields = sorted({field for row in imported for field in row["source"]["condition_fields"]})
+    _import_need(list(declared["fields"]) == fields, "imported condition fields do not recompute")
+
+
 def _check_baseline_import(
     context: _Evidence, measurement_id: str, records: Sequence[Envelope]
 ) -> None:
@@ -4890,8 +5159,8 @@ def _check_baseline_import(
     from evolution.tree.baseline_import import import_pairs_digest  # circular at module scope
 
     imported = [entry.payload for entry in records if entry.event == "sample_imported"]
-    linked = context.identity().to_payload().get("linked_from")
-    declared = linked.get("baseline") if linked is not None else None
+    identity = context.identity().to_payload()
+    declared = declared_baseline(identity)
     if (
         measurement_id == measurement_id_for(None)
         and declared is not None
@@ -4904,6 +5173,7 @@ def _check_baseline_import(
                 "the carried baseline does not match its declared pairs_digest",
                 "baseline_import_mismatch",
             )
+        _check_carried_metadata(declared, records, imported, identity)
         # §3.3 target-side admission: a carried row is a score of this run's
         # own primary metric, or it was never admissible.
         primary = context.policy_for(measurement_id).metric_primary

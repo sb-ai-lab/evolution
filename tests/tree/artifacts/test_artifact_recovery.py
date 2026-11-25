@@ -615,3 +615,6 @@ def test_torn_sealing_workspace_is_never_published(tmp_path):
         assert store.last_recovery.actions == ("abandoned_seal_not_published",)
         assert not (run / "artifacts/candidates/a1").exists()
         assert not workspace_of(run).exists()
+
+
+pytestmark = pytest.mark.usefixtures("strict_durability")

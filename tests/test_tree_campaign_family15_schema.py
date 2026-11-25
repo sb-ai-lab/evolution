@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import dataclasses
 import hashlib
 import importlib
 import sys
@@ -1092,6 +1093,42 @@ def test_typed_records_have_immutable_exact_authority():
         api.Family15AttemptState(gate_seal=record)
 
 
+def test_a_record_readmits_an_envelope_not_marked_with_the_family15_contract(monkeypatch):
+    api = schema()
+    raw = dict(
+        schema_version=1,
+        run_id="run",
+        sequence=1,
+        timestamp="2026-10-18T00:00:00Z",
+        event="selection_decided",
+        operation_id=None,
+        payload=event_payloads()["selection_decided"],
+    )
+    from evolution.tree.artifacts.artifact_payloads import AuxiliarySourceReference
+
+    marked = Envelope.from_payload(raw, family=api.FAMILY15_CONTRACT)
+    unmarked = Envelope.from_payload(raw, family=dataclasses.replace(api.FAMILY15_CONTRACT))
+    reference = AuxiliarySourceReference(
+        1,
+        "journal_record",
+        "run",
+        f"campaign.jsonl#bytes=0:{len(marked.encode())}",
+        hashlib.sha256(marked.encode()).hexdigest(),
+    )
+    admitted = []
+    original = Envelope.from_payload.__func__
+
+    def spy(cls, value, **kwargs):
+        admitted.append(kwargs.get("family"))
+        return original(cls, value, **kwargs)
+
+    monkeypatch.setattr(Envelope, "from_payload", classmethod(spy))
+    api.Family15Record(marked, reference)
+    assert admitted == []
+    api.Family15Record(unmarked, reference)
+    assert admitted == [api.FAMILY15_CONTRACT]
+
+
 def test_exact_large_evidence_only_external_not_in_journal_records():
     api = schema()
     value = preflight("confidence")
@@ -1776,3 +1813,38 @@ def test_focus_bootstrap_metadata_uses_the_stage_scope():
     seed["scope"] = "focus"
     seed["seed"] = derive_seed(**{k: v for k, v in seed.items() if k not in {"method", "seed"}})
     schema().validate_comparison_data(value, policy=policy)
+
+
+def test_standalone_prefix_is_scoped_to_diagnostic_import():
+    from evolution.tree.baseline_diagnostics import GAP_REASONS
+
+    api, completion = schema(), completion_data()
+    source = event_payloads()["candidate_gate_sealed"]["source"]
+    source["identity_digest"] = completion["source"]["identity_digest"]
+    source["prefix"].update(locator="events.jsonl#bytes=0:100", run_id=source["measurement_id"])
+    value = dict(
+        format="comparison-data/1",
+        kind="diagnostic_import",
+        destination=completion["destination"],
+        source_prefixes=[source],
+        rows_digest=completion["imports"]["pairs_digest"],
+        slot_index=completion["rows"],
+        gaps_digest="f" * 64,
+        counts=dict.fromkeys(GAP_REASONS, 0),
+        authentication=event_payloads()["diagnostic_import_declared"]["authentication"],
+    )
+    api.validate_comparison_data(value)
+    ordinary = event_payloads()["candidate_gate_sealed"]
+    ordinary["source"] = source
+    with pytest.raises(SchemaError):
+        api.validate_family15_payload("candidate_gate_sealed", ordinary)
+    for locator, run_id in [
+        ("events.jsonl#bytes=0:0100", source["measurement_id"]),
+        ("events.jsonl#bytes=1:100", source["measurement_id"]),
+        ("events.jsonl#bytes=0:100", "other"),
+        ("nested/events.jsonl#bytes=0:100", source["measurement_id"]),
+    ]:
+        bad = copy.deepcopy(value)
+        bad["source_prefixes"][0]["prefix"].update(locator=locator, run_id=run_id)
+        with pytest.raises(SchemaError):
+            api.validate_comparison_data(bad)

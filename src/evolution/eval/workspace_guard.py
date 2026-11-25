@@ -50,17 +50,20 @@ _HOST_BASE_ENV_DIRS = tuple(
     for d in os.environ.get("EVOLUTION_GUARD_STRIP_PATH_DIRS", "/home/user/conda").split(os.pathsep)
     if d
 )
+# macOS keeps homes in /Users, volumes in /Volumes, and /tmp, /var and /etc
+# in /private.
 _BROAD_ROOT_COMMAND_RE = re.compile(
     r"(?is)(?:^|[;&|]\s*)"
     r"(?:find|fd|rg|grep|ls|du|tree)\b"
     r"[^\n;|&]*"
-    r"(?:^|\s)(?:/|/home|/root|/tmp|/var|/mnt|/media|/data|/workspace)"
+    r"(?:^|\s)(?:/|/home|/root|/tmp|/var|/mnt|/media|/data|/workspace|/Users|/Volumes|/private)"
     r"(?:/|\s|$)"
 )
 _BLOCKED_ABSOLUTE_RE = re.compile(
     r"(?is)(?<![\w.-])"
     r"(?:/home(?:/|\b)|/root(?:/|\b)|/data(?:/|\b)|/workspace(?:/|\b)|"
     r"/mnt(?:/|\b)|/media(?:/|\b)|/proc(?:/|\b)|/sys(?:/|\b)|/etc(?:/|\b)|"
+    r"/Users(?:/|\b)|/Volumes(?:/|\b)|/private(?:/|\b)|"
     r"~(?:/|\b)|\$HOME(?:/|\b)|\$\{HOME\}(?:/|\b))"
 )
 _PATCH_PATH_RE = re.compile(

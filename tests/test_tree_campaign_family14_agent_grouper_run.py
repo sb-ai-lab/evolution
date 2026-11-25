@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import os
+from pathlib import Path
 
 import pytest
 
@@ -376,7 +378,7 @@ async def test_agent_directory_and_reader_always_discarded(tmp_path, monkeypatch
     assert audit(run)["mismatches"] == []
 
 
-def test_discard_directory_handles_deep_readonly_trees_and_external_links(tmp_path):
+def test_discard_directory_handles_deep_readonly_trees_and_external_links(tmp_path, monkeypatch):
     from evolution.tree.roles.workspace import discard_directory
 
     root = tmp_path / "operation"
@@ -385,15 +387,17 @@ def test_discard_directory_handles_deep_readonly_trees_and_external_links(tmp_pa
     external.mkdir()
     (external / "sentinel").write_text("untouched")
     (root / "external").symlink_to(external, target_is_directory=True)
-    branch = root
-    directories = [root]
+    # By name from the working directory: the full path passes macOS PATH_MAX (1,024).
+    monkeypatch.chdir(root)
     for _ in range(1100):
-        branch = branch / "d"
-        branch.mkdir()
-        directories.append(branch)
-    (branch / "result").write_text("discard")
-    for directory in reversed(directories):
-        directory.chmod(0o500)
+        os.mkdir("d")
+        os.chdir("d")
+    Path("result").write_text("discard")
+    for _ in range(1100):
+        os.chmod(".", 0o500)
+        os.chdir("..")
+    root.chmod(0o500)
+    os.chdir(tmp_path)
     discard_directory(root)
     assert not root.exists()
     assert (external / "sentinel").read_text() == "untouched"

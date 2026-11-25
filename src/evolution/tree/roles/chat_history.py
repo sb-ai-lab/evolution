@@ -12,8 +12,39 @@ CONTINUATION_FIELDS = ("reasoning", "reasoning_content", "reasoning_details")
 _ASSISTANT_FIELDS = ("role", "content", "refusal", *CONTINUATION_FIELDS)
 
 
+def message_chars(messages: Sequence[Mapping[str, Any]]) -> int:
+    """Size of messages in the direct role compactor's character units."""
+    return sum(len(json.dumps(message, ensure_ascii=False, default=str)) for message in messages)
+
+
 class ChatHistoryError(ValueError):
     """A provider message or retained tool exchange cannot be continued truthfully."""
+
+
+class ToolReads:
+    """Which messages are tool results, kept beside the conversation.
+
+    A legacy-style session returns a result as a plain user message, which
+    cannot be told from other user text. The loop registers each result it
+    appends here (by object identity, holding the message so the identity
+    stays valid), with the tool and the arguments of the call it answers;
+    `elide_to_fit(..., reads=reads)` uses it. Nothing is added to the wire
+    messages.
+    """
+
+    def __init__(self) -> None:
+        self._entries: dict[int, tuple[dict[str, Any], str, Any]] = {}
+
+    def add(self, message: dict[str, Any], name: str, arguments: Any) -> None:
+        self._entries[id(message)] = (message, name, arguments)
+
+    def get(self, message: Mapping[str, Any]) -> tuple[str, Any] | None:
+        entry = self._entries.get(id(message))
+        return None if entry is None else (entry[1], entry[2])
+
+    def retain(self, messages: Sequence[dict[str, Any]]) -> None:
+        """Drop correlations when compaction drops the corresponding messages."""
+        self._entries = {id(m): self._entries[id(m)] for m in messages if id(m) in self._entries}
 
 
 def with_dropped_note(output: Mapping[str, Any], dropped: Sequence[str]) -> dict[str, Any]:

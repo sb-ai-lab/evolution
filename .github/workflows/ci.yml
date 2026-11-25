@@ -6,6 +6,9 @@ on:
     branches: [main]
   workflow_dispatch:
 
+env:
+  EVOLUTION_TEST_ALLOW_DISK: "1"
+
 permissions:
   contents: read
 

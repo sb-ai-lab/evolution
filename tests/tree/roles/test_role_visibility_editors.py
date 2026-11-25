@@ -276,10 +276,12 @@ if op == "rewrite_self":
     with open(__file__, "a") as handle:
         handle.write("# replaced\n")
 if op == "deep":
-    deep = at("skills")
+    here = os.getcwd()
+    os.chdir(at("skills"))  # by name: the full path passes macOS PATH_MAX (1,024)
     for _ in range(1400):
-        deep = os.path.join(deep, "d")
-        os.mkdir(deep)
+        os.mkdir("d")
+        os.chdir("d")
+    os.chdir(here)
 if op == "sleep":
     time.sleep(60)
 print(json.dumps({"status": status, "note": op}))

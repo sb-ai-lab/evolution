@@ -94,7 +94,7 @@ async def test_suspend_session_bytes_unchanged(tmp_path):
 
 async def test_continue_unreachable_is_free_and_recovers(tmp_path):
     origin = RefusingOrigin()
-    port = origin.socket.getsockname()[1]
+    port = origin.port
     events = []
     owner = session(tmp_path, config(origin.base_url), events, on_unavailable="continue")
     try:

@@ -1,10 +1,12 @@
 # Evolution documentation
 
-Choose the task you want to do. These guides describe the v2 tree-evolution beta in this checkout, `2.0.0b18`. The first example needs no API key or separate agent project. Its campaign manifest is `evolution-v2-manifest/15`, the scaffold format; opt-in `/16` adds independent acceptance controls.
+Choose the task you want to do. These guides describe the v2 tree-evolution beta in this checkout, `2.0.0b21`. The first example needs no API key or separate agent project. Its campaign manifest is `evolution-v2-manifest/15`, the scaffold format; opt-in `/16` adds independent acceptance controls.
 
 ## Learn by running a campaign
 
 The entry guides are also available in Russian: [README](../README.ru.md) and [Quickstart](../QUICKSTART.ru.md). Reference guides below remain in English.
+
+For a coding assistant, start with the [Core campaigns skill](core-campaigns/SKILL.md).
 
 1. [Run your first campaign](../QUICKSTART.md) — clone, install, run the offline example and inspect its selected files.
 2. [Understand the workflow](architecture.md) — learn the roles, campaign cycle and evidence behind a promotion.

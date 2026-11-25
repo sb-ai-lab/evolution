@@ -21,6 +21,7 @@ from evolution.tree.artifacts.artifact_payloads import (
     verify_directory,
 )
 from evolution.tree.artifacts.artifact_projections import AuxiliaryPublication
+from evolution.tree.campaign_identity import declared_baseline
 from evolution.tree.campaign_statistics import latest_rows
 from evolution.tree.execution.candidate_integrity import ArtifactError
 from evolution.tree.execution.journal_identity import RunIdentityV1, canonical_json
@@ -1184,8 +1185,7 @@ class Family15Audit:
         if self.snapshot.baseline_abandoned is None:
             return False
         creation = self.context.records[0].payload["identity"]
-        linked = creation.get("linked_from") or {}
-        baseline = linked.get("baseline")
+        baseline = declared_baseline(creation)
         if baseline is None:
             return False
         prior = self.context.records[: record.to_payload()["sequence"] - 1]
@@ -1744,8 +1744,7 @@ class Family15Audit:
         from evolution.tree.storage.envelope import Envelope
 
         creation = self.context.records[0].payload["identity"]
-        linked = creation.get("linked_from") or {}
-        declared = linked.get("baseline") or {}
+        declared = declared_baseline(creation) or {}
         rows = body["slot_index"]
         _need(
             declared.get("pairs_digest") == body["rows_digest"] == import_pairs_digest(rows)

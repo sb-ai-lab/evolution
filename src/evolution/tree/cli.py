@@ -63,7 +63,9 @@ from evolution.tree.manifest.manifest_v2 import load_manifest_v2
 from evolution.tree.roles.role_call import is_attempt_line
 from evolution.tree.storage.redaction import safe_record
 
-tree_app = typer.Typer(help="Evolve a local service through immutable Candidate snapshots.")
+tree_app = typer.Typer(
+    help="Core campaign engine: evolve a local service through immutable Candidate snapshots."
+)
 app.add_typer(tree_app, name="tree")
 
 #: The signals an operator uses to stop a campaign. Both set the same flag: C1
@@ -158,6 +160,17 @@ def _evaluate(manifest: Path, run_dir: Path, progress: bool, log: process_log.Pr
     finally:
         if controller is not None:
             controller.discard()
+    provenance = result["provenance"]
+    if (
+        provenance["recorded"]
+        and provenance["reported"] == 0
+        and (provenance["overflow"] or 0) + (provenance["not_reported"] or 0) > 0
+    ):
+        typer.echo(
+            "evo tree evaluate: note: no sample carried provenance; a campaign with "
+            "gate.provenance.kind reported treats every case as affected",
+            err=True,
+        )
     typer.echo(json.dumps(result, ensure_ascii=True, sort_keys=True))
     raise typer.Exit(0 if result["state"] == "completed" else 1)
 
@@ -235,6 +248,9 @@ def _print_refusal(exc: EvolveRefused, run_dir: Path, redactions: tuple[str, ...
         )
         if finding.expected:
             say(finding.expected)
+        if finding.code == "baseline_import_held_out":
+            say(HARD_REASONS["baseline_import_held_out"])
+            say("the later test report is no longer independent of the campaign for those cases")
         for difference in finding.differences:
             say(
                 f"differs: {difference.field}  journaled {difference.journaled}  "
@@ -250,7 +266,10 @@ def _print_refusal(exc: EvolveRefused, run_dir: Path, redactions: tuple[str, ...
             if len(finding.effects) > 1:
                 if "continue" not in finding.effects:
                     say(SCALE_CHANGE_SENTENCE)
-            else:
+            elif finding.code != "baseline_import_held_out":
+                # The held-out finding's consequence is its own two lines above;
+                # the shared `import` sentences speak of another scorer, metric
+                # plan or tree, which a held-out-only refusal does not involve.
                 for line in EFFECT_SENTENCES.get(finding.effect or "", ()):
                     say(line)
             authorizable.append((finding.code, finding.instance_digest))
@@ -327,6 +346,8 @@ def _hard_reason_key(exc: EvolveRefused) -> str:
     prints only the code's own (absent) sentence rather than guess at either.
     """
 
+    if exc.code == "baseline_source_unavailable" and exc.path == "baseline_import":
+        return "baseline_source_unavailable_import"
     if exc.code == "run_identity_changed" and exc.differences:
         # ADR-0021: a moved adaptation profile is a family change, hard
         # whether or not the campaign finished; it leads its differences.
@@ -335,6 +356,8 @@ def _hard_reason_key(exc: EvolveRefused) -> str:
         # The resume presence rule for `linked_from` (continuable terminals
         # §6.3): hard, and neither of the other two causes -- the field is not
         # comparable, and the campaign need not be finished.
+        if [difference.field for difference in exc.differences] == ["identity.baseline_import"]:
+            return "run_identity_changed_baseline_import"
         if [difference.field for difference in exc.differences] == ["identity.linked_from"]:
             return "run_identity_changed_linked_from"
         if [difference.field for difference in exc.differences] == [

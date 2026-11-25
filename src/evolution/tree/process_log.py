@@ -31,7 +31,7 @@ from typing import Protocol, TextIO, cast
 import typer
 
 from evolution import __version__
-from evolution.lineage.state_io import ensure_private_directory
+from evolution.lineage.state_io import ensure_private_directory, sync_file
 from evolution.tree.execution.output_admission import (
     PROCESS_LOGS_DIR,
     EvolveRefused,
@@ -363,7 +363,7 @@ class ProcessLog:
                 self._buffer.clear()
                 if self._fd is not None:
                     try:
-                        os.fsync(self._fd)
+                        sync_file(self._fd)
                     except Exception as exc:
                         self._disable(exc)
                     try:

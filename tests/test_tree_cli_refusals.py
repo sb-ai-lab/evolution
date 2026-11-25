@@ -506,3 +506,43 @@ def test_every_other_sentence_ignores_the_connection(reason, evidence) -> None:
     assert _suspension_detail(evidence, reason=reason, connection=connection) == (
         _suspension_detail(evidence, reason=reason)
     )
+
+
+def test_held_out_import_explains_loss_of_test_independence(capsys):
+    lines = _print(
+        EvolveRefused(
+            "baseline_import_held_out", "baseline_import", instance_digest=A, effect="import"
+        ),
+        capsys,
+    )
+    assert any("the source measured held-out test cases" in line for line in lines)
+    assert any("later test report is no longer independent" in line for line in lines)
+    assert any("class: authorizable" in line for line in lines)
+    assert not any("another scorer, metric plan or tree" in line for line in lines)
+    assert not any("recorded with the campaign and reported" in line for line in lines)
+
+
+def test_combined_import_refusal_keeps_effect_for_incompatible_finding(capsys):
+    def finding(code: str, digest: str) -> RefusalFinding:
+        return RefusalFinding(code, "baseline_import", "", (), digest, "import")  # type: ignore[arg-type]
+
+    refused = EvolveRefused.from_findings(
+        (
+            finding("baseline_import_incompatible", A),
+            finding("baseline_import_held_out", B),
+        )
+    )
+    lines = _print(refused, capsys)
+    assert sum("another scorer, metric plan or tree" in line for line in lines) == 1
+    held = lines.index(next(line for line in lines if "baseline_import_held_out" in line))
+    assert not any("another scorer, metric plan or tree" in line for line in lines[held:])
+
+
+def test_unavailable_standalone_source_has_its_own_manifest_door(capsys):
+    lines = _print(EvolveRefused("baseline_source_unavailable", "baseline_import"), capsys)
+    assert (
+        lines[-1]
+        == P
+        + "the baseline source cannot be read; remove baseline_import to measure the baseline in full"
+    )
+    assert not any('"baseline": "fresh"' in line for line in lines)

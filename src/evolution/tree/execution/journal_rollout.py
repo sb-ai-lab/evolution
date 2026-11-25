@@ -20,8 +20,14 @@ from evolution.tree.execution.interaction import (
     TargetInstance,
     Trajectory,
 )
+from evolution.tree.execution.journal import Journal
 from evolution.tree.execution.journal_identity import IdentityError, RunIdentityV1, canonical_json
-from evolution.tree.execution.journal_schema import EXTERNAL_OPERATIONS, SAMPLE_FIELDS, SHA256
+from evolution.tree.execution.journal_schema import (
+    EXTERNAL_OPERATIONS,
+    SAMPLE_FIELDS,
+    SHA256,
+    publish_components,
+)
 from evolution.tree.execution.rollout import rollout
 from evolution.tree.execution.wire_v2 import PROVENANCE_MAX_BYTES, PROVENANCE_MAX_USED
 from evolution.tree.storage.envelope import is_identifier, secret_match
@@ -31,6 +37,28 @@ from evolution.tree.storage.journal_errors import (
     JournalFault,
     JournalRecoveryRequired,
 )
+
+
+def _declare_components(journal: Journal, instance: object) -> tuple[str | None, int]:
+    """Publish a marked journal's instance map, retaining withheld accounting."""
+    components = getattr(instance, "components", None)
+    if not journal.identity.row_provenance or components is None:
+        return None, 0
+    published = publish_components(components, journal.secrets)
+    if published.digest in journal.declared_components():
+        return published.digest, 0
+    journal.append("components_declared", published.payload())
+    return published.digest, published.withheld
+
+
+def declare_instance_components(journal: Journal, instance: object) -> str | None:
+    """Declare the instance's component map once; return its digest, or None.
+
+    Unmarked journals and instances without a map declare nothing. Secret
+    component identifiers are screened through the journal's ordinary rules.
+    """
+    digest, _ = _declare_components(journal, instance)
+    return digest
 
 
 class NativeJournal(Protocol):

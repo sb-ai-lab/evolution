@@ -60,11 +60,16 @@ def _snapshot_requests(client: Any) -> list[dict[str, Any]]:
 
 @pytest.fixture(params=["editor", "reflector"])
 def native_role(request: pytest.FixtureRequest, tmp_path: Path, reflect_request: ReflectRequest):
-    async def run(responses: list[Any], **options: Any) -> _NativeRun:
+    async def run(responses: list[Any], *, family15: bool = False, **options: Any) -> _NativeRun:
+        if family15:
+            from tests.test_tree_chat_role_retry import RETRY
+
+            options.setdefault("retry", RETRY)
         if request.param == "editor":
             editor, client = _editor(
                 tmp_path, [_response("list_files"), *responses, *_edit_flow()[1:]], **options
             )
+            editor = replace(editor, family15=family15, role_resilience=family15)
             snapshots = _snapshot_requests(client)
             workspace = _ws(tmp_path)
             result = await editor.edit(_request(workspace))
@@ -78,6 +83,7 @@ def native_role(request: pytest.FixtureRequest, tmp_path: Path, reflect_request:
             ],
             **options,
         )
+        reflector = replace(reflector, family15=family15, role_resilience=family15)
         snapshots = _snapshot_requests(client)
         result = await reflector.reflect(reflect_request)
         return _NativeRun(
@@ -762,3 +768,70 @@ def test_retained_message_replaces_deeply_nested_arguments() -> None:
     result, replaced = retained_message(message)
     assert [call["function"]["arguments"] for call in result["tool_calls"]] == ["{}", "{}"]
     assert [item.id for item in replaced] == ["c1"]
+
+
+async def test_v16_native_roles_keep_read_receipts_across_successive_folds(native_role) -> None:
+    page = _continued_response()
+    page.choices[0].message.content = f"Look at the seed. {SECRET}"
+    page.choices[0].message.reasoning_details = [{"type": "opaque", "data": "private" * 800}]
+    later = _parallel_response(("list_files", "{}"), ("read_file", '{"path":"skipped"}'))
+    later.choices[0].message.reasoning_details = [{"type": "opaque", "data": "large" * 1000}]
+    run = await native_role(
+        [page, later, later],
+        family15=True,
+        context_compact_chars=2400,
+        context_message_max_chars=600,
+    )
+    assert run.result.status in {"edited", "declined"}
+    prefix = run.requests[1]["messages"][:2]
+    page_result = json.loads(run.requests[2]["messages"][-1]["content"])
+    for request in run.requests[3:5]:
+        messages = request["messages"]
+        assert messages[:2] == prefix
+        exchange = message_units(messages[2:])[-1]
+        assert exchange[0] == assistant_message(later.choices[0].message)
+        assert json.loads(exchange[2]["content"])["error"] == "not_executed"
+        summary = messages[2]["content"]
+        dialogue, receipts = summary.split("\nRead pages\n")
+        assert "Look at the seed." in dialogue
+        assert "[REDACTED]" in dialogue
+        assert all(text not in dialogue for text in ("sha256", "private", SECRET, "re-read"))
+        assert dialogue.count("Earlier dialogue") == 1
+        (receipt,) = json.loads(receipts)["pages"]
+        assert receipt["source"] == "skills/SKILL.md"
+        assert (receipt["start_line"], receipt["end_line"], receipt["next_line"]) == (1, 1, None)
+        assert receipt["source_version"] == page_result["sha256"]
+        assert receipt["fragment_sha256"] == page_result["fragment_sha256"]
+
+
+async def test_tiny_fold_omits_a_legacy_read_without_repeating_its_body(tmp_path: Path) -> None:
+    from tests.tree.roles.editor.test_chat_editor import (
+        _CopyingClient,
+        _legacy_response,
+        _plan,
+        _v16_editor,
+    )
+
+    text = "earlier file contents " * 150
+    workspace = _ws(tmp_path)
+    (workspace / "skills/SKILL.md").write_text(text)
+    client = _CopyingClient(
+        [
+            _legacy_response("list_files"),
+            _legacy_response("read_file", '{"path":"skills/SKILL.md"}'),
+            _plan("skills/SKILL.md", legacy=True),
+            _legacy_response("write_file", '{"path":"skills/SKILL.md","content":"revised"}'),
+            _legacy_response("finish_edit", '{"summary":"done"}'),
+        ]
+    )
+    editor = _v16_editor(tmp_path, client, context_compact_chars=180, context_message_max_chars=60)
+    result = await editor.edit(_request(workspace))
+    assert result.status == "edited", result.note
+    delivered = client.bodies[2]["messages"][-1]
+    assert delivered["role"] == "user" and text in delivered["content"]
+    for body in client.bodies[3:]:
+        messages = body["messages"]
+        assert all("earlier file contents" not in m["content"] for m in messages[2:])
+        dialogue, receipts = messages[2]["content"].split("\nRead pages\n")
+        assert "Local function read_file returned" not in dialogue
+        assert json.loads(receipts) == {"pages": [], "omitted": 1}

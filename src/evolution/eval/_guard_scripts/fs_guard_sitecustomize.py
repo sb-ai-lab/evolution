@@ -26,6 +26,10 @@ _PROTECTED_ROOTS = tuple(_Path(p) for p in (
     "/proc",
     "/sys",
     "/etc",
+    # macOS: homes, volumes, and the resolved /tmp, /var and /etc.
+    "/Users",
+    "/Volumes",
+    "/private",
 ))
 _WORKSPACE_ALIAS = "/workspace"
 

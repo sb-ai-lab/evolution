@@ -48,7 +48,7 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Final, Literal, TypeVar, cast, get_args
 
-from evolution.lineage.state_io import ensure_private_directory
+from evolution.lineage.state_io import ensure_private_directory, sync_file
 from evolution.tree.artifacts.attestation import verify_attestation
 from evolution.tree.execution import durable_reference as _durable_reference
 from evolution.tree.execution.check_modes import ENFORCE_ALL, CheckModes, HitSink
@@ -1617,7 +1617,7 @@ def _write_trace(path: Path, document: Mapping[str, Any]) -> str:
         with os.fdopen(descriptor, "wb") as stream:
             stream.write(payload)
             stream.flush()
-            os.fsync(stream.fileno())
+            sync_file(stream.fileno())
     except (OSError, WorkspaceError) as exc:
         raise _storage_fault(exc) from exc
     return hashlib.sha256(payload).hexdigest()

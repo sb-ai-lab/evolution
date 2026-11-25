@@ -610,11 +610,9 @@ def _role_adaptation(manifest, root):
         ),
         (
             "16",
-            # b17 bound role_contracts/1 in /16 chat identities.
-            # b18: role_contracts/2 (ADR-0061)
-            "f9f23a1f62890025c0f39e7d1c3f2da4f7aea4700e4049f6108a31a601b9aa68",
-            # b18: role_contracts/2 (ADR-0061)
-            "ac4fb162fcaf8d91346c01fe2dd5ccc393b8dcfc7baaf80a2f7100ac944d7ff4",
+            # Read progress binds role_contracts/3 in both direct /16 chat roles.
+            "71f786642d8cd9ce353af727af844ea3e6a58b395233e83723d39afd258adeb1",
+            "596c678d3cc1115680696cf47497e8c0bb1bc7200b8ab957eb987623681d36c7",
             "86246b9b3ffa57dcf6b755364ee67092d74ee96fb7c12941cdbb665c4008c531",
         ),
     ],

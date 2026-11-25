@@ -1,6 +1,6 @@
 # Running campaigns
 
-Use this guide after the [Quickstart](../QUICKSTART.md). It covers the operator's job: prepare an experiment, run it, understand the result and keep useful work when something fails. The scaffold uses manifest `/15`, the stable family; opt-in `/16` provides independent acceptance controls. File loaders accept only these two schemas, and campaign readers support only families 14 and 15. Read removed-family runs with `2.0.0b9`, or seed a new unlinked `/15` campaign from the Champion copy ([migration](#move-a-14-run-to-15), [handle a refusal](#handle-a-refusal)).
+Use this guide after the [Quickstart](core-quickstart.md). It covers the operator's job: prepare an experiment, run it, understand the result and keep useful work when something fails. The scaffold uses manifest `/15`, the stable family; opt-in `/16` provides independent acceptance controls. File loaders accept only these two schemas, and campaign readers support only families 14 and 15. Read removed-family runs with `2.0.0b9`, or seed a new unlinked `/15` campaign from the Champion copy ([migration](#move-a-14-run-to-15), [handle a refusal](#handle-a-refusal)).
 
 For opt-in `/16`, start with [independent acceptance](#choose-independent-acceptance-manifest-16). For the scaffold's `/15` workflow, start with [comparison and stopping settings](#judge-a-candidate-with-the-stable-family-manifest-15), then use [watch](#watch-a-running-campaign) for progress and [trace](#export-what-each-case-did) for case-level evidence. Historical headings remain as links to current guidance, not instructions to use retired schemas.
 
@@ -21,13 +21,13 @@ my-experiment/
 └── runs/                 # separate directories for campaigns and evaluations
 ```
 
-Generate a starting manifest with `evo-target init`, then adapt it before creating a run. Its demo scorer and role scripts are intentionally specific to the demo; they do not evaluate or improve an arbitrary agent. Use [Connecting an agent](connecting-an-agent.md) for the target and [the role reference](manifest-v2.md#editor) for the editor and Reflector.
+Generate a starting manifest with `evo-target init`, then adapt it before creating a run. Its demo scorer and role scripts are intentionally specific to the demo; they do not evaluate or improve an arbitrary agent. Use [Connecting an agent](connecting-an-agent.md) for the target and [the role reference](manifest-v2.md#editor) for the Editor and Reflector.
 
 ### Decide what may change
 
-`seed_root` is your starting tree. `artifacts.writable_paths` declares which paths the editor may change. `artifacts.dependency_paths` declares files whose contents identify the dependencies used to evaluate the tree. Start with a narrow writable set, such as `skills/**`, and keep the scorer and role programs outside the seed.
+`seed_root` is your starting tree. `artifacts.writable_paths` declares which paths the Editor may change. `artifacts.dependency_paths` declares files whose contents identify the dependencies used to evaluate the tree. Start with a narrow writable set, such as `skills/**`, and keep the scorer and role programs outside the seed.
 
-The target must load the exact candidate snapshot it is given. If it always reads the original checkout, Evolution would be testing the same agent after every edit. The [backend guide](connecting-an-agent.md#load-the-files-evolution-gives-you) explains this boundary.
+The target must load the exact Candidate snapshot it is given. If it always reads the original checkout, Evolution would be testing the same agent after every edit. The [backend guide](connecting-an-agent.md#load-the-files-evolution-gives-you) explains this boundary.
 
 ### Define cases and quality
 
@@ -37,7 +37,7 @@ The corpus is JSON Lines: one object per line. For example:
 {"case_id":"route-01","group_id":"routing","stratum":"short","public":{"text":"Where do I file an expense?"},"oracle":{"expected":"expenses"}}
 ```
 
-Give cases unique IDs. `public` contains inputs visible to the agent and editor. `private` is reserved for the Environment. `oracle` holds the information only the scorer should read, such as expected answers. `group_id` and `stratum` describe your evaluation groups; they are part of the comparison, not decorative labels.
+Give cases unique IDs. `public` contains inputs visible to the agent and Editor. `private` is reserved for the Environment. `oracle` holds the information only the scorer should read, such as expected answers. `group_id` and `stratum` describe your evaluation groups; they are part of the comparison, not decorative labels.
 
 The scorer must return the metric named by `campaign.metric.primary` for every scored case. It should also return criterion `verdicts` so the Reflector can identify failures. If a case declares `oracle.critical: true`, the scorer must return `critical_pass` for it. See the [scorer protocol](manifest-v2.md#what-the-scorer-program-reads-and-writes).
 
@@ -48,7 +48,7 @@ Both current schemas accept train/test labels: only train participates in improv
 | Setting | What you are choosing |
 |---|---|
 | `campaign.rounds` | Number of rounds this campaign may run |
-| `attempts_per_round`, `parallel_attempts` | How many candidate edits to try and how many can run together |
+| `attempts_per_round`, `parallel_attempts` | How many Candidate edits to try and how many can run together |
 | `budget.max_turns`, `budget.timeout_seconds` | Turn and time limits for one agent interaction |
 | `budget.max_failed_turns` | Consecutive agent-owned failed turns allowed before ending the interaction |
 | `call_retries.max_attempts` | Total attempts for a transient target call |
@@ -89,13 +89,27 @@ A model endpoint inside a closed network can use plain HTTP, for example `"base_
 
 ## Improve on train and measure on test
 
-Train is the set Evolution uses to find failures, edit the tree and decide whether to promote an edit. Test is a separate set for measuring a fixed tree. Test results never enter the framework's improvement loop.
+Train is the set Evolution uses to find failures, edit the tree and decide whether to promote an edit. Test is a separate set for measuring a fixed tree. Campaign schedules use train only. Reusing a baseline source that measured held-out cases requires the separate recorded decision described [below](#start-a-campaign-from-a-finished-evaluation).
 
 | Operation | Cases it uses | Result |
 |---|---|---|
 | `evo tree evolve`, manifest `/15` or `/16` | Train only | Campaign report and selected tree |
 | `evo tree evaluate`, `split: train` | Train only | Separate measurement report |
 | `evo tree evaluate`, `split: test` | Test only | Separate measurement report |
+
+### Start a campaign from a finished evaluation
+
+Choose the saved train evaluation of the same seed tree, scorer and primary metric. A released partial evaluation can also supply its scored pairs. In a new `/15` or `/16` manifest add `"baseline_import": {"source": "<SOURCE_DIR>"}`, then run:
+
+```bash
+evo tree evolve --manifest <MANIFEST> --run-dir <NEW_RUN_DIR>
+```
+
+Core imports admissible baseline pairs and measures missing pairs. `/16` also imports the bounded scorer diagnostics, so verdict-only failures can open an Attempt; prefer it when traces are available. `/15` warns that these failures cannot be diagnosed until a baseline refresh. Missing traces are explicit gaps, not a refusal or a silent fresh baseline.
+
+Read the counts and condition notes before interpreting the result. A different seed, scorer or primary plan requires an incompatibility decision; a source that measured held-out evidence needs a separate decision. Cases outside this campaign's train schedule stay unpaired. Copy only the authorization command printed for that run and instance, then retry the same invocation. See [baseline import](cli.md#a-baseline-from-an-evaluation) for the refusals, provenance note and recovery.
+
+Use `linked_from` when continuing a finished campaign and retaining its lineage. It cannot be combined with `baseline_import`. After an import's baseline is born, resume and audit use the campaign's own copied evidence; before birth, keep the pinned source available or explicitly authorize a fresh baseline.
 
 ### Prepare the partition
 
@@ -300,6 +314,8 @@ With fresh Parent measured noise, causal fallback waits for q in the deciding re
 
 ### Choose linked baseline evidence
 
+For standalone evaluation evidence, [start from an evaluation](#start-a-campaign-from-a-finished-evaluation) with `baseline_import`. For a finished campaign predecessor, use the link modes below.
+
 For a linked run, choose `linked_from.baseline: inherit` to reuse compatible scores and available bounded diagnostics. Reports state diagnostic coverage and gaps. Missing diagnostics can leave a verdict-only baseline with no reconstructable failures; `baseline_refresh_after_rounds: 0` may then stall without new calls. Choose `baseline: fresh` in the new linked manifest to pay for a baseline, or explicitly configure positive refresh rounds. No hidden refresh repairs a diagnostic gap. A committed bundle remains usable when the source moves, but historical stdout is not authenticated merely because its scalar scores match.
 
 A new `/16` link admits only a finished family-14 or family-15 run. A `statistical` successor refuses a family-14 predecessor that ever ran `observe` (`lineage_mode_unsupported`); start unlinked or choose a non-statistical mode instead.
@@ -389,7 +405,7 @@ The campaign journals `identity_rebased` and uses the new list from then on. Fro
 
 ### Read the final, roles, settings and connection blocks
 
-Run the scaffold as in the [Quickstart](../QUICKSTART.md), saving the report as `./demo/result.json`. Each round of a `/15` report carries a `final` list, one entry per final measurement:
+Run the scaffold as in the [Quickstart](core-quickstart.md), saving the report as `./demo/result.json`. Each round of a `/15` report carries a `final` list, one entry per final measurement:
 
 ```bash
 jq -c '.result.rounds[] | {round, outcome, final: [.final[] | {ordinal, champion_side, stored_measurement_id, members: [.members[].measurement_id], next_baseline_measurement_id}]}' ./demo/result.json
@@ -506,7 +522,7 @@ For `grouper_provider_failed`, the [provider-attempt line](#read-provider-attemp
 
 ### A /15 smoke campaign
 
-The scaffold is itself the smoke campaign for `/15`: it runs offline, with the recommended values. Run it as in the [Quickstart](../QUICKSTART.md), then check the rounds, the Champion and the alpha:
+The scaffold is itself the smoke campaign for `/15`: it runs offline, with the recommended values. Run it as in the [Quickstart](core-quickstart.md), then check the rounds, the Champion and the alpha:
 
 ```bash
 jq -c '[.result.rounds[] | {round, outcome}]' ./demo/result.json
@@ -675,7 +691,7 @@ To see progress in the terminal that starts the campaign, add `--progress`:
 evo tree evolve --manifest ./demo/manifest.json --run-dir ./demo/run-1 --progress
 ```
 
-Start the scaffold's Target Service first, as in the [Quickstart](../QUICKSTART.md). For a new scaffold run, the first progress lines name the created campaign and its baseline measurement; later lines show scored-pair counts, rounds, Attempts and decisions. A resumed run first shows a one-line snapshot, including any previous suspension. Progress goes to stderr and the usual final JSON report stays on stdout. The flag is off by default and changes no evidence, role input or exit code. Standalone evaluation also accepts `--progress`.
+Start the scaffold's Target Service first, as in the [Quickstart](core-quickstart.md). For a new scaffold run, the first progress lines name the created campaign and its baseline measurement; later lines show scored-pair counts, rounds, Attempts and decisions. A resumed run first shows a one-line snapshot, including any previous suspension. Progress goes to stderr and the usual final JSON report stays on stdout. The flag is off by default and changes no evidence, role input or exit code. Standalone evaluation also accepts `--progress`.
 
 To follow the same run from a second terminal, use:
 
@@ -751,7 +767,7 @@ Do not change, add or remove evidence inside a run directory that you still inte
 
 ## Keep a run alive after the terminal closes
 
-Start the Target Service first and keep it running separately, as in the [Quickstart](../QUICKSTART.md). To start a campaign that should outlive this terminal, use `nohup`:
+Start the Target Service first and keep it running separately, as in the [Quickstart](core-quickstart.md). To start a campaign that should outlive this terminal, use `nohup`:
 
 ```bash
 nohup evo tree evolve --manifest ./demo/manifest.json --run-dir ./demo/run-2 > run.out 2>&1 &
@@ -778,7 +794,7 @@ A stop can also leave a Champion measurement unfinished without a kill. If the s
 
 A campaign also suspends when too many tries of one component ended without a usable result: the reasons `target_unstable`, `environment_unstable`, `scorer_unstable` and `rollout_time_budget_exhausted`. Each case/sample pair has a limited number of retries. When you resume such a campaign, it first runs one more try of each case/sample pair whose retries that component used up. If you repaired the component, those pairs are measured. If it is still broken, the campaign suspends again. If the Evolution process itself dies in the middle of a measurement (killed, out of memory, host restart), every try that was open at that moment counts as an indeterminate try of the `rollout` component, including tries that were being scored. Several such tries can cross the `rollout` threshold, and the campaign then suspends with `rollout_time_budget_exhausted` even though no time budget ran out. Resume with the same `evo tree evolve` command; you do not need `evo tree authorize`. A changed package version may require authorization; follow [Handle a refusal](#handle-a-refusal).
 
-When a threshold is crossed while an Attempt's samples failed, the campaign suspends at the round barrier and the Attempt stays open. When you resume, the failed samples of that Attempt get one repair try each, as the champion's do. The Attempt is then judged on the repaired evidence. This also holds when the campaign suspends for another reason first, for example when a later Attempt's Editor fails. A scorer fix over a baseline that was already completed changes a comparison condition, so it needs `evo tree authorize` with `rebaseline`.
+When a threshold is crossed while an Attempt's samples failed, the campaign suspends at the round barrier and the Attempt stays open. When you resume, the failed samples of that Attempt get one repair try each, as the Champion's do. The Attempt is then judged on the repaired evidence. This also holds when the campaign suspends for another reason first, for example when a later Attempt's Editor fails. A scorer fix over a baseline that was already completed changes a comparison condition, so it needs `evo tree authorize` with `rebaseline`.
 
 Use `owner` and `code` in the result to find the component to inspect:
 
@@ -1104,3 +1120,17 @@ The early buffer is bounded at 1 MiB and copied stderr at 64 MiB; omissions are 
 ## Storage forecast limits
 
 An inode forecast is advisory. It does not account exactly for tree growth, concurrent writers, additional corrupt-pack segments, every lazy directory on resume or transient anonymous buffers. A low forecast warns and continues; a filesystem without a fixed inode count gives no shortage warning. Keep enough free bytes and inodes for the agent and its subprocesses, and preserve durable run evidence when freeing space. A later storage failure can require repeated work on resume.
+
+## Host crashes and durability
+
+A default run survives a process crash or a kill. Core writes the same bytes, performs the same renames and checks the same digests, without calling fsync. An OS crash or power loss can lose recent work:
+
+1. Journals can lose different tails, so resume can refuse.
+2. A damaged published tree fails its digest check and stops the artifact store.
+3. A target call can repeat if its start record was lost.
+4. Scorer output can appear missing; a resume can report an invariant failure.
+5. Lab's budget ledger can miss recent spend, so a restarted run can exceed its cost cap.
+
+If resume refuses after a host crash, start a new run. A linked run still needs valid predecessor evidence; it is not a repair path for crash damage.
+
+Set `EVOLUTION_DURABILITY=strict` before starting a process to restore per-write fsync and the previous SQLite settings. The default is `relaxed`, also when unset or empty. Values are exact lowercase words: other values are refused before writes (CLI exit 2; library `ValueError`). Keep the setting fixed for the process lifetime; changing it during a run is unsupported. Lab passes its effective value to its Core and Lab workers at launch. See [configuration](configuration.md#process-durability).
