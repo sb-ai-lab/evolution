@@ -1185,7 +1185,7 @@ def test_b17_chat_prompt_selection_keeps_declared_and_v15_bytes(tmp_path, family
         "custom prompt\n"
         if declared
         else getattr(
-            prompts, "TREE_REFLECTOR_SYSTEM_V6" if family15 else "TREE_REFLECTOR_SYSTEM_V3"
+            prompts, "TREE_REFLECTOR_SYSTEM_V7" if family15 else "TREE_REFLECTOR_SYSTEM_V3"
         )
     )
 

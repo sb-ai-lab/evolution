@@ -40,7 +40,9 @@ from typing import Any
 
 from evolution.tree.roles.chat_history import (
     ReplacedCall,
+    ToolReads,
     is_object_arguments,
+    message_chars,
     tool_exchange,
     with_dropped_note,
 )
@@ -62,6 +64,7 @@ from evolution.tree.roles.editor.chat_editor import (  # noqa: PLC2701 - one too
     provider_request,
     record_request,
 )
+from evolution.tree.roles.read_progress import ReadProgress
 from evolution.tree.roles.role_call import AttemptRecorder, RoleCallRetry, provider_error_detail
 from evolution.tree.roles.workspace import AttemptLog
 
@@ -110,7 +113,7 @@ class Done:
 
 @dataclass(frozen=True)
 class Repair:
-    """The terminal call is a protocol error: one repair, from the budget."""
+    """The call is a protocol error: one repair, from the budget."""
 
     error: str
 
@@ -155,28 +158,6 @@ class SessionTimeout(Exception):
     """
 
 
-class ToolReads:
-    """Which messages are tool results, kept beside the conversation.
-
-    A legacy-style session returns a result as a plain user message, which
-    cannot be told from other user text. The loop registers each result it
-    appends here (by object identity, holding the message so the identity
-    stays valid), with the tool and the arguments of the call it answers;
-    `elide_to_fit(..., reads=reads)` uses it. Nothing is added to the wire
-    messages.
-    """
-
-    def __init__(self) -> None:
-        self._entries: dict[int, tuple[dict[str, Any], str, Any]] = {}
-
-    def add(self, message: dict[str, Any], name: str, arguments: Any) -> None:
-        self._entries[id(message)] = (message, name, arguments)
-
-    def get(self, message: Mapping[str, Any]) -> tuple[str, Any] | None:
-        entry = self._entries.get(id(message))
-        return None if entry is None else (entry[1], entry[2])
-
-
 @dataclass(frozen=True)
 class LoopHooks:
     """Optional session controls; `None` keeps the Reflector's behavior.
@@ -216,9 +197,7 @@ def chat_request_size(
 ) -> int:
     """Messages as `_compact_messages` counts them, plus the tool list's JSON."""
 
-    return sum(
-        len(json.dumps(message, ensure_ascii=False, default=str)) for message in messages
-    ) + len(json.dumps(list(tools), ensure_ascii=False))
+    return message_chars(messages) + len(json.dumps(list(tools), ensure_ascii=False))
 
 
 def _is_elided(message: Mapping[str, Any]) -> bool:
@@ -290,7 +269,7 @@ def cut_answer(response: Any) -> LoopStop | None:
 
 
 Terminal = Callable[[str, dict[str, Any], int], "Done | Repair | Correct"]
-RunTool = Callable[[str, dict[str, Any]], Awaitable["Mapping[str, Any] | ToolOutput"]]
+RunTool = Callable[[str, dict[str, Any]], Awaitable["Mapping[str, Any] | ToolOutput | Repair"]]
 Compact = Callable[..., None]
 
 
@@ -313,6 +292,7 @@ async def run_tool_loop(
     retry: RoleCallRetry | None = None,
     first_turn: int = 0,
     compact: Compact | None = _compact_messages,
+    read_progress: ReadProgress | None = None,
     family15: bool = False,
 ) -> object:
     """Run one tool conversation until a terminal call returns `Done`.
@@ -433,6 +413,8 @@ async def run_tool_loop(
     while True:
         remaining()
         turn = next_turn()
+        if read_progress is not None:
+            read_progress.begin_turn()
         if compact is not None:
             compact(
                 messages,
@@ -548,13 +530,16 @@ async def run_tool_loop(
             record({"phase": "tool_error", "turn": turn, "tool": name, "error": str(exc)})
             messages.extend(results(call, {"error": f"{exc}.{guidance}".rstrip()}))
             continue
+        failing_tool, consecutive_failures = None, 0
+        if isinstance(outcome, Repair):
+            request_repair(outcome.error, calls)
+            continue
         if isinstance(outcome, ToolOutput):
             output, follow_up = outcome.result, outcome.follow_up
             if outcome.block:
                 blocked.add(name)
         else:
             output, follow_up = dict(outcome), None
-        failing_tool, consecutive_failures = None, 0
         record(
             {
                 "phase": "tool_call",

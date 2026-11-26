@@ -704,3 +704,6 @@ async def test_failed_real_output_append_suppresses_the_scoring_terminal(tmp_pat
     finally:
         journal.close()
         scorer._close_traces()
+
+
+pytestmark = pytest.mark.usefixtures("strict_durability")

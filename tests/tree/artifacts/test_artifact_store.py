@@ -18,6 +18,7 @@ from evolution.tree.artifacts.artifact_schema import ArtifactStoreIdentityV1
 from evolution.tree.artifacts.artifacts import ArtifactStore, SelectionDecision
 from evolution.tree.execution.candidate_integrity import ArtifactError
 from evolution.tree.storage.journal_errors import JournalFault
+from tests.tree.artifacts.copy_faults import fail_file_copy
 from tests.tree.artifacts.test_artifact_policy import seed, write
 
 POLICY = ArtifactPolicyV1((), ("uv.lock",), ("skills/**",))
@@ -269,20 +270,13 @@ def test_second_round_promotes_from_the_new_champion(tmp_path):
 
 
 def test_capacity_exhaustion_closes_session_and_publishes_nothing(tmp_path, monkeypatch):
-    import shutil
-
     with create(tmp_path) as store:
         store.materialize_candidate("a1")
-        real = shutil.copy2
-
-        def boom(src, dst, *a, **k):
-            raise OSError(errno.ENOSPC, "disk full")
-
-        monkeypatch.setattr(shutil, "copy2", boom)
-        with pytest.raises(ArtifactCapacityError) as info:
-            store.seal("a1")
-        assert info.value.code == "storage_capacity_exhausted"
-        monkeypatch.setattr(shutil, "copy2", real)
+        with monkeypatch.context() as patch:
+            fail_file_copy(patch, errno.ENOSPC)
+            with pytest.raises(ArtifactCapacityError) as info:
+                store.seal("a1")
+            assert info.value.code == "storage_capacity_exhausted"
         assert not (tmp_path / "run/artifacts/candidates/a1").exists()
         assert list((tmp_path / "run/artifacts/.staging").iterdir()) == []
         assert events(store)[-1] == "artifact_copy_failed"
@@ -297,13 +291,8 @@ def test_capacity_exhaustion_closes_session_and_publishes_nothing(tmp_path, monk
 
 
 def test_workspace_copy_failure_records_a_failed_terminal(tmp_path, monkeypatch):
-    import shutil
-
-    def boom(src, dst, *a, **k):
-        raise OSError(errno.EIO, "io")
-
     with create(tmp_path) as store:
-        monkeypatch.setattr(shutil, "copy2", boom)
+        fail_file_copy(monkeypatch, errno.EIO)
         with pytest.raises(ArtifactError) as info:
             store.materialize_candidate("a1")
         assert info.value.code == "io_failure"
@@ -684,18 +673,13 @@ def test_a_capacity_fault_at_the_failure_terminal_is_typed_and_recoverable(tmp_p
     The second fault must reach the caller as the same typed capacity error, not as a
     raw `JournalFault`: the open `artifact_copy_started` stays the durable boundary.
     """
-    import shutil
-
     run = tmp_path / "run"
     store = create(tmp_path)
     try:
         workspace = store.materialize_candidate("a1")
         write(workspace, "skills/SKILL.md", b"better")
 
-        def boom(src, dst, *a, **k):
-            raise OSError(errno.ENOSPC, "disk full")
-
-        monkeypatch.setattr(shutil, "copy2", boom)
+        fail_file_copy(monkeypatch, errno.ENOSPC)
         real = store.ledger.append
 
         def append(event, payload, operation_id=None):

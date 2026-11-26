@@ -8,13 +8,15 @@ Use Python 3.11.3 or newer. From the repository root:
 
 ```bash
 python -m pip install uv==0.10.11
-uv sync --locked --group dev --extra tree --extra llm
-uv pip install hatchling==1.31.0 pip
+uv sync --locked --group dev --extra tree --extra llm --compile-bytecode
+uv pip install --compile-bytecode hatchling==1.31.0 pip
 uv run --locked --no-sync ruff check src tests scripts
 uv run --locked --no-sync ruff format --check src tests scripts
 uv run --locked --no-sync mypy src/evolution
-uv run --locked --no-sync pytest -n 8 --dist worksteal -m "not live and not paper and not external_repo" -q
+scripts/test-tmp uv run --locked --no-sync pytest -n 8 --dist worksteal -m "not live and not paper and not external_repo" -q
 ```
+
+Test temporary files must be in RAM. `scripts/test-tmp` uses Linux tmpfs or creates a macOS RAM disk (1536 MB by default; `EVOLUTION_TEST_RAMDISK_MB` overrides it). Plain pytest refuses disk-backed temporary directories. CI can explicitly set `EVOLUTION_TEST_ALLOW_DISK=1`; fsync fault tests use `strict_durability`.
 
 The offline suite uses subprocesses and local sockets; package checks can download build dependencies. Tests marked `live`, `paper` or `external_repo` require additional services or data and are not part of the offline command. Documentation checks use Git's tracked-file list, so stage new documentation and register it in `docs/markdown-classification.json` before running them.
 

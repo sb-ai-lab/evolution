@@ -22,7 +22,7 @@ from evolution.prompts import (
     TREE_REFLECTOR_SYSTEM,
     TREE_REFLECTOR_SYSTEM_V3,
     TREE_REFLECTOR_SYSTEM_V4,
-    TREE_REFLECTOR_SYSTEM_V6,
+    TREE_REFLECTOR_SYSTEM_V7,
 )
 from evolution.tree.execution.command_binding import CommandBinding
 from evolution.tree.execution.config import CommandSection, EnvironmentSection
@@ -851,7 +851,7 @@ def build_reflector(
 
     role = section.role
     chat_prompt = (
-        TREE_REFLECTOR_SYSTEM_V6
+        TREE_REFLECTOR_SYSTEM_V7
         if family15 and result_repair
         else TREE_REFLECTOR_SYSTEM_V4
         if result_repair

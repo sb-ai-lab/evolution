@@ -72,7 +72,7 @@ def test_current_campaign_admission():
 async def test_current_campaigns_enable_diagnostics_resilience_and_bounds_repair(
     tmp_path, monkeypatch, schema
 ):
-    from evolution.prompts import TREE_REFLECTOR_SYSTEM_V3, TREE_REFLECTOR_SYSTEM_V6
+    from evolution.prompts import TREE_REFLECTOR_SYSTEM_V3, TREE_REFLECTOR_SYSTEM_V7
     from tests.family15_fakes import v16_document
     from tests.tree.manifest.test_manifest_v15 import BOTH, chat_document
 
@@ -96,7 +96,7 @@ async def test_current_campaigns_enable_diagnostics_resilience_and_bounds_repair
     # #318 (ADR-0048): only `/16` chat checks `finish_reflection` in role and
     # b17 sends V5 with that contract; `/15` keeps V3 and its identity.
     assert seen["reflector"].result_repair is (schema == SCHEMA_V16)
-    packaged = TREE_REFLECTOR_SYSTEM_V6 if schema == SCHEMA_V16 else TREE_REFLECTOR_SYSTEM_V3
+    packaged = TREE_REFLECTOR_SYSTEM_V7 if schema == SCHEMA_V16 else TREE_REFLECTOR_SYSTEM_V3
     assert seen["reflector"].prompt.sha256 == hashlib.sha256(packaged.encode()).hexdigest()
     assert seen["adaptive"].identity.profile == "campaign_adaptation/7"
     assert seen["adaptive"].identity.to_payload()["corpus_partition"]["mode"] == "implicit_train"
@@ -781,3 +781,44 @@ async def test_verbatim_unmatched_still_checks_every_oracle_string_beside_paths(
         tmp_path, monkeypatch, pointers=["/reference"], verbatim=["unit_name"], expect_refusal=False
     )
     assert seen["connection"].verbatim_answers.strings == ("unit_name",)
+
+
+@pytest.mark.parametrize("shape", ["symlink", "file", "unreadable", "same", "inside", "contains"])
+async def test_baseline_import_path_admission(tmp_path, monkeypatch, shape):
+    path = workspace(tmp_path)
+    run = tmp_path / "run"
+    source = tmp_path / "evaluation"
+    source.mkdir()
+    if shape == "symlink":
+        alias = tmp_path / "alias"
+        alias.symlink_to(source, target_is_directory=True)
+        source = alias
+    elif shape == "file":
+        source = tmp_path / "file"
+        source.write_text("not a journal")
+    elif shape == "same":
+        run.mkdir()
+        source = run
+    elif shape == "inside":
+        run.mkdir()
+        source = run / "nested"
+        source.mkdir()
+    elif shape == "contains":
+        source = tmp_path
+    elif shape == "unreadable":
+        original = evolve_module.Path.is_dir
+
+        def is_dir(candidate):
+            if candidate == source:
+                raise PermissionError("unreadable ancestor")
+            return original(candidate)
+
+        monkeypatch.setattr(evolve_module.Path, "is_dir", is_dir)
+    doc = json.loads(path.read_text())
+    doc["baseline_import"] = {"source": str(source)}
+    path.write_text(json.dumps(doc))
+    before = sorted(str(entry.relative_to(tmp_path)) for entry in tmp_path.rglob("*"))
+    with pytest.raises(EvolveRefused) as caught:
+        await evolve_module.evolve(path, run, adapter_factory=lambda *a, **k: object())
+    assert (caught.value.code, caught.value.path) == ("bad_path", "baseline_import.source")
+    assert sorted(str(entry.relative_to(tmp_path)) for entry in tmp_path.rglob("*")) == before

@@ -885,3 +885,173 @@ async def test_import_of_screened_row_is_unknown(tmp_path: Path) -> None:
         assert all(sample.used is None for sample in baseline["case-01"])
     finally:
         completion.close()
+
+
+def _legacy_byte_guards():
+    """Canonical fixtures captured before adding baseline_import to the identity."""
+    from evolution.tree.campaign_policy import CampaignPolicyV12
+    from evolution.tree.evaluation import _initial_record
+    from evolution.tree.execution.journal_identity import canonical_json
+    from tests.campaign_fakes import v11_policy
+    from tests.family15_fakes import v16_document
+    from tests.test_tree_campaign_identity import DECLARATION, _linked_from
+    from tests.test_tree_family14_identity import CONNECTION, identity
+
+    carried = admit_rows(
+        source_measurement(imported_from="grandparent", imported_fields=["identity.scorer.digest"]),
+        target_identity(),
+        primary="score",
+        condition_changed=(),
+    )
+    evaluation = _initial_record(
+        "evaluation",
+        {
+            "profile": "evaluation/1",
+            "declaration_digest": "a" * 64,
+            "partition": {"kind": "explicit"},
+            "split": "train",
+            "case_groups": [["c", "g"]],
+            "snapshot": {"candidate_digest": "b" * 64, "dependency_digest": "c" * 64},
+            "origin": None,
+            "environment": {"kind": "env", "digest": "envdigest"},
+            "scorer": SCORER,
+            "primary": "score",
+            "repeats": 1,
+        },
+        (),
+    ).payload["identity"]
+    values = {
+        "family14": identity(v11_policy(), CONNECTION).to_payload(),
+        "family15": identity(
+            CampaignPolicyV12.from_payload(v16_document()["campaign"]), CONNECTION
+        ).to_payload(),
+        "link": _linked_from(baseline=DECLARATION).to_payload(),
+        "evaluation": evaluation,
+        "carry": carried.declaration(),
+    }
+    for name in ("family14", "family15"):
+        assert CampaignIdentityV1(values[name]).to_payload() == values[name]
+    from evolution.tree.campaign_identity import LinkedFrom
+
+    assert LinkedFrom.from_payload(values["link"]).to_payload() == values["link"]
+    return {
+        name: hashlib.sha256(canonical_json(value)).hexdigest() for name, value in values.items()
+    }, carried.pairs_digest
+
+
+GOLDEN_DIGESTS = {
+    "family14": "0728308eb40b7cc8e8fc23468433b18f924cba4cb1c4c92dc6486aad7f1bca1b",
+    "family15": "b455453a92b39f3329fbd3de20b912df5067c05c24a7611eea4d550b60f2c0d0",
+    "link": "d8b2dfaf8b9e1958122083a9de4b106300a29ada4cf949c78c5b7484dbb06e94",
+    "evaluation": "f259503acb3c3d6c852d383af09c9e963fc66ee0003a367294fb7b7776c6834f",
+    "carry": "5eaffa6db23ccf02fc15c65736391ef40fe587f7c55f874ba9901dce42f463a3",
+}
+GOLDEN_PAIRS = "1c5d7b6952f2e78fe0993341aea4d1dcfaf16222a5108536d4ccdce15071712f"
+
+
+def test_identity_bytes_unchanged():
+    digests, pairs = _legacy_byte_guards()
+    assert digests == GOLDEN_DIGESTS
+    assert pairs == GOLDEN_PAIRS
+
+
+def test_admit_rows_counts_not_imported():
+    from copy import deepcopy
+    from dataclasses import replace
+
+    cases = [
+        "not_scheduled",
+        "seed_differs",
+        "not_scored",
+        "primary_missing",
+        "out_of_range",
+        "dependency_differs",
+    ]
+    source_cases = [case for case in cases if case != "not_scored"]
+    schedule = _schedule_rows(
+        [
+            (case, label)
+            for case in source_cases
+            for label in (["01", "02"] if case == "seed_differs" else ["01"])
+        ],
+        "exact",
+        1,
+        "candidate",
+    )
+    source_payload = _identity_payload(
+        candidate_digest=CANDIDATE_DIGEST,
+        seed_mode="exact",
+        dependency_digest=DEP_DIGEST,
+        schedule=schedule,
+    )
+    source_payload["case_repeats"] = [[1, 2]]
+    source_identity = RunIdentityV1.from_payload(source_payload)
+    template = source_measurement(imported_from="grandparent")
+    records = [
+        _envelope(
+            1,
+            "run_created",
+            dict(
+                identity=source_identity.to_payload(),
+                identity_digest=source_identity.digest,
+                producing_version="2.0.0b19",
+            ),
+        )
+    ]
+    for case in cases:
+        if case == "not_scored":
+            continue
+        payload = deepcopy(dict(template.records[1].payload))
+        payload["case_id"] = case
+        if case == "seed_differs":
+            payload["sample_id"] = "02"
+            payload["effective_seed"] = 3
+        if case == "primary_missing":
+            payload["metrics"] = {"other": 0.5}
+        elif case == "out_of_range":
+            payload["metrics"] = {"score": 2.0}
+        records.append(_envelope(len(records) + 1, "sample_imported", payload))
+    source = replace(template, records=tuple(records), identity_digest=source_identity.digest)
+    target = target_identity(
+        cases=[case for case in source_cases if case != "not_scheduled"] + ["target_only"]
+    )
+    target_payload = target.to_payload()
+    target_payload["target"]["dependency_digest"] = "different"
+    target_payload["case_repeats"] = [[0, 2]]
+    target_payload["schedule"].insert(
+        1, dict(case_id="seed_differs", sample_id="02", repeat=2, requested_seed=999)
+    )
+    admitted = admit_rows(
+        source,
+        RunIdentityV1.from_payload(target_payload),
+        primary="score",
+        condition_changed=(),
+        primary_range=True,
+    )
+    assert [row["case_id"] for row in admitted.rows] == []
+    assert admitted.not_imported == dict.fromkeys(cases, 1)
+    assert list(admitted.not_imported) == cases
+    assert "not_imported" not in admitted.declaration()
+
+
+def test_carried_components_skip_unavailable_and_secret_maps():
+    from evolution.tree.baseline_import import carried_components
+
+    components = {"catalog": {"sha256": "a" * 64, "sources": ["skills/private-token/SKILL.md"]}}
+    source = source_measurement(row_provenance=True, components=components, provenance=["catalog"])
+    digest = components_digest(components)
+    rows = [
+        {"components_digest": digest},
+        {"components_digest": "f" * 64},
+        {"components_digest": digest},
+    ]
+    assert carried_components(source, rows) == (
+        (
+            digest,
+            next(
+                record.payload for record in source.records if record.event == "components_declared"
+            ),
+        ),
+    )
+    assert carried_components(source, rows, ("private-token",)) == ()
+    assert carried_components(source, []) == ()

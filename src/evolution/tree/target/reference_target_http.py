@@ -59,6 +59,9 @@ _DRAIN_CHUNK = 65536
 
 class _TargetServer(ThreadingHTTPServer):
     daemon_threads = True
+    # `socketserver` listens with a backlog of 5. Past it Linux drops the SYN
+    # and the client retries; macOS resets the connection, losing the request.
+    request_queue_size = socket.SOMAXCONN
 
     def __init__(self, address: tuple[str, int], target: _DispatchTarget) -> None:
         self.target = target

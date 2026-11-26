@@ -24,6 +24,7 @@ from evolution.tree.artifacts.artifact_ledger import inspect_ledger
 from evolution.tree.artifacts.artifact_policy import ArtifactPolicyV1, scan_tree
 from evolution.tree.artifacts.artifacts import ArtifactStore, SelectionDecision
 from evolution.tree.execution.candidate_integrity import ArtifactError
+from tests.tree.artifacts.copy_faults import fail_file_copy
 from tests.tree.artifacts.test_artifact_policy import seed, write
 
 POLICY = ArtifactPolicyV1((), ("uv.lock",), ("skills/**",))
@@ -60,13 +61,6 @@ def events(store):
 
 def records(store):
     return store.ledger.snapshot().records
-
-
-def raiser(code):
-    def boom(*args, **kwargs):
-        raise OSError(code, "injected")
-
-    return boom
 
 
 def workspace_of(run, attempt="a1"):
@@ -109,11 +103,10 @@ def capacity_v0_child(run, src, _cut=None):
 
     The patch lives in the child only, so the resuming parent copies normally.
     """
-    shutil.copy2 = raiser(errno.ENOSPC)
-    try:
-        create(run, src)
-    except ArtifactCapacityError:
-        pass
+    with pytest.MonkeyPatch.context() as patch:
+        fail_file_copy(patch, errno.ENOSPC)
+        with pytest.raises(ArtifactCapacityError):
+            create(run, src)
     kill()
 
 
@@ -228,7 +221,7 @@ def test_ready_workspace_without_seal_is_abandoned(tmp_path):
 def test_failed_workspace_without_abandonment_is_abandoned(tmp_path, monkeypatch):
     run, src = tmp_path / "run", seed(tmp_path)
     with create(run, src) as store:
-        monkeypatch.setattr(shutil, "copy2", raiser(errno.EIO))
+        fail_file_copy(monkeypatch, errno.EIO)
         with pytest.raises(ArtifactError):
             store.materialize_candidate("a1")
         assert events(store)[-1] == "workspace_failed"
@@ -272,7 +265,7 @@ def test_capacity_failed_seal_copy_is_rerun(tmp_path, monkeypatch):
     with create(run, src) as store:
         workspace = store.materialize_candidate("a1")
         write(workspace, "skills/SKILL.md", b"better")
-        monkeypatch.setattr(shutil, "copy2", raiser(errno.ENOSPC))
+        fail_file_copy(monkeypatch, errno.ENOSPC)
         with pytest.raises(ArtifactCapacityError):
             store.seal("a1")
         assert events(store)[-1] == "artifact_copy_failed"
@@ -344,7 +337,7 @@ def test_capacity_failed_promotion_copy_is_rerun(tmp_path, monkeypatch):
         workspace = store.materialize_candidate("a1")
         write(workspace, "skills/SKILL.md", b"better")
         ref = store.seal("a1")
-        monkeypatch.setattr(shutil, "copy2", raiser(errno.ENOSPC))
+        fail_file_copy(monkeypatch, errno.ENOSPC)
         with pytest.raises(ArtifactCapacityError):
             store.promote(decision(store, "a1", ref))
     monkeypatch.undo()
@@ -615,3 +608,6 @@ def test_torn_sealing_workspace_is_never_published(tmp_path):
         assert store.last_recovery.actions == ("abandoned_seal_not_published",)
         assert not (run / "artifacts/candidates/a1").exists()
         assert not workspace_of(run).exists()
+
+
+pytestmark = pytest.mark.usefixtures("strict_durability")

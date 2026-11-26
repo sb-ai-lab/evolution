@@ -2,13 +2,13 @@
 
 [English](QUICKSTART.md) · [Russian](QUICKSTART.ru.md)
 
-This guide takes you from a public checkout to a completed campaign and its selected files. The example uses a deterministic reference agent and scripted roles: it needs no API key, model calls, external agent or downloaded dataset. It checks that the campaign workflow runs; it does not measure how well a real agent performs.
+This guide takes you from a checkout to a completed campaign and its selected files. The example uses a deterministic reference agent and scripted roles: it needs no API key, model calls, external agent or downloaded dataset. It checks that the campaign workflow runs; it does not measure how well a real agent performs.
 
 Commands below use Bash or Zsh and Python 3.11.3 or newer. You need two terminals: one for the Target Service and one for the campaign. Run both from the same directory and activate the same Python environment.
 
 ## 1. Install the beta
 
-Clone the public repository, then install the beta from that checkout:
+Clone the repository, then install the beta from that checkout:
 
 ```bash
 git clone https://github.com/sb-ai-lab/evolution.git
@@ -20,12 +20,12 @@ python -m pip install -e ".[tree]"
 evo --version
 ```
 
-For the documented beta checkout, the last command should print `evo 2.0.0b18`. The `[tree]` extra installs the dependencies used by tree campaigns. Installation may download dependencies. If the version differs, use the documentation for the version you checked out before continuing.
+For the documented beta checkout, the last command should print `evo 2.0.0b21`. The `[tree]` extra installs the dependencies used by tree campaigns. Installation may download dependencies. If the version differs, use the documentation for the version you checked out before continuing.
 
 If your team gives you a wheel instead, create and activate a fresh environment, then install that exact file:
 
 ```bash
-python -m pip install "/absolute/path/to/evo_skills-2.0.0b18-py3-none-any.whl[tree]"
+python -m pip install "/absolute/path/to/evo_skills-2.0.0b21-py3-none-any.whl[tree]"
 evo --version
 ```
 

@@ -23,6 +23,7 @@ from pathlib import Path, PurePosixPath
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, BinaryIO, Final
 
+from evolution.lineage.state_io import sync_file
 from evolution.tree.artifacts.artifact_errors import ArtifactCorruptionError
 from evolution.tree.baseline_import import PROJECTION_SECTIONS, record_digest
 from evolution.tree.execution.interaction import CandidateView, EvalCase, ScoringError
@@ -910,7 +911,7 @@ def retain_diagnostic_binding(run_root: Path, body: Mapping[str, Any]) -> None:
         with _open_directory(parent) as fd:
             try:
                 os.mkdir(name, 0o700, dir_fd=fd)
-                os.fsync(fd)
+                sync_file(fd)
             except FileExistsError:
                 pass
         parent = parent / name
@@ -928,13 +929,13 @@ def retain_diagnostic_binding(run_root: Path, body: Mapping[str, Any]) -> None:
             with os.fdopen(handle, "wb") as stream:
                 _write(stream, raw)
                 stream.flush()
-                os.fsync(stream.fileno())
+                sync_file(stream.fileno())
             # Same leased campaign writer and the existing publication convention:
             # check destination, then rename; never replace an existing proof.
             if os.path.lexists(parent / name):
                 raise DiagnosticCorruptionError("artifact_digest_mismatch")
             os.rename(temporary, name, src_dir_fd=fd, dst_dir_fd=fd)
-            os.fsync(fd)
+            sync_file(fd)
         finally:
             try:
                 os.unlink(temporary, dir_fd=fd)

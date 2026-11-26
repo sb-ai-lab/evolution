@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import json
+import os
 import re
+import threading
+from collections import OrderedDict
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -77,11 +80,19 @@ def _canonical(value: object) -> bytes:
 
 @dataclass(frozen=True)
 class EnvelopeFamily:
-    """A closed event vocabulary: payload rules, operationless events, start predicate."""
+    """A closed event vocabulary: payload rules, operationless events, start predicate.
+
+    `pure` declares that `validate_payload` depends on nothing but its
+    arguments: no files, clock, environment, locale or mutable module state.
+    Only then may `Envelope.from_bytes` reuse the admission it reached earlier
+    in this process for the exact same bytes, secrets and family. A family
+    whose rules ever need outside state must drop the flag.
+    """
 
     validate_payload: Callable[[str, dict[str, Any]], None]
     no_operation_events: frozenset[str]
     is_start: Callable[[str], bool]
+    pure: bool = False
 
 
 @dataclass(frozen=True)
@@ -164,6 +175,10 @@ class Envelope:
     _encoded: bytes
     _event: str = field(default="", compare=False, repr=False)
     _operation_id: str | None = field(default=None, compare=False, repr=False)
+    #: The family `from_payload` admitted these bytes under. Only
+    #: `from_payload` sets it, after every check passed, and the class has no
+    #: constructor, so record data cannot forge it; see `validated_under`.
+    _family: EnvelopeFamily | None = field(default=None, compare=False, repr=False)
 
     @classmethod
     def from_payload(
@@ -204,6 +219,7 @@ class Envelope:
             object.__setattr__(result, "_encoded", encoded)
             object.__setattr__(result, "_event", str(event))
             object.__setattr__(result, "_operation_id", v["operation_id"])
+            object.__setattr__(result, "_family", family)
             return result
         except (ValueError, TypeError, KeyError, OverflowError, RecursionError):
             raise SchemaError("invalid journal record") from None
@@ -212,11 +228,31 @@ class Envelope:
     def from_bytes(
         cls, raw: bytes, *, secrets: Sequence[str] = (), family: EnvelopeFamily
     ) -> Envelope:
+        key = _memo_key(raw, secrets, family) if cls is Envelope else None
+        if key is not None:
+            hit = _memo_get(key)
+            # An equal copy of the family finds the key; only the same object
+            # may reuse the admission, as `validated_under` promises.
+            if hit is not None and hit._family is family:
+                return hit
         try:
             value = json.loads(raw, object_pairs_hook=_pairs)
         except (ValueError, TypeError, RecursionError):
             raise SchemaError("invalid journal record") from None
-        return cls.from_payload(value, secrets=secrets, family=family)
+        result = cls.from_payload(value, secrets=secrets, family=family)
+        if key is not None:
+            _memo_put(key, result)
+        return result
+
+    def validated_under(self, family: EnvelopeFamily) -> bool:
+        """Did `from_payload` admit these bytes under exactly `family`?
+
+        The bytes are immutable and a family's admission depends on them, the
+        family and the secrets checked. A caller that would repeat the
+        admission under the same family with no more secrets may rely on this
+        instead. Any other family, an equal copy included, says no.
+        """
+        return self._family is family
 
     def to_payload(self) -> dict[str, Any]:
         return json.loads(self._encoded)
@@ -235,6 +271,77 @@ class Envelope:
     @property
     def payload(self) -> dict[str, Any]:
         return self.to_payload()["payload"]
+
+
+# Process-local memo of `from_bytes` admissions for pure families. Journals are
+# re-read on every replay, resume and audit, and each read admitted every
+# record again with the same result. Only admissions are kept: a refused record
+# is parsed and refused again, with the same error. The key is the exact record
+# bytes, the family object and the secrets, never a path, inode or mtime, so an
+# audit still reads its bytes from disk and any changed byte misses. Bounded by
+# bytes and evicted least recently used.
+_MemoKey = tuple[bytes, EnvelopeFamily, tuple[str, ...]]
+_MEMO_MAX_BYTES = 32 * 1024 * 1024
+_MEMO_MAX_RECORD = 1024 * 1024
+_MEMO_ENTRY_OVERHEAD = 256
+_memo: OrderedDict[_MemoKey, Envelope] = OrderedDict()
+_memo_size = 0
+_memo_lock = threading.Lock()
+
+
+def _memo_key(raw: object, secrets: Sequence[str], family: EnvelopeFamily) -> _MemoKey | None:
+    if family.pure is not True or type(raw) is not bytes or len(raw) > _MEMO_MAX_RECORD:
+        return None
+    frozen = tuple(secrets)
+    if not all(type(secret) is str for secret in frozen):
+        return None
+    return raw, family, frozen
+
+
+def _memo_cost(key: _MemoKey, value: Envelope) -> int:
+    return len(key[0]) + len(value._encoded) + sum(map(len, key[2])) + _MEMO_ENTRY_OVERHEAD
+
+
+def _memo_get(key: _MemoKey) -> Envelope | None:
+    with _memo_lock:
+        hit = _memo.get(key)
+        if hit is not None:
+            _memo.move_to_end(key)
+        return hit
+
+
+def _memo_put(key: _MemoKey, value: Envelope) -> None:
+    global _memo_size
+    cost = _memo_cost(key, value)
+    with _memo_lock:
+        if key in _memo:
+            return
+        _memo[key] = value
+        _memo_size += cost
+        while _memo_size > _MEMO_MAX_BYTES and _memo:
+            old_key, old_value = _memo.popitem(last=False)
+            _memo_size -= _memo_cost(old_key, old_value)
+
+
+def clear_envelope_memo() -> None:
+    """Forget every reused admission (for tests that replace a family's rules)."""
+    global _memo_size
+    with _memo_lock:
+        _memo.clear()
+        _memo_size = 0
+
+
+def _after_fork_in_child() -> None:
+    # A fork while another thread held the lock would leave the child's copy
+    # locked forever; the child starts with a fresh lock and an empty memo.
+    global _memo_lock, _memo_size
+    _memo_lock = threading.Lock()
+    _memo.clear()
+    _memo_size = 0
+
+
+if hasattr(os, "register_at_fork"):
+    os.register_at_fork(after_in_child=_after_fork_in_child)
 
 
 @dataclass(frozen=True)

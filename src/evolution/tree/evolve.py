@@ -131,6 +131,7 @@ from pathlib import Path
 from typing import Any, Final, Literal, cast
 from urllib.parse import urlsplit
 
+from evolution.lineage.state_io import check_durability
 from evolution.prompts import (
     TREE_AGENT_GROUPER_SYSTEM,
     TREE_GROUPING_MODEL_SYSTEM,
@@ -138,6 +139,7 @@ from evolution.prompts import (
 )
 from evolution.tree.artifacts.attestation import PromotionCapableAdapter
 from evolution.tree.baseline_import import BaselineImport, BaselineSourceUnavailable
+from evolution.tree.baseline_sources import BaselineImportRefused, StandaloneSource
 from evolution.tree.bindings import (
     BindingError,
     _sealed_prompt,
@@ -167,6 +169,7 @@ from evolution.tree.campaign import (
     REMOVED_FAMILY_GUIDANCE,
     ArtifactLedgerMissing,
     AuthorizedIdentityChanged,
+    BaselineImportInputsChanged,
     BaselineImportUnavailable,
     CampaignExists,
     CampaignFamilyUnsupported,
@@ -723,6 +726,7 @@ async def evolve(
     # library decision, and only the decision directory -- read below when
     # `decision_directory` says so, or by a caller that hands its contents to
     # `file_authorizations` -- produces a `file`.
+    check_durability()
     caller_decisions = _admitted(authorizations, "caller")
     file_decisions = _admitted(file_authorizations, "file")
 
@@ -924,6 +928,12 @@ async def evolve(
                 raise EvolveRefused("record_matches_secret", f"authorizations/{authorization.id}")
 
         check_path_separation(root, manifest.seed_root, program_paths)
+        # Reject overlapping new-source paths before an inside directory can
+        # be mistaken for an unrelated entry of a non-campaign output root.
+        if (root / "campaign.jsonl").exists():
+            baseline_import = _resume_baseline_import(manifest, root)
+        else:
+            baseline_import = _admit_baseline_import(manifest, root)
         state = run_dir_state(root, admitted=provisional, roots=roots)
         # Continuable terminals §6.3, read-only and before any write. A new run
         # directory checks the predecessor path once, here, and hands the resolved
@@ -1084,7 +1094,11 @@ async def evolve(
             # fields and digests, never values (PDR-0012).
             if notes is None:
                 return
-            notes("condition changed across the link")
+            notes(
+                "condition changed between the baseline source and this campaign"
+                if manifest.baseline_import is not None
+                else "condition changed across the link"
+            )
             for difference in differences:
                 notes(
                     f"differs: {difference.field}  journaled {difference.journaled}  "
@@ -1105,16 +1119,38 @@ async def evolve(
             if other_tree:
                 notes("carried rows were measured on another seed tree")
 
+        def baseline_imported(imported: BaselineImport, source: StandaloneSource) -> None:
+            if notes is None:
+                return
+            notes(
+                f"baseline imported from {source.kind} {source.measurement.run_id}: {imported.imported} pairs carried, {imported.scheduled - imported.imported} to measure"
+            )
+            notes(
+                "source rows not imported: "
+                + ", ".join(f"{count} {reason}" for reason, count in imported.not_imported.items())
+            )
+            if manifest.schema == SCHEMA_V15:
+                notes(
+                    "/15 cannot diagnose imported verdict-only failures until the first baseline refresh (#208); prefer /16"
+                )
+
         entry = (
             functools.partial(
                 run_campaign,
                 linked_from=linked_from,
+                baseline_import=baseline_import,
+                on_baseline_imported=baseline_imported,
                 on_condition_changed=condition_changed,
                 linked_baseline=manifest.linked_baseline,
                 on_baseline_inherited=baseline_inherited,
             )
             if state == "new"
-            else functools.partial(resume_campaign, linked_from=linked_from)
+            else functools.partial(
+                resume_campaign,
+                linked_from=linked_from,
+                baseline_import=baseline_import,
+                baseline_import_declared=manifest.baseline_import is not None,
+            )
         )
         try:
             result = await entry(
@@ -1163,6 +1199,19 @@ async def evolve(
                 notes=notes,
                 **({"bind_hits": bind_hits.entries()} if bind_hits.entries() else {}),
             )
+        except BaselineImportRefused as exc:
+            import_findings = tuple(
+                finding
+                for item in exc.findings
+                for finding in EvolveRefused(
+                    item.code,
+                    "baseline_import",
+                    instance_digest=item.instance_digest,
+                    effect=item.effect,
+                    differences=item.differences,
+                ).findings
+            )
+            raise EvolveRefused.from_findings((*collected, *import_findings)) from exc
         except IdentityChanged as exc:
             # The one refusal that is data (spec §4): the dotted diff and, unless
             # the change is hard, the digest a decision must quote. Branched on the
@@ -1242,6 +1291,7 @@ async def evolve(
             LineageModeUnsupported,
             LineageChampionUnverified,
             BaselineSourceUnavailable,
+            BaselineImportInputsChanged,
         ) as exc:
             # C1's own pre-admission refusals, and only those: anything else these
             # types carry is an executor fault after a durable write, which is not a
@@ -1259,6 +1309,11 @@ async def evolve(
                 expected = exc.expected
             elif isinstance(exc, RecordMatchesSecret):
                 path = exc.location
+            elif isinstance(exc, BaselineImportInputsChanged):
+                # ADR-0065 (amended 2026-11-16): hard, after preflight and before
+                # any write; the differences name the moved compared inputs.
+                path = "baseline_import"
+                differences = exc.differences
             elif isinstance(
                 exc,
                 (
@@ -1272,7 +1327,12 @@ async def evolve(
                 # §6.3: every lineage refusal is about the manifest's `linked_from`.
                 # A changed comparable field is no longer one of them (D2a §3): it
                 # is admitted and noted through `condition_changed` above.
-                path = "linked_from"
+                path = (
+                    "baseline_import"
+                    if isinstance(exc, BaselineSourceUnavailable)
+                    and manifest.baseline_import is not None
+                    else "linked_from"
+                )
                 if isinstance(exc, LineageFamilyUnsupported):
                     expected = _family_refusal_guidance(exc.journaled)
                 if isinstance(exc, LineageNotFinished) and exc.instance_digest is not None:
@@ -1443,6 +1503,44 @@ def _resume_linked_from(manifest: ManifestV2, root: Path) -> Path | None:
 
     try:
         return _admit_linked_from(manifest, root)
+    except EvolveRefused:
+        return None
+
+
+def _admit_baseline_import(manifest: ManifestV2, root: Path) -> Path | None:
+    """Admit a standalone source path with the link path's lexical and overlap rules."""
+
+    if manifest.baseline_import is None:
+        return None
+    path_field = "baseline_import.source"
+    given = manifest.path.parent / manifest.baseline_import
+    try:
+        if given.is_symlink():
+            raise EvolveRefused("bad_path", path_field)
+        resolved = Path(os.path.realpath(given))
+        if not resolved.is_dir() or _overlaps(Path(os.path.realpath(root)), resolved):
+            raise EvolveRefused("bad_path", path_field)
+    except OSError as exc:
+        # An unreadable ancestor (`PermissionError`) and every other failure to
+        # inspect the path are the same refusal, never a traceback.
+        raise EvolveRefused("bad_path", path_field) from exc
+    return resolved
+
+
+def _resume_baseline_import(manifest: ManifestV2, root: Path) -> Path | None:
+    """The standalone source directory a resume hands C1 for an owed copy, or `None`.
+
+    Baseline inheritance §5.2-§5.3: a resume reads the standalone source only while a
+    declared copy is still owed, and after the birth the run is
+    self-contained. A path that fails `_admit_baseline_import`'s checks is
+    therefore not refused here -- that would refuse the resume of a run that
+    no longer needs its standalone source -- but passed as `None`, which C1 reports
+    as the authorizable `baseline_import_unavailable` only when the copy is
+    owed.
+    """
+
+    try:
+        return _admit_baseline_import(manifest, root)
     except EvolveRefused:
         return None
 
@@ -2137,6 +2235,12 @@ def journaled_authorization_ids(run_dir: Path) -> frozenset[str]:
             decision = linked.get("authorization") if isinstance(linked, Mapping) else None
             if isinstance(decision, Mapping) and isinstance(decision.get("id"), str):
                 ids.add(decision["id"])
+            baseline = identity.get("baseline_import") if isinstance(identity, Mapping) else None
+            if isinstance(baseline, Mapping):
+                for name in ("authorization", "held_out_authorization"):
+                    decision = baseline.get(name)
+                    if isinstance(decision, Mapping) and isinstance(decision.get("id"), str):
+                        ids.add(decision["id"])
             continue
         if raw.get("event") not in ("identity_rebased", "authorization_applied"):
             continue

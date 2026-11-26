@@ -215,3 +215,28 @@ def test_nested_secrets_are_redacted_whole_in_keys_and_values(surface):
             "items": ["[REDACTED]", "[REDACTED]"],
         }
     }
+
+
+@pytest.mark.parametrize("mode", [None, "enforce", "shadow", "off"])
+def test_repeated_read_policy_only_repairs_or_counts_an_explained_repeat(mode):
+    from evolution.tree.execution import check_modes
+
+    name = "repeated_read_without_progress"
+    modes = parse_checks({"version": "checks/1", "modes": {name: mode} if mode else {}})
+    logs = []
+    hits = check_modes.HitSink(log=logs.append)
+    check = check_modes.repeated_read_check(modes, hits)
+    detections = []
+
+    def detector(repeated):
+        detections.append(repeated)
+        return repeated
+
+    outcomes = [check(lambda r=repeated: detector(r)) for repeated in (False, True, True)]
+    assert detections == ([] if mode == "off" else [False, True, True])
+    assert outcomes == ([False, True, True] if mode in (None, "enforce") else [False] * 3)
+    entry = {"check": name, "code": "protocol", "count": 2}
+    assert hits.entries() == ([entry] if mode == "shadow" else [])
+    assert logs == (
+        [{"event": "check_shadowed", **entry, "count": 1}] * 2 if mode == "shadow" else []
+    )

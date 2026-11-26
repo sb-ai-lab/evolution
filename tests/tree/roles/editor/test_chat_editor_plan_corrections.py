@@ -474,3 +474,30 @@ async def test_v16_editor_object_arguments_repaired_for_schema_keep_their_string
     assert "were removed from the conversation history" not in correction
     details = json.loads(correction.split("Correction details: ", 1)[1])
     assert details["received_calls"][0]["arguments"]["preview"] == bad
+
+
+@pytest.mark.parametrize("repairs,invalid_first", [(0, False), (1, False), (1, True)])
+async def test_repeated_read_spends_only_the_editor_protocol_budget(
+    tmp_path, repairs, invalid_first
+):
+    from dataclasses import replace
+
+    from tests.test_tree_chat_role_retry import RETRY
+
+    page = _response("read_file", '{"path":"skills/SKILL.md","start_line":1,"end_line":1}')
+    prefix = [_response("unknown")] if invalid_first else []
+    editor, client = _editor16(
+        tmp_path, [*prefix, *([page] * 8)], max_turns=8, max_protocol_repairs=repairs, retry=RETRY
+    )
+    editor = replace(editor, family15=True, role_resilience=True)
+    result = await editor.edit(_request(_ws(tmp_path)))
+
+    assert result.status == "failed" and result.note.startswith("protocol ")
+    assert "repeated_read_without_progress" in result.note
+    assert len(client.calls) == 4 + repairs  # preflight, page, receipt, then violations
+    corrections = [r for r in _log_lines(editor) if r.get("phase") == "protocol_repair_requested"]
+    assert len(corrections) == repairs
+    if invalid_first:
+        assert "unknown tool" in corrections[0]["error"]
+    elif repairs:
+        assert "reread" in corrections[0]["error"]

@@ -26,6 +26,11 @@ CORE_DOCS = (
     "SECURITY.md",
     "CHANGELOG.md",
     "docs/SUMMARY.md",
+    "docs/core.md",
+    "docs/core.ru.md",
+    "docs/core-campaigns/SKILL.md",
+    "docs/core-quickstart.md",
+    "docs/core-quickstart.ru.md",
     "docs/after-bench-import.md",
     "docs/api-usage.md",
     "docs/architecture.md",
@@ -47,9 +52,19 @@ CORE_DOCS = (
     "docs/child-process-environment.md",
     "docs/prompts_examples.md",
 )
-LOCALIZED_DOCS = frozenset({"README.ru.md", "QUICKSTART.ru.md"})
+LOCALIZED_DOCS = frozenset(
+    {"README.ru.md", "QUICKSTART.ru.md", "docs/core.ru.md", "docs/core-quickstart.ru.md"}
+)
+# Core's self-contained documentation path (PDR-0054).
+CORE_PATH_DOCS = tuple(
+    relative
+    for relative in CORE_DOCS
+    if not relative.startswith(("README", "QUICKSTART"))
+    and relative not in {"docs/SUMMARY.md", "AGENTS.md", "CONTRIBUTING.md"}
+)
 CYRILLIC = re.compile(r"[\u0400-\u04ff]")
 LINK = re.compile(r"(?<!!)\[[^\]]+\]\(([^)]+)\)")
+HTML_ANCHOR = re.compile(r'<a\s+(?:id|name)="([^"]+)"')
 FENCE = re.compile(r"^\s*(```|~~~)")
 STRUCTURAL = re.compile(r"^\s*(?:$|#{1,6}\s|[-+*]\s|\d+[.)]\s|>|\||<!--|</?|\[[^]]+\]:|---$)")
 FORBIDDEN_FLAT_CLI = re.compile(
@@ -110,15 +125,20 @@ def _headings(path: Path) -> set[str]:
             continue
         if fenced:
             continue
+        headings.update(HTML_ANCHOR.findall(line))
         match = re.match(r"^#{1,6}\s+(.+?)\s*#*$", line)
         if not match:
             continue
         text = re.sub(r"<[^>]+>|[`*_~]", "", match.group(1)).strip().lower()
         slug = re.sub(r"[^\w\- ]", "", text, flags=re.UNICODE)
         slug = re.sub(r"[\s-]+", "-", slug).strip("-")
-        count = duplicates.get(slug, 0)
-        duplicates[slug] = count + 1
-        headings.add(slug if count == 0 else f"{slug}-{count}")
+        # GitHub's own slug keeps underscores and does not collapse the hyphens a removed dash leaves.
+        github_text = re.sub(r"<[^>]+>|[`*~]", "", match.group(1)).strip().lower()
+        github = re.sub(r"[^\w\- ]", "", github_text, flags=re.UNICODE).replace(" ", "-")
+        for key in {slug, github}:
+            count = duplicates.get(key, 0)
+            duplicates[key] = count + 1
+            headings.add(key if count == 0 else f"{key}-{count}")
     return headings
 
 
@@ -209,6 +229,10 @@ def assert_relative_links(relative_paths: tuple[str, ...]) -> None:
                     source if not file_part else (source.parent / unquote(file_part)).resolve()
                 )
                 destination_relative = destination.relative_to(ROOT).as_posix()
+                if not anchor and any(
+                    path.startswith(f"{destination_relative}/") for path in tracked
+                ):
+                    continue  # a directory link: it resolves when a tracked file lies under it
                 assert destination_relative in tracked, (
                     f"{relative}:{number}: untracked link {target}"
                 )
@@ -221,6 +245,29 @@ def assert_relative_links(relative_paths: tuple[str, ...]) -> None:
 
 def test_relative_links_are_tracked_and_anchors_exist() -> None:
     assert_relative_links(_available_docs())
+
+
+def test_headings_include_explicit_html_anchors(tmp_path: Path) -> None:
+    page = tmp_path / "page.md"
+    page.write_text(
+        '<a id="gateway-accounting"></a>\n## Учёт в шлюзе\n\n<a name="older-form"></a>\n',
+        encoding="utf-8",
+    )
+    assert {"gateway-accounting", "older-form", "учёт-в-шлюзе"} <= _headings(page)
+
+
+def test_headings_include_the_github_slug(tmp_path: Path) -> None:
+    page = tmp_path / "page.md"
+    page.write_text(
+        "### Campaign — let the core improve the agent\n## `cleanup_required` and release\n"
+        "### Кампания — улучшение агента ядром\n",
+        encoding="utf-8",
+    )
+    assert {
+        "campaign--let-the-core-improve-the-agent",
+        "cleanup_required-and-release",
+        "кампания--улучшение-агента-ядром",
+    } <= _headings(page)
 
 
 def test_documented_cli_uses_the_current_grouped_surface() -> None:
@@ -267,7 +314,7 @@ def test_documented_install_extras_exist() -> None:
 
 
 def test_quickstart_ids_and_citation_are_current() -> None:
-    quickstart = (ROOT / "QUICKSTART.md").read_text(encoding="utf-8")
+    quickstart = (ROOT / "docs/core-quickstart.md").read_text(encoding="utf-8")
     assert "hello-evolution" in quickstart and "hello-skill" in quickstart
     assert "demo-task" not in quickstart and "demo-skill" not in quickstart
     citation = (ROOT / "CITATION.cff").read_text(encoding="utf-8")
@@ -567,7 +614,13 @@ def test_cli_page_command_tree_matches_the_registered_tree_and_top_level() -> No
 
 
 def test_maintained_docs_name_neither_the_gui_command_nor_its_extra() -> None:
-    for relative in ("README.md", "QUICKSTART.md", "docs/cli.md", "docs/SUMMARY.md"):
+    for relative in (
+        "README.md",
+        "QUICKSTART.md",
+        "docs/core-quickstart.md",
+        "docs/cli.md",
+        "docs/SUMMARY.md",
+    ):
         text = (ROOT / relative).read_text(encoding="utf-8")
         assert "evo gui" not in text, relative
         assert "[gui]" not in text, relative
@@ -641,8 +694,8 @@ def test_localized_entry_guides_preserve_commands_and_language_routes() -> None:
         assert localized in CORE_DOCS
         assert _markdown_classifications()[localized] == "maintained_documentation"
         assert CYRILLIC.search(translated)
-        assert f"]({localized})" in original
-        assert f"]({english})" in translated
+        assert f"]({Path(localized).name})" in original
+        assert f"]({Path(english).name})" in translated
         fences = r"^```[^\n]*\n(.*?)^```"
         assert re.findall(fences, original, re.M | re.S) == re.findall(
             fences, translated, re.M | re.S
@@ -665,3 +718,86 @@ def test_nested_distributions_own_their_markdown() -> None:
         "docs/usage.md",
         "docs/examples/package/README.md",
     }
+
+
+# Lab guides are private; the public snapshot exercises the same Core vocabulary.
+GUIDE_DOCS = tuple(
+    sorted(
+        path for path in _tracked_files() if path.startswith("docs/guide/") and path.endswith(".md")
+    )
+)
+
+
+def _prose_lines(text: str):
+    """Yield prose with line numbers, excluding code and quoted command output."""
+    fenced = False
+    for number, line in enumerate(text.splitlines(), 1):
+        line = re.sub(r"^(?:> ?)+", "", line)
+        prose = re.sub(r"^(?:\s*>\s?)+", "", line)
+        if FENCE.match(prose):
+            fenced = not fenced
+            continue
+        if fenced or re.match(r"^(?: {4}|\t)", prose):
+            continue
+        yield number, re.sub(r"<[^>]*>|`+[^`]*`+|\]\([^)]*\)", "", prose)
+
+
+# The historical SB-Bench adjective is not the product name.
+def test_user_pages_name_the_second_part_core() -> None:
+    stale = []
+    for relative in dict.fromkeys((*CORE_DOCS, *GUIDE_DOCS)):
+        for number, line in _prose_lines((ROOT / relative).read_text(encoding="utf-8")):
+            if re.search(
+                r"\b[Tt]he engine\b|\b[Tt]he core\b(?! SB-Bench path)|"
+                r"\b[Яя]др(?:о|а|ом|е|у)\b|\b[Дд]виж(?:ок|ка|ком|ке|ку)\b",
+                line,
+            ):
+                stale.append(f"{relative}:{number}: {line.strip()}")
+    assert not stale, "Use the product name Core:\n" + "\n".join(stale)
+
+
+def test_guides_use_one_repository_url_and_venv_on_the_main_path() -> None:
+    if not GUIDE_DOCS:
+        pytest.skip("Lab's guides are private")
+    pages = ("README.md", "README.ru.md", "QUICKSTART.md", "QUICKSTART.ru.md", *GUIDE_DOCS)
+    stale = [name for name in pages if "sb-ai-lab/evolution" in (ROOT / name).read_text()]
+    assert not stale, stale
+    manual = False
+    outside = []
+    for number, line in enumerate((ROOT / "docs/guide/install.md").read_text().splitlines(), 1):
+        if line.startswith("## "):
+            manual = line == "## Install by hand"
+        if "lab-venv" in line and not manual:
+            outside.append(number)
+    assert not outside, f"lab-venv outside Install by hand: {outside}"
+
+
+def test_main_path_never_drops_to_core_commands() -> None:
+    if not GUIDE_DOCS:
+        pytest.skip("Lab's guides are private")
+    failures = []
+    commands = re.compile(r"evo-target init|evo tree (?:authorize|trace)")
+    for relative in (*GUIDE_DOCS, "README.md", "README.ru.md", "QUICKSTART.md", "QUICKSTART.ru.md"):
+        advanced_level = None
+        fenced = False
+        quoted_output = False
+        for number, line in enumerate((ROOT / relative).read_text().splitlines(), 1):
+            clean = re.sub(r"^(?:> ?)+", "", line)
+            if FENCE.match(clean):
+                if not fenced:
+                    quoted_output = line.startswith(">") or clean.strip() in {
+                        "```text",
+                        "```output",
+                    }
+                fenced = not fenced
+                continue
+            heading = re.match(r"^(#{1,6}) (.+)", line) if not fenced else None
+            if heading:
+                level, title = len(heading[1]), heading[2]
+                if advanced_level is not None and level <= advanced_level:
+                    advanced_level = None
+                if re.match(r"Advanced\b|Core directly\b", title, re.I):
+                    advanced_level = level
+            if commands.search(line) and advanced_level is None and not (fenced and quoted_output):
+                failures.append(f"{relative}:{number}: {line.strip()}")
+    assert not failures, "Keep the main path in Lab:\n" + "\n".join(failures)

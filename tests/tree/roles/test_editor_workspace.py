@@ -660,19 +660,24 @@ def test_discard_removes_a_tree_deeper_than_the_recursion_limit(
         freeze_projection(projection)
     top = projection.root / "dir"
     os.chmod(top, 0o700)
-    deep = top
-    for _ in range(DEEP):  # `mkdir(parents=True)` recurses too
-        deep = deep / "d"
-        deep.mkdir()
-    (deep / "bottom.md").write_text("bottom", encoding="utf-8")
-    os.chmod(deep / "bottom.md", 0o400)
-    os.symlink(outside, deep / "to-outside-dir")
-    os.symlink(kept, deep / "to-outside-file")
-    os.mkfifo(deep / "pipe")
-    (deep / "locked").mkdir()
-    (deep / "locked" / "f.md").write_text("x", encoding="utf-8")
-    os.chmod(deep / "locked", 0o500)
-    os.chmod(top.joinpath(*["d"] * (DEEP // 2)), 0o500)
+    _nest(top, DEEP)  # `mkdir(parents=True)` recurses too
+    bottom = _level(top, DEEP)
+    try:
+        _write_at(bottom, "bottom.md", b"bottom")
+        os.chmod("bottom.md", 0o400, dir_fd=bottom)
+        os.symlink(outside, "to-outside-dir", dir_fd=bottom)
+        os.symlink(kept, "to-outside-file", dir_fd=bottom)
+        os.mkfifo("pipe", dir_fd=bottom)
+        os.mkdir("locked", dir_fd=bottom)
+        _write_at(bottom, "locked/f.md", b"x")
+        os.chmod("locked", 0o500, dir_fd=bottom)
+    finally:
+        os.close(bottom)
+    middle = _level(top, DEEP // 2)
+    try:
+        os.fchmod(middle, 0o500)
+    finally:
+        os.close(middle)
     if frozen:
         os.chmod(top, 0o500)
     temporary = Path(projection._tmp.name)
@@ -709,15 +714,20 @@ if frozen == "frozen":
     freeze_projection(projection)
 top = projection.root / "dir"
 os.chmod(top, 0o700)
-deep = top
+# By name from the working directory: the full path passes macOS PATH_MAX (1,024).
+os.chdir(top)
 for level in range(depth):
-    deep = deep / "d"
-    deep.mkdir()
+    os.mkdir("d")
+    os.chdir("d")
     if level % 100 == 0:
-        os.symlink(outside, deep / "to-outside")
-        (deep / "f.md").write_text("x")
-        os.mkfifo(deep / "pipe")
-os.chmod(top.joinpath(*["d"] * (depth // 2)), 0o500)
+        os.symlink(outside, "to-outside")
+        Path("f.md").write_text("x")
+        os.mkfifo("pipe")
+os.chdir(top)
+for _ in range(depth // 2 - 1):
+    os.chdir("d")
+os.chmod("d", 0o500)
+os.chdir("/")
 os.chmod(top, 0o500)
 temporary = Path(projection._tmp.name)
 discard(projection)
@@ -761,6 +771,26 @@ def test_discard_removes_a_deep_tree_under_a_low_descriptor_limit(
 
     assert completed.returncode == 0, completed.stderr
     assert (outside / "kept.txt").read_text(encoding="utf-8") == "kept"
+
+
+def _level(top: Path, depth: int) -> int:
+    """A descriptor for the level `depth` directories `d` below `top`, opened by name."""
+
+    flags = os.O_RDONLY | os.O_DIRECTORY
+    descriptor = os.open(top, flags)
+    for _ in range(depth):
+        child = os.open("d", flags, dir_fd=descriptor)
+        os.close(descriptor)
+        descriptor = child
+    return descriptor
+
+
+def _write_at(directory: int, name: str, data: bytes) -> None:
+    descriptor = os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644, dir_fd=directory)
+    try:
+        os.write(descriptor, data)
+    finally:
+        os.close(descriptor)
 
 
 def _nest(top: Path, depth: int) -> None:
@@ -830,7 +860,9 @@ def test_removal_cost_is_linear_and_its_descriptors_bounded(tmp_path: Path) -> N
 
     root = tmp_path / "tree"
     root.mkdir()
-    depth = 5_000
+    # macOS charges each `rmdir` and `fchmod` by the depth of the directory, so
+    # 5,000 levels take minutes there; 1,000 still exceeds the descriptor bound.
+    depth = 1_000 if sys.platform == "darwin" else 5_000
     _nest(root, depth)
     completed = subprocess.run(
         [sys.executable, "-c", _MEASURE_REMOVAL, str(root), str(depth)],
@@ -1113,11 +1145,9 @@ def test_discard_leaves_a_deep_subtree_it_cannot_open_without_raising(
 
     workspace = _candidate(tmp_path)
     projection = project(workspace)
-    deep = projection.root / "locked"
-    deep.mkdir()
-    for _ in range(DEEP):
-        deep = deep / "d"
-        deep.mkdir()
+    locked = projection.root / "locked"
+    locked.mkdir()
+    _nest(locked, DEEP)
     temporary = Path(projection._tmp.name)
     real_open = os.open
 

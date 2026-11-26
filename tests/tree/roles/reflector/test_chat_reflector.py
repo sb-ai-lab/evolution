@@ -923,3 +923,36 @@ async def test_v16_read_evidence_at_record_end_returns_empty(tmp_path, reflect_r
         assert output["content"] == "" and output["next_offset"] is None
     else:
         assert "record boundary" in output["error"]
+
+
+@pytest.mark.parametrize("repairs,invalid_first", [(0, False), (1, False), (1, True)])
+async def test_repeated_read_spends_only_the_reflector_protocol_budget(
+    tmp_path, reflect_request, repairs, invalid_first
+):
+    from dataclasses import replace
+
+    from tests.test_tree_chat_role_retry import RETRY
+
+    page = _response("read_file", {"path": "skills/SKILL.md", "start_line": 1, "end_line": 1})
+    prefix = [_response("unknown")] if invalid_first else []
+    reflector, client = _reflector(
+        tmp_path,
+        [_response("list_files"), *prefix, *([page] * 7)],
+        max_turns=8,
+        max_protocol_repairs=repairs,
+        retry=RETRY,
+    )
+    reflector = replace(reflector, family15=True, role_resilience=True)
+    result = await reflector.reflect(reflect_request)
+
+    assert result.status == "failed" and result.note.startswith("protocol ")
+    assert "repeated_read_without_progress" in result.note
+    assert len(client.calls) == 4 + repairs
+    corrections = [
+        r for r in _log_lines(reflector) if r.get("phase") == "protocol_repair_requested"
+    ]
+    assert len(corrections) == repairs
+    if invalid_first:
+        assert "unknown tool" in corrections[0]["error"]
+    elif repairs:
+        assert "finish_reflection" in corrections[0]["error"]

@@ -18,7 +18,7 @@ from evolution.tree.execution.interaction import (
     ScorerIdentity,
     SemanticIdentity,
 )
-from evolution.tree.execution.journal_identity import RunIdentityV1
+from evolution.tree.execution.journal_identity import RunIdentityV1, canonical_json
 from evolution.tree.execution.journal_rollout import JournalRolloutAdapter, durable_rollout
 from evolution.tree.execution.journal_schema import S1_FAMILY
 from evolution.tree.storage.envelope import Envelope
@@ -762,3 +762,51 @@ def test_public_union_bytes_unchanged():
         b'"run_id":"r","schema_version":1,"sequence":1,"timestamp":"2026-09-06T00:00:00Z"}\n'
     )
     assert adapter.withheld_samples == 0
+
+
+@pytest.mark.parametrize("marked", [False, True])
+def test_declare_instance_components_declares_once(tmp_path, marked):
+    from evolution.tree import declare_instance_components
+    from evolution.tree.execution.journal import Journal
+
+    data = identity_payload()
+    if marked:
+        data["row_provenance"] = 1
+    components = {"skill": {"sha256": "a" * 64, "sources": ["skills/SKILL.md"]}}
+    instance = SimpleNamespace(components=components)
+    with Journal.create(tmp_path / "measurement", "run", RunIdentityV1(data), cases()) as journal:
+        assert declare_instance_components(journal, object()) is None
+        first = declare_instance_components(journal, instance)
+        assert declare_instance_components(journal, instance) == first
+        records = [row for row in journal.snapshot().records if row.event == "components_declared"]
+        if marked:
+            assert len(records) == 1
+            assert first == records[0].payload["components_digest"]
+            assert records[0].payload["components"] == components
+        else:
+            assert first is None
+            assert records == []
+
+
+@pytest.mark.slow
+async def test_declare_instance_components_matches_measurement(tmp_path):
+    from evolution.tree import declare_instance_components
+    from evolution.tree.execution.journal import Journal
+    from tests.campaign_fakes import FakeAdapter, v9_policy
+    from tests.test_tree_campaign_measurement import MAP, build_rig, run_first_stage, s1_records
+
+    rig = await build_rig(
+        tmp_path, campaign_policy=v9_policy(), adapter=FakeAdapter(components=MAP)
+    )
+    measurement = await run_first_stage(rig)
+    expected = next(
+        row["payload"] for row in s1_records(rig) if row["event"] == "components_declared"
+    )
+    with Journal.create(
+        tmp_path / "standalone", "standalone", measurement.identity, rig.cases
+    ) as journal:
+        declare_instance_components(journal, SimpleNamespace(components=MAP))
+        actual = next(
+            row.payload for row in journal.snapshot().records if row.event == "components_declared"
+        )
+        assert canonical_json(actual) == canonical_json(expected)

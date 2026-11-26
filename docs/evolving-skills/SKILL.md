@@ -10,6 +10,8 @@ description: >-
 
 # Evolving Skills with the Evolution Framework
 
+For `evo tree` campaigns with a Target Service and a run directory, use [core-campaigns](../core-campaigns/SKILL.md).
+
 ## Overview
 
 Evolution is **trace-driven procedural memory management**. You improve a skill by *measuring* it, not by guessing.
@@ -82,7 +84,7 @@ Classify each failure: wrong library, wrong API, missing step, logic error.
 `reflect` saves a structured `reflection.json` per failing trace (root_cause, skill_gap, suggested_fix, severity, pattern). Needs a real model (the mock backend returns non-JSON and will error).
 4. **Mutate** — pick ONE:
    - *Agent-driven (works offline):* edit `.agents/skills/<skill>/SKILL.md` and fix the **root cause** in the general guidance.
-   - *Automated:* `evo evolve rewrite <skill> -m <model> [--dry-run]` consumes saved reflections and finalizes a candidate body. The edit brake runs before an update. A brake rejection keeps the parent. Only that rejection can start another editor attempt. `--dry-run` prints the body and writes its audit sidecar without updating the skill or lineage.
+   - *Automated:* `evo evolve rewrite <skill> -m <model> [--dry-run]` consumes saved reflections and finalizes a Candidate body. The edit brake runs before an update. A brake rejection keeps the parent. Only that rejection can start another Editor attempt. `--dry-run` prints the body and writes its audit sidecar without updating the skill or lineage.
 5. **Review the change:** `evo skill diff <skill>`.
 6. **Version it:** `evo skill commit <skill> -m "what changed and why"`. This validates the SKILL.md, snapshots a new `vN`, records lineage, and (without `--no-promote`) makes it active. No commit ⇒ the change is invisible to selection and will be lost by `evo skill discard`.
 7. **Re-measure:** repeat step 1 for the new version. Fitness uses fresh traces. It is not declared.

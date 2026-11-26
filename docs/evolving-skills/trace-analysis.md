@@ -38,10 +38,10 @@ Check the execution contract, required files, output format, tool guidance, and 
 
 Name the exact heading to change. State the observed pattern and the smallest guidance change that addresses it. Keep unrelated wording unchanged.
 
-Use a manual rewrite or the Evolution editor. A finalized candidate can receive `candidate_edit_budget_exceeded`, `leak_rejected`, or another controlled rejection. Only an edit-brake rejection can start another editor attempt.
+Use a manual rewrite or the Evolution Editor. A finalized Candidate can receive `candidate_edit_budget_exceeded`, `leak_rejected`, or another controlled rejection. Only an edit-brake rejection can start another Editor attempt.
 
 ## Verify The Change
 
-Measure a finalized candidate on the approved training evidence. Use held-back validation only for selection. Record test results separately from development evidence.
+Measure a finalized Candidate on the approved training evidence. Use held-back validation only for selection. Record test results separately from development evidence.
 
 For the complete trace and rewrite contracts, see [the deep reference](reference.md), [the CLI reference](../cli.md), and [the manual workflow architecture](../manual-architecture.md).

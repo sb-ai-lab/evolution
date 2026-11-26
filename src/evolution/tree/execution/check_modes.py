@@ -265,6 +265,7 @@ CHECK_NAMES: Final[tuple[str, ...]] = (
     "verbatim_answer_unmatched",
     "secret_oracle_path_unmatched",
     "connection_preflight",
+    "repeated_read_without_progress",
 )
 INPUT_CHECKS: Final = (
     "input_run_secret_redaction",
@@ -284,6 +285,7 @@ CODES: Final[Mapping[str, frozenset[str]]] = MappingProxyType(
         "connection_description_secret": frozenset({"connection_description_secret"}),
         "verbatim_answer_unmatched": frozenset({"verbatim_answer_unmatched"}),
         "secret_oracle_path_unmatched": frozenset({"secret_oracle_path_unmatched"}),
+        "repeated_read_without_progress": frozenset({"protocol"}),
         "connection_preflight": frozenset(
             {"connection_preflight_unavailable", "connection_preflight_inconclusive"}
         ),
@@ -304,6 +306,7 @@ CONSEQUENCES: Final[Mapping[str, str]] = MappingProxyType(
         "verbatim_answer_unmatched": "a declared verbatim answer that matches no oracle string is accepted",
         "secret_oracle_path_unmatched": "a declared secret oracle path that selects nothing is accepted",
         "connection_preflight": "the campaign starts without a passed connection preflight",
+        "repeated_read_without_progress": "a chat role can spend its remaining turns repeating an already explained read",
     }
 )
 
@@ -457,6 +460,22 @@ def check_predicate(
 
     cast(Any, forbidden).shadow_scan = lambda value: forbidden(value) if mode == "shadow" else False
     return forbidden
+
+
+RepeatedReadCheck = Callable[[Callable[[], bool]], bool]
+
+
+def repeated_read_check(
+    modes: CheckModes = ENFORCE_ALL, hits: HitSink | None = None
+) -> RepeatedReadCheck:
+    """Bind the role's lazy detector to this invocation's policy and terminal record."""
+    return check_predicate(
+        "repeated_read_without_progress",
+        "protocol",
+        lambda detect: detect(),
+        modes=modes,
+        hits=hits,
+    )
 
 
 def redact_for_journal(value: Any, secrets: Sequence[str]) -> Any:

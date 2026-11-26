@@ -10,9 +10,10 @@ import stat
 import tempfile
 import threading
 import time
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from pathlib import Path
+from typing import Literal
 
 PRIVATE_DIRECTORY_MODE = 0o700
 PRIVATE_FILE_MODE = 0o600
@@ -29,14 +30,46 @@ class LockOrderError(RuntimeError):
 _LOCK_STACK = threading.local()
 
 
-def fsync_directory(path: Path) -> None:
-    """Flush directory-entry changes for *path* to stable storage."""
+DURABILITY_ENV = "EVOLUTION_DURABILITY"
 
+
+class DurabilityConfigError(ValueError):
+    """Raised for an unsupported process durability setting."""
+
+
+def durability(environ: Mapping[str, str] | None = None) -> Literal["relaxed", "strict"]:
+    value = (os.environ if environ is None else environ).get(DURABILITY_ENV, "")
+    if value in ("", "relaxed"):
+        return "relaxed"
+    if value == "strict":
+        return "strict"
+    raise DurabilityConfigError(f'{DURABILITY_ENV} must be "relaxed" or "strict" (got "{value}")')
+
+
+def check_durability() -> None:
+    durability()
+
+
+def sync_file(fd: int) -> None:
+    """Sync a file only when the process requests strict durability."""
+    if durability() == "strict":
+        os.fsync(fd)
+
+
+def sync_directory(path: Path) -> None:
+    """Sync directory entries under strict durability, without opening in relaxed."""
+    if durability() == "relaxed":
+        return
     fd = os.open(path, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
     try:
         os.fsync(fd)
     finally:
         os.close(fd)
+
+
+def fsync_directory(path: Path) -> None:
+    """Compatibility name for the process durability primitive."""
+    sync_directory(path)
 
 
 def atomic_write_bytes(path: Path, data: bytes) -> None:
@@ -58,7 +91,7 @@ def atomic_write_bytes(path: Path, data: bytes) -> None:
             fd = -1
             handle.write(data)
             handle.flush()
-            os.fsync(handle.fileno())
+            sync_file(handle.fileno())
         os.replace(tmp, target)
         fsync_directory(target.parent)
     finally:

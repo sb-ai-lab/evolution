@@ -21,6 +21,9 @@ The four promised scorer-trace names are `read_scorer_trace`,
 They read one try's request, stdout and stderr from either trace layout.
 """
 
+from typing import TYPE_CHECKING, Any
+
+from evolution.tree.affected_cases import MeasurementProvenance, measurement_provenance
 from evolution.tree.artifacts.artifact_errors import (
     ArtifactAdmissionRefused,
     ArtifactCapacityError,
@@ -91,6 +94,7 @@ from evolution.tree.evaluation import evaluate, inspect_evaluation
 from evolution.tree.execution.authorizations import (
     Authorization,
     RefusalDifference,
+    effect_sentence,
     read_decisions,
     refusal_class,
     write_decision,
@@ -113,8 +117,13 @@ from evolution.tree.execution.journal_projections import (
     project_status,
 )
 from evolution.tree.execution.journal_recovery import recover_journal, recovery_plan
-from evolution.tree.execution.journal_rollout import JournalRolloutAdapter, durable_rollout
+from evolution.tree.execution.journal_rollout import (
+    JournalRolloutAdapter,
+    declare_instance_components,
+    durable_rollout,
+)
 from evolution.tree.execution.journal_scoring import durable_score
+from evolution.tree.execution.output_admission import EvolveRefused
 from evolution.tree.execution.rollout_scoring import parse_verdicts
 from evolution.tree.execution.scorer_traces import (
     ScorerTraceReader,
@@ -149,12 +158,14 @@ from evolution.tree.roles.reflector_contracts import (
     CandidateReflector as CampaignCandidateReflector,
 )
 from evolution.tree.roles.reflector_contracts import ReflectRequest, ReflectResult
+from evolution.tree.run_trace import TraceSummary, export_run
 from evolution.tree.storage.journal_errors import (
     JournalAdmissionRefused,
     JournalBoundaryError,
     JournalFault,
     JournalRecoveryRequired,
 )
+from evolution.tree.storage.redaction import safe_record
 from evolution.tree.target.config import TargetBinding
 from evolution.tree.target.connection_contract import ConnectionContract
 from evolution.tree.target.http_adapter import HttpInstance, HttpSessionAdapter, HttpTransport
@@ -175,6 +186,24 @@ from evolution.tree.target.target_server import (
     TargetServer,
     serve_target,
 )
+
+if TYPE_CHECKING:
+    from evolution.tree.manifest.context_preflight import measure_manifest_chat_scenario
+    from evolution.tree.reference_target_cli import ScaffoldError, ScaffoldResult, scaffold
+
+
+def __getattr__(name: str) -> Any:
+    # Loading this CLI module during package import changes `python -m` stderr.
+    if name in {"scaffold", "ScaffoldResult", "ScaffoldError"}:
+        from evolution.tree import reference_target_cli
+
+        return getattr(reference_target_cli, name)
+    if name == "measure_manifest_chat_scenario":
+        from evolution.tree.manifest.context_preflight import measure_manifest_chat_scenario
+
+        return measure_manifest_chat_scenario
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 __all__ = [
     "EvalCase",
@@ -246,6 +275,7 @@ __all__ = [
     "load_manifest_v2",
     "conformance_manifest",
     "manifest_dependencies",
+    "measure_manifest_chat_scenario",
     "DependencyInventory",
     "Dependency",
     "EnvironmentName",
@@ -309,4 +339,15 @@ __all__ = [
     "run_campaign",
     "evaluate",
     "inspect_evaluation",
+    "scaffold",
+    "ScaffoldResult",
+    "ScaffoldError",
+    "export_run",
+    "TraceSummary",
+    "EvolveRefused",
+    "effect_sentence",
+    "safe_record",
+    "declare_instance_components",
+    "MeasurementProvenance",
+    "measurement_provenance",
 ]

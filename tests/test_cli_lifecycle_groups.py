@@ -19,7 +19,8 @@ def test_root_help_shows_framework_lifecycle_groups() -> None:
     assert result.exit_code == 0, result.output
     for name in ("task", "skill", "run", "trace", "evolve", "split"):
         assert name in result.output
-    assert "trace-driven skill lifecycle" in result.output
+    assert "Evolution Core" in result.output
+    assert "manual task and skill workflow" in " ".join(result.output.split())
 
 
 def test_grouped_commands_wrap_existing_lifecycle_commands() -> None:

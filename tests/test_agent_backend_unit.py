@@ -6,6 +6,7 @@ import asyncio
 import hashlib
 import json
 import os
+import shutil
 import signal
 import sys
 import time
@@ -29,6 +30,9 @@ from evolution.llm.agent_backend import (
     _safe_hermes_env,
     _select_cli,
 )
+
+# `/bin/true` is absent on macOS, which ships only `/usr/bin/true`.
+TRUE = shutil.which("true") or "/usr/bin/true"
 
 
 def test_normalise_codex_model_names():
@@ -165,7 +169,7 @@ def test_agent_backend_threads_unsafe_permission_to_file_edit(tmp_path, monkeypa
 
     monkeypatch.setattr("evolution.llm.agent_backend.asyncio.create_subprocess_exec", fake_exec)
     monkeypatch.delenv("EVO_CODEX_FILE_EDIT_SANDBOX", raising=False)
-    backend = AgentBackend(model="codex/gpt-5.5", agent_permission="unsafe", agent_bin="/bin/true")
+    backend = AgentBackend(model="codex/gpt-5.5", agent_permission="unsafe", agent_bin=TRUE)
 
     asyncio.run(backend.complete_file_edit(tmp_path, "edit it"))
 
@@ -497,6 +501,7 @@ def test_safe_hermes_allows_editable_checkout_runtime(tmp_path):
     assert argv[1] == "-I"
 
 
+@pytest.mark.skipif(sys.platform != "linux", reason="hermes confinement uses Linux Landlock")
 def test_safe_hermes_confines_fake_executable_and_cleans_state(tmp_path, monkeypatch):
     checkout = tmp_path / "fake-hermes"
     executable = checkout / ".venv" / "bin" / "hermes"
@@ -589,7 +594,7 @@ def test_parse_claude_usage_reads_tokens():
 def test_claude_session_records_required_write_even_on_nonzero_return(tmp_path, monkeypatch):
     skill_path = tmp_path / "SKILL.md"
     skill_path.write_text("before", encoding="utf-8")
-    backend = AgentBackend(model="claude-code", agent_bin="/bin/true")
+    backend = AgentBackend(model="claude-code", agent_bin=TRUE)
 
     async def fake_run(invocation, timeout):
         skill_path.write_text("after", encoding="utf-8")
@@ -767,7 +772,7 @@ async def test_file_edit_error_discriminates_timeout_without_changing_text(
 ):
     from evolution.llm.agent_backend import AgentBackendError
 
-    backend = AgentBackend(model="codex", agent_bin="/bin/true", reasoning_effort="high")
+    backend = AgentBackend(model="codex", agent_bin=TRUE, reasoning_effort="high")
 
     async def run(invocation, timeout):
         assert timeout == 12

@@ -45,7 +45,7 @@ def test_version_has_one_source() -> None:
 
     assert "version" not in config["project"]
     assert config["tool"]["hatch"]["version"]["path"] == "src/evolution/__init__.py"
-    assert evolution.__version__ == "2.0.0b18"
+    assert evolution.__version__ == "2.0.0b21"
 
 
 def test_changelog_opens_with_the_current_version() -> None:

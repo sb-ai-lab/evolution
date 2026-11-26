@@ -724,3 +724,6 @@ def test_a_new_explicit_file_has_mode_600_even_with_a_restrictive_umask(tmp_path
         assert os.fstat(fd).st_mode & 0o777 == 0o600
     finally:
         os.close(fd)
+
+
+pytestmark = pytest.mark.usefixtures("strict_durability")

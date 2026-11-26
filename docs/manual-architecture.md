@@ -2,7 +2,7 @@
 
 This page describes the task/skill commands and their optimizer. For the Target Service and campaign workflow, read [How Evolution works](architecture.md).
 
-Each rewrite mode finalizes a candidate body before one shared edit-brake seam measures normalized line churn. After integrity checks, the brake runs before optimizer evaluation and promotion. Its decay step uses retained parent ancestry, not a version label or attempt count.
+Each rewrite mode finalizes a Candidate body before one shared edit-brake seam measures normalized line churn. After integrity checks, the brake runs before optimizer evaluation and promotion. Its decay step uses retained parent ancestry, not a version label or attempt count.
 
 Evolution is a file-backed Python package. It has no database or service requirement: tasks, immutable skill versions, traces, and optimizer checkpoints live in the caller's project.
 
@@ -61,11 +61,11 @@ flowchart LR
     G -- underpowered gain --> U[Inconclusive<br/>increase trials]
 ```
 
-Plans with fewer than four pairs fail before model construction. Finalization, integrity checks, and absolute limits run before the shared edit brake. A brake rejection keeps the parent. Only `candidate_edit_budget_exceeded` can start another editor attempt. Candidate train diagnostics reuse collect seeds but are excluded from the gate. Parent and candidate promotion attempts share fresh seeds, with deterministic counterbalancing. Regression or no gain rejects. A positive but underpowered gain is terminally inconclusive and preserves candidate evidence for inspection.
+Plans with fewer than four pairs fail before model construction. Finalization, integrity checks, and absolute limits run before the shared edit brake. A brake rejection keeps the parent. Only `candidate_edit_budget_exceeded` can start another Editor attempt. Candidate train diagnostics reuse collect seeds but are excluded from the gate. Parent and Candidate promotion attempts share fresh seeds, with deterministic counterbalancing. Regression or no gain rejects. A positive but underpowered gain is terminally inconclusive and preserves Candidate evidence for inspection.
 
-Only current-round training traces can feed reflection. Validation remains confidential promotion-gate input, and test evaluation occurs only after selection for reporting. Saturation, candidate diagnostics, and validation calls do not create normal traces. Their checkpoints contain scalar measurements and aggregate gate information; Evolution does not expose their prompts, responses, generated code, outputs, or evaluator diagnostics to the editor.
+Only current-round training traces can feed reflection. Validation remains confidential promotion-gate input, and test evaluation occurs only after selection for reporting. Saturation, Candidate diagnostics, and validation calls do not create normal traces. Their checkpoints contain scalar measurements and aggregate gate information; Evolution does not expose their prompts, responses, generated code, outputs, or evaluator diagnostics to the Editor.
 
-The optimizer atomically checkpoints every phase. Resume identity hashes task trees, the initial skill tree, and supporting bindings. It also hashes model IDs, run settings, rewrite policy, tokens, permissions, manifests, and passed environment names. Resume rejects drift in that logical run definition. Old partial runs without the edit-brake identity require a fresh run. Promotion restores the candidate tree and is repairable after interruption.
+The optimizer atomically checkpoints every phase. Resume identity hashes task trees, the initial skill tree, and supporting bindings. It also hashes model IDs, run settings, rewrite policy, tokens, permissions, manifests, and passed environment names. Resume rejects drift in that logical run definition. Old partial runs without the edit-brake identity require a fresh run. Promotion restores the Candidate tree and is repairable after interruption.
 
 `--dry-run` stops after preflight and returns the resolved call plan without model calls or state writes. `evo evolve status` reads checkpoint state without changing it.
 

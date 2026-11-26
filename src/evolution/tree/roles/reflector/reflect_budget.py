@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Final, Literal
 
-from evolution.lineage.state_io import ensure_private_directory
+from evolution.lineage.state_io import ensure_private_directory, sync_file
 from evolution.tree.execution.journal_identity import canonical_json
 from evolution.tree.execution.private_files import open_private_file
 from evolution.tree.roles.chat_loop import chat_request_size
@@ -260,4 +260,4 @@ def write_budget_record(run_root: Path, reflection_id: str, record: Mapping[str,
     with os.fdopen(descriptor, "wb") as stream:
         stream.write(canonical_json(dict(record)) + b"\n")
         stream.flush()
-        os.fsync(stream.fileno())
+        sync_file(stream.fileno())
