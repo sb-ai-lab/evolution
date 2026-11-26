@@ -81,6 +81,7 @@ from evolution.llm.gigachat_backend import GigaChatBackend
 from evolution.llm.litellm_backend import LiteLLMBackend
 
 GOLDEN_LOADED = {
+    "tree_reflector_v7": "beb09761c69ecf8ba001974177803aa0611ae0e6e50b04186c7a75ae219b6540",
     "tree_reflector_v6": "990734df8d71a886749b3b1ba2b9fc569ed75b211802c61b987312c12155951f",
     "tree_agent_reflector_v4": "36be7a631536bda7aa8e547c9d6ed8a6ab12e4f5053ffd64258b89f0a2677a7f",
     "tree_reflector_v5": "c7d586cbdc0e786519674ba8cf82520e5ad70e5233cab341f91a7cb70a590c85",

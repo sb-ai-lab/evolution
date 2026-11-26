@@ -46,7 +46,7 @@ import fcntl
 import hashlib
 import os
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -58,7 +58,7 @@ from evolution.tree.execution.authorizations import COMPARABLE_FIELDS
 from evolution.tree.execution.journal import LEASE_FILE, inspect_journal
 from evolution.tree.execution.journal_identity import RunIdentityV1, canonical_json
 from evolution.tree.execution.journal_schema import Lifecycle
-from evolution.tree.storage.envelope import Envelope
+from evolution.tree.storage.envelope import Envelope, secret_match
 from evolution.tree.storage.journal_errors import JournalBoundaryError
 
 __all__ = [
@@ -68,6 +68,7 @@ __all__ = [
     "SourceMeasurement",
     "admit_rows",
     "carried_traces",
+    "carried_components",
     "changed_since",
     "import_pairs_digest",
     "import_sealed",
@@ -154,6 +155,7 @@ class BaselineImport:
     fields: tuple[str, ...]
     origin_runs: int
     rows: tuple[Mapping[str, Any], ...]
+    not_imported: Mapping[str, int] = field(default_factory=dict)
 
     def declaration(self) -> dict[str, Any]:
         """The creation record's `identity.linked_from.baseline` (§5.1)."""
@@ -361,7 +363,7 @@ def import_sealed(
     return admitted
 
 
-def _lease_held(directory: Path) -> bool:
+def _lease_held(directory: Path, *, lock_name: str = LEASE_FILE) -> bool:
     """Whether a writer holds the measurement journal's lease, without taking it.
 
     The owner holds `LOCK_EX` on `.owner.lock` for as long as it writes, so a
@@ -373,7 +375,7 @@ def _lease_held(directory: Path) -> bool:
     """
 
     try:
-        fd = os.open(directory / LEASE_FILE, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+        fd = os.open(directory / lock_name, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
     except FileNotFoundError:
         return False
     except OSError as exc:
@@ -437,6 +439,19 @@ def admit_rows(
 
     target_payload = target.to_payload()
     schedule = target_payload["schedule"]
+    not_imported = dict.fromkeys(
+        (
+            "not_scheduled",
+            "seed_differs",
+            "not_scored",
+            "primary_missing",
+            "out_of_range",
+            "dependency_differs",
+        ),
+        0,
+    )
+    target_keys = {(str(entry["case_id"]), int(entry["repeat"])) for entry in schedule}
+    not_imported["not_scheduled"] = sum(key not in target_keys for key in by_key)
     target_field = target_payload["target"]
     target_exact = target_field["seed_mode"] == "exact"
     target_dependency_digest = target_field["dependency_digest"]
@@ -457,6 +472,7 @@ def admit_rows(
         if row is None:
             continue
         if entry["requested_seed"] != row.requested_seed:
+            not_imported["seed_differs"] += 1
             continue
         # `disposition == "score"` is the whole rule PDR-0013 and ADR-0017
         # wrote: it already means the terminal's registered kind is `score`
@@ -464,12 +480,16 @@ def admit_rows(
         # it would silently exclude a scoring terminal -- `candidate_failed`
         # was exactly that -- from evidence the records admit.
         if row.disposition != "score":
+            not_imported["not_scored"] += 1
             continue
         if row.metrics is None or primary not in row.metrics:
+            not_imported["primary_missing"] += 1
             continue
         if primary_range and not 0.0 <= float(row.metrics[primary]) <= 1.0:
+            not_imported["out_of_range"] += 1
             continue
         if target_exact and row.dependency_digest != target_dependency_digest:
+            not_imported["dependency_differs"] += 1
             continue
 
         key = (row.case_id, row.sample_id)
@@ -531,6 +551,7 @@ def admit_rows(
         fields=tuple(fields),
         origin_runs=len(origin_runs),
         rows=tuple(admitted),
+        not_imported=not_imported,
     )
 
 
@@ -692,3 +713,30 @@ class _SourceTries:
         if started.payload.get("score_request_id") != finished.payload.get("score_request_id"):
             return None
         return started, finished
+
+
+def carried_components(
+    source: SourceMeasurement,
+    rows: Sequence[Mapping[str, Any]],
+    secrets: Sequence[str] = (),
+) -> tuple[tuple[str, Mapping[str, Any]], ...]:
+    """Carry only admitted rows' own authenticated, publishable component maps."""
+    declared = {
+        record.payload["components_digest"]: record.payload
+        for record in source.records
+        if record.event == "components_declared"
+    }
+    wanted = sorted({str(row["components_digest"]) for row in rows if "components_digest" in row})
+    carried = []
+    for digest in wanted:
+        payload = declared.get(digest)
+        if payload is None:
+            continue
+        encoded = canonical_json(dict(payload)).decode("utf-8")
+        if (
+            any(secret and secret in encoded for secret in secrets)
+            or secret_match({"payload": dict(payload)}, secrets) is not None
+        ):
+            continue
+        carried.append((digest, payload))
+    return tuple(carried)

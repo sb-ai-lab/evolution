@@ -8,7 +8,7 @@ if TYPE_CHECKING:
     from evolution.tree.campaign_schema import CampaignSnapshot
     from evolution.tree.case_comparison import ComparisonResult
 
-from evolution.tree.campaign_identity import CampaignIdentityV1, derived_identity
+from evolution.tree.campaign_identity import CampaignIdentityV1, declared_baseline, derived_identity
 from evolution.tree.campaign_statistics import SampleRow
 from evolution.tree.case_comparison import PreflightResult, build_profile, preflight
 from evolution.tree.case_statistics import passes_bound
@@ -336,8 +336,7 @@ def campaign15_projection(
     raw_policy = snapshot.identity["policy"]
     policy: Any = policy_class_for_payload(raw_policy).from_payload(raw_policy)
     n = len(snapshot.identity["corpus_cases"])
-    linked = snapshot.identity.get("linked_from") or {}
-    imported = (linked.get("baseline") or {}).get("imported", 0)
+    imported = (declared_baseline(snapshot.identity) or {}).get("imported", 0)
     if snapshot.baseline_abandoned is not None:
         imported = 0
     report: dict[str, Any] = dict(
@@ -734,9 +733,7 @@ def remaining_cost(
         if not current.baseline_complete:
             inherited = 0
             if current.round == snapshot.first_round and snapshot.baseline_abandoned is None:
-                inherited = (
-                    (snapshot.identity.get("linked_from") or {}).get("baseline") or {}
-                ).get("imported", 0)
+                inherited = (declared_baseline(snapshot.identity) or {}).get("imported", 0)
             baseline = missing(current.baseline_measurement_id, max(0, total - inherited))
         if current.baseline_complete and current.baseline_measurement_id is not None:
             refresh = remaining_refresh_cost(snapshot, policy, current.round)

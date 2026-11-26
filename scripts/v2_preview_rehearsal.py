@@ -39,9 +39,10 @@ import threading
 import time
 import zipfile
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 CHECKOUT = Path(__file__).resolve().parents[1]
-VERSION = "2.0.0b18"
+VERSION = "2.0.0b21"
 #: The caveat kinds, in order, of the scaffold's campaign (check 8) and of its
 #: `baseline: inherit` successor (check 15). `tests/test_tree_family14_smoke.py`
 #: runs the same campaigns in process and checks them against these constants.
@@ -409,16 +410,28 @@ def inspect_run(python: Path, run_dir: Path, env: dict[str, str], cwd: Path) -> 
     return json.loads(completed.stdout)
 
 
+def run_install_step(
+    argv: list[str], *, env: dict[str, str], cwd: Path, what: str
+) -> subprocess.CompletedProcess[str]:
+    # pip probes rustc even when ensurepip installs pip from a bundled wheel.
+    with TemporaryDirectory(prefix="rustup-", dir=cwd) as rustup_home:
+        return run_step(
+            argv,
+            env={**env, "RUSTUP_HOME": rustup_home},
+            cwd=cwd,
+            timeout=INSTALL_TIMEOUT,
+            what=what,
+        )
+
+
 def make_venv(python: str, target: Path, env: dict[str, str], cwd: Path, what: str) -> None:
-    completed = run_step(
-        [python, "-m", "venv", str(target)], env=env, cwd=cwd, timeout=INSTALL_TIMEOUT, what=what
-    )
+    completed = run_install_step([python, "-m", "venv", str(target)], env=env, cwd=cwd, what=what)
     check(completed.returncode == 0, f"{what}: venv creation failed: {completed.stderr}")
 
 
 def install_preview(preview: Path, wheel: Path, env: dict[str, str], cwd: Path) -> None:
     pip = [str(preview / "bin" / "python"), "-m", "pip", "install", "--quiet", f"{wheel}[tree]"]
-    completed = run_step(pip, env=env, cwd=cwd, timeout=INSTALL_TIMEOUT, what="pip install")
+    completed = run_install_step(pip, env=env, cwd=cwd, what="pip install")
     check(completed.returncode == 0, f"pip install failed: {completed.stderr}")
     completed = run_step(
         [str(preview / "bin" / "python"), "-m", "pip", "check"],

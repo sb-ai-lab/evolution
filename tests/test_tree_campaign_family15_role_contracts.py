@@ -737,10 +737,11 @@ async def test_v15_chat_roles_against_strict_provider_fail_as_b17(tmp_path, monk
     )
 
 
-#: The producing versions of the two sides of the upgrade; the installed
-#: package still says b17 on this branch, so both are stamped.
+#: The producing version of the upgrade's old side. The new side is the
+#: installed package: measurement journals and the artifact ledger stamp the
+#: installed version themselves, so a fixed b18 string breaks the b18 leg as
+#: soon as the package version moves past it.
 B17_VERSION = "2.0.0b17"
-B18_VERSION = "2.0.0b18"
 #: The three `/16` chat role identity fields spec §7 expects a b17 run to list.
 CHAT_ROLE_FIELDS = ["identity.editor.digest", "identity.reflector.digest", "producing_version"]
 
@@ -764,7 +765,7 @@ def b18_leg(monkeypatch, *, b17):
             patch.setattr(seals, "ROLE_CONTRACTS_V16", "role_contracts/1")
             patch.setattr(bindings, "TREE_EDITOR_SYSTEM_V3", prompts.TREE_EDITOR_SYSTEM_V2)
             patch.setattr(bindings, "TREE_AGENT_EDITOR_SYSTEM_V2", prompts.TREE_AGENT_EDITOR_SYSTEM)
-        version = B17_VERSION if b17 else B18_VERSION
+        version = B17_VERSION if b17 else installed
         patch.setattr(campaign_module, "resolve_package_version", lambda: version)
         patch.setattr(journal_identity.metadata, "version", lambda name: installed)
         yield patch
@@ -1026,3 +1027,110 @@ async def test_v15_run_rebase_lists_producing_version_only(tmp_path, monkeypatch
         server.server_close()
     # The chat roles of a `/15` run keep their b17 identities (Parts A and D are `/16` only).
     assert fields == ["producing_version"]
+
+
+async def test_interrupted_read_rebases_and_starts_with_fresh_read_state(tmp_path, monkeypatch):
+    import asyncio
+    import json
+
+    from evolution import prompts
+    from evolution.tree import bindings
+    from evolution.tree.execution import journal_identity
+    from evolution.tree.execution.authorizations import Authorization
+    from evolution.tree.roles import seals
+    from evolution.tree.roles.reflector import chat_reflector as reflector_module
+    from tests.campaign_drivers import _records
+    from tests.test_tree_campaign_family14_reflector_history import chat_reflector
+    from tests.test_tree_campaign_family15_role_failures import CHAT_GROUP
+    from tests.tree.roles.reflector.test_chat_reflector import _response
+    from tests.tree.roles.test_chat_loop_reflector_golden import _CapturingClient
+
+    page = {"path": "skills/SKILL.md", "start_line": 1, "end_line": 1}
+    client = _CapturingClient(
+        [_response("list_files"), _response("read_file", page), asyncio.CancelledError()]
+    )
+    monkeypatch.setattr(reflector_module, "_new_client", lambda *a, **kw: client)
+    monkeypatch.setenv("E1_KEY", "test-key")
+
+    async def run(**options):
+        return await public_run(
+            tmp_path,
+            monkeypatch,
+            configure=lambda d: b17_reflector(d, chat_reflector("https://offline.invalid/v1")),
+            **options,
+        )
+
+    def stamp(patch, version):
+        patch.setattr(journal_identity, "__version__", version)
+        patch.setattr(journal_identity.metadata, "version", lambda name: version)
+
+    # Simulate the two builds on either side of the role-contract upgrade.
+    with monkeypatch.context() as patch:
+        run_reflector = campaign_module.run_reflector
+
+        async def cut_after_page(*args, **kwargs):
+            outcome = await run_reflector(*args, **kwargs)
+            # Process death leaves no terminal even though the in-flight role stopped.
+            assert outcome.error_class == "cancelled"
+            raise PowerCut()
+
+        patch.setattr(campaign_module, "run_reflector", cut_after_page)
+        stamp(patch, "2.0.0b20")
+        patch.setattr(bindings, "TREE_REFLECTOR_SYSTEM_V7", prompts.TREE_REFLECTOR_SYSTEM_V6)
+        patch.setattr(seals, "ROLE_CONTRACTS_V16", "role_contracts/2")
+        with pytest.raises(PowerCut):
+            await run()
+
+    journal = tmp_path / "run" / "campaign.jsonl"
+    prefix = journal.read_bytes()
+    before = _records_of(prefix)
+    (opened,) = [r["payload"] for r in before if r["event"] == "reflection_started"]
+    assert not any(r["event"] in {"reflection_finished", "reflection_failed"} for r in before)
+    old_page = json.loads(client.bodies[-1]["messages"][-1]["content"])
+    assert old_page["content"] == "seed skill\n"
+    assert (old_page["start_line"], old_page["end_line"]) == (1, 1)
+
+    stamp(monkeypatch, "2.0.0b20+readprogress")
+    with pytest.raises(EvolveRefused) as caught:
+        await run()
+    assert caught.value.code == "run_identity_changed"
+    assert caught.value.effects == ("rebase",)
+    assert sorted(d.field for d in caught.value.differences) == [
+        "identity.reflector.digest",
+        "producing_version",
+    ]
+    assert journal.read_bytes() == prefix
+    assert len(client.bodies) == 3
+
+    client = _CapturingClient(
+        [
+            _response("list_files"),
+            _response("read_file", page),
+            _response("finish_reflection", {"groups": [CHAT_GROUP]}),
+        ]
+    )
+    accepted = Authorization.new(
+        caught.value.code,
+        caught.value.instance_digest,
+        "accept read progress",
+        now="2026-11-24T12:00:00Z",
+    )
+    directory, result = await run(authorizations=[accepted])
+    assert result.terminal == "finished", result.suspended
+    new_page = json.loads(client.bodies[-1]["messages"][-1]["content"])
+    for field in ("path", "start_line", "end_line", "sha256", "content"):
+        assert new_page[field] == old_page[field]
+    records = _records(directory / "campaign.jsonl")
+    (rebased,) = [r["payload"] for r in records if r["event"] == "identity_rebased"]
+    assert rebased["changed_fields"] == ["identity.reflector.digest", "producing_version"]
+    (failed,) = [r["payload"] for r in records if r["event"] == "reflection_failed"]
+    assert (failed["reflection_id"], failed["error_class"]) == (
+        opened["reflection_id"],
+        "interrupted",
+    )
+    first, again = [r["payload"] for r in records if r["event"] == "reflection_started"]
+    assert first == opened
+    assert (again["round"], again["input_digest"]) == (opened["round"], opened["input_digest"])
+    assert again["reflection_id"] != opened["reflection_id"]
+    (finished,) = [r["payload"] for r in records if r["event"] == "reflection_finished"]
+    assert finished["reflection_id"] == again["reflection_id"]

@@ -497,3 +497,72 @@ async def test_probe_context_exhausted(
         ],
     )
     assert transcript["result"]["status"] == "declined"
+
+
+async def test_v16_adaptive_omitted_offset_delivers_the_second_page(
+    tmp_path: Path,
+    adaptive: Any,  # noqa: F811 - the imported fixture, used by name
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Split the frozen observation between its answer and the public case fields.
+    monkeypatch.setattr("evolution.tree.roles.reflector.reflection_inputs.CONTENT_CHARS", 8000)
+    read = _response("read_evidence", {"evidence_id": "obs:c:1"})
+    client = _CapturingClient([_response("list_files"), read, read, finish(VALID)])
+    reflector = replace(_reflector(tmp_path, client, role_resilience=True), family15=True)
+
+    result = await reflector.reflect(adaptive())
+
+    assert result.status == "reflected", result.note
+    first, second = [json.loads(body["messages"][-1]["content"]) for body in client.bodies[-2:]]
+    assert (first["offset"], first["next_offset"]) == (0, 8000)
+    assert '"public":{"x":1}' not in first["content"]
+    assert (second["offset"], second["next_offset"]) == (8000, None)
+    assert '"public":{"x":1}' in second["content"]
+
+
+@pytest.mark.parametrize("adaptive_case", [False, True])
+async def test_v16_explicit_evidence_receipt_and_reread(
+    tmp_path: Path,
+    reflect_request: ReflectRequest,  # noqa: F811
+    adaptive: Any,  # noqa: F811
+    adaptive_case: bool,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import hashlib
+
+    request = adaptive() if adaptive_case else reflect_request
+    eid = "obs:c:1" if adaptive_case else _obs_id(request)
+
+    if adaptive_case:
+        monkeypatch.setattr("evolution.tree.roles.reflector.reflection_inputs.CONTENT_CHARS", 8000)
+    else:
+        monkeypatch.setattr("evolution.tree.roles.editor.chat_editor.EVIDENCE_CHUNK_CHARS", 300)
+
+    def read(**options: Any) -> Any:
+        return _response("read_evidence", {"evidence_id": eid, **options})
+
+    client = _CapturingClient(
+        [
+            _response("list_files"),
+            read(),
+            read(),
+            read(offset=0),
+            read(offset=0, reread=True),
+            read(),
+            _response("finish_reflection", {"declined": True, "groups": []}),
+        ]
+    )
+    reflector = replace(_reflector(tmp_path, client, role_resilience=True), family15=True)
+    result = await reflector.reflect(request)
+
+    assert result.status == "declined", result.note
+    first, second, receipt, quote, eof = [
+        json.loads(body["messages"][-1]["content"]) for body in client.bodies[2:]
+    ]
+    assert first["offset"] == 0
+    assert second["offset"] == first["next_offset"] == len(first["content"])
+    assert second["content"] != first["content"] and second["next_offset"] is None
+    assert receipt["status"] == "already_read" and "content" not in receipt
+    assert receipt["fragment_sha256"] == hashlib.sha256(first["content"].encode()).hexdigest()
+    assert quote["content"] == first["content"]
+    assert eof["status"] == "eof" and eof["next_offset"] is None

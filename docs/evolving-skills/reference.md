@@ -25,9 +25,9 @@ The public loader is `evolution.lineage.traces.load_trace_evidence(trace_dir)`.
 
 ## Promotion gate
 
-`evo evolve optimize` finalizes a candidate, checks its integrity and edit budget, and compares it with the parent on held-back validation tasks. The parent stays active when any validation task regresses, there is no gain, or the result has insufficient power. At least four validation pairs are required. A validation failure fails the run; it is never treated as a zero score.
+`evo evolve optimize` finalizes a Candidate, checks its integrity and edit budget, and compares it with the parent on held-back validation tasks. The parent stays active when any validation task regresses, there is no gain, or the result has insufficient power. At least four validation pairs are required. A validation failure fails the run; it is never treated as a zero score.
 
-For a manual workflow, commit a candidate with `--no-promote`, measure both versions on held-back tasks, and use `evo skill promote` only when the evidence supports it.
+For a manual workflow, commit a Candidate with `--no-promote`, measure both versions on held-back tasks, and use `evo skill promote` only when the evidence supports it.
 
 ## Split manifests
 

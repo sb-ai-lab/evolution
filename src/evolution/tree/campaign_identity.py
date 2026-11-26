@@ -303,6 +303,154 @@ def _corpus_cases(value: Any) -> list[dict[str, str]]:
     return cases
 
 
+_BASELINE_OPTIONAL = ("not_imported", "components", "provenance")
+_NOT_IMPORTED = (
+    "not_scheduled",
+    "seed_differs",
+    "not_scored",
+    "primary_missing",
+    "out_of_range",
+    "dependency_differs",
+)
+
+
+def _baseline_payload(value: Any, *, mode: str, family: int | None = None) -> dict[str, Any]:
+    extras = [name for name in _BASELINE_OPTIONAL if isinstance(value, Mapping) and name in value]
+    baseline = _closed(value, _BASELINE_FIELDS + "".join(f" {name}" for name in extras))
+    if baseline["mode"] != mode:
+        raise IdentityError("invalid_identity_fields")
+    _identifier(baseline["source_measurement_id"])
+    _sha(baseline["source_prefix_digest"])
+    _sha(baseline["pairs_digest"])
+    imported, scheduled = baseline["imported"], baseline["scheduled"]
+    if type(imported) is not int or type(scheduled) is not int:
+        raise IdentityError("invalid_identity_integer")
+    if scheduled < 1 or not (0 <= imported <= scheduled):
+        raise IdentityError("invalid_identity_integer")
+    baseline_fields = tuple(baseline["fields"])
+    if list(baseline_fields) != sorted(set(baseline_fields)) or any(
+        not _baseline_field(name, family_version=family) for name in baseline_fields
+    ):
+        raise IdentityError("invalid_identity_fields")
+    origin_runs = baseline["origin_runs"]
+    if type(origin_runs) is not int or origin_runs < 0:
+        raise IdentityError("invalid_identity_integer")
+    if (origin_runs == 0) != (imported == 0):
+        raise IdentityError("invalid_identity_fields")
+    if "not_imported" in extras:
+        counts = _closed(baseline["not_imported"], " ".join(_NOT_IMPORTED))
+        for count in counts.values():
+            _nonneg_int(count)
+        baseline["not_imported"] = counts
+    if "components" in extras:
+        components = baseline["components"]
+        if not isinstance(components, (list, tuple)) or list(components) != sorted(set(components)):
+            raise IdentityError("invalid_identity_fields")
+        for digest in components:
+            _sha(digest)
+        baseline["components"] = list(components)
+    if "provenance" in extras:
+        provenance = _closed(baseline["provenance"], "reported unknown source_recorded")
+        _nonneg_int(provenance["reported"])
+        _nonneg_int(provenance["unknown"])
+        if (
+            type(provenance["source_recorded"]) is not bool
+            or provenance["reported"] + provenance["unknown"] != imported
+        ):
+            raise IdentityError("invalid_identity_fields")
+        baseline["provenance"] = provenance
+    baseline["fields"] = list(baseline_fields)
+    return baseline
+
+
+def _standalone_baseline(value: Any) -> dict[str, Any]:
+    try:
+        data = _closed(
+            value,
+            _BASELINE_FIELDS
+            + " "
+            + " ".join(_BASELINE_OPTIONAL)
+            + " source incompatible authorization held_out held_out_authorization",
+        )
+        base_keys = _BASELINE_FIELDS.split() + list(_BASELINE_OPTIONAL)
+        data.update(
+            _baseline_payload({name: data[name] for name in base_keys}, mode="import", family=14)
+        )
+        source = _closed(
+            data["source"],
+            "kind run_id measurement_id identity_digest configuration_digest split row_provenance",
+        )
+        if (
+            source["kind"] not in ("evaluation", "measurement")
+            or type(source["row_provenance"]) is not bool
+        ):
+            raise IdentityError("invalid_identity_fields")
+        _identifier(source["run_id"])
+        _identifier(source["measurement_id"])
+        _sha(source["identity_digest"])
+        if source["kind"] == "measurement":
+            if (
+                source["configuration_digest"] is not None
+                or source["split"] is not None
+                or source["run_id"] != source["measurement_id"]
+            ):
+                raise IdentityError("invalid_identity_fields")
+        else:
+            _sha(source["configuration_digest"])
+            if source["split"] not in ("train", "test") or source["measurement_id"] != "evaluation":
+                raise IdentityError("invalid_identity_fields")
+        if source["measurement_id"] != data["source_measurement_id"]:
+            raise IdentityError("invalid_identity_fields")
+        incompatible = data["incompatible"]
+        if (
+            not isinstance(incompatible, list)
+            or incompatible != sorted(set(incompatible))
+            or not set(incompatible) <= {"candidate_digest", "metric_plan_digest", "scorer"}
+        ):
+            raise IdentityError("invalid_identity_fields")
+        held = data["held_out"]
+        if held is not None:
+            held = _closed(held, "split cases")
+            if (
+                held["split"] not in (None, "train", "test")
+                or not isinstance(held["cases"], list)
+                or held["cases"] != sorted(set(held["cases"]))
+            ):
+                raise IdentityError("invalid_identity_fields")
+            for case_id in held["cases"]:
+                _identifier(case_id)
+        for key, owed, code in (
+            ("authorization", bool(incompatible), "baseline_import_incompatible"),
+            ("held_out_authorization", held is not None, "baseline_import_held_out"),
+        ):
+            decision = data[key]
+            if (decision is not None) != owed:
+                raise IdentityError("invalid_identity_fields")
+            if decision is not None and Authorization.from_decision_payload(decision).code != code:
+                raise IdentityError("invalid_identity_fields")
+        data["source"] = source
+        data["held_out"] = held
+        return data
+    except (IdentityError, AuthorizationError, TypeError, ValueError, KeyError):
+        raise IdentityError("invalid_identity_fields") from None
+
+
+def declared_baseline(identity_payload: Mapping[str, Any]) -> Mapping[str, Any] | None:
+    """The scalar baseline declaration, independent of its source kind."""
+    linked = identity_payload.get("linked_from")
+    if linked is not None and linked.get("baseline") is not None:
+        return linked["baseline"]
+    return identity_payload.get("baseline_import")
+
+
+def baseline_source_run(identity_payload: Mapping[str, Any]) -> str | None:
+    linked = identity_payload.get("linked_from")
+    if linked is not None:
+        return str(linked["run_id"])
+    baseline = identity_payload.get("baseline_import")
+    return None if baseline is None else str(baseline["source"]["run_id"])
+
+
 @dataclass(frozen=True)
 class LinkedFrom:
     """The predecessor's inherited ledger for a baseline-recovery continuation (spec §7).
@@ -423,44 +571,16 @@ class LinkedFrom:
         for count in counts.values():
             _nonneg_int(count)
         if self.baseline is not None:
-            baseline = _closed(self.baseline, _BASELINE_FIELDS)
-            if baseline["mode"] != "inherit":
-                raise IdentityError("invalid_identity_fields")
-            _identifier(baseline["source_measurement_id"])
-            _sha(baseline["source_prefix_digest"])
-            _sha(baseline["pairs_digest"])
-            imported, scheduled = baseline["imported"], baseline["scheduled"]
-            if type(imported) is not int or type(scheduled) is not int:
-                raise IdentityError("invalid_identity_integer")
-            if scheduled < 1 or not (0 <= imported <= scheduled):
-                raise IdentityError("invalid_identity_integer")
-            baseline_fields = tuple(baseline["fields"])
-            if list(baseline_fields) != sorted(set(baseline_fields)) or any(
-                not _baseline_field(name, family_version=self.successor_family)
-                for name in baseline_fields
-            ):
-                raise IdentityError("invalid_identity_fields")
-            origin_runs = baseline["origin_runs"]
-            if type(origin_runs) is not int or origin_runs < 0:
-                raise IdentityError("invalid_identity_integer")
-            if (origin_runs == 0) != (imported == 0):
-                raise IdentityError("invalid_identity_fields")
-            object.__setattr__(
-                self,
-                "baseline",
-                MappingProxyType(
-                    dict(
-                        mode="inherit",
-                        source_measurement_id=baseline["source_measurement_id"],
-                        source_prefix_digest=baseline["source_prefix_digest"],
-                        pairs_digest=baseline["pairs_digest"],
-                        imported=imported,
-                        scheduled=scheduled,
-                        fields=baseline_fields,
-                        origin_runs=origin_runs,
-                    )
-                ),
+            baseline = _baseline_payload(
+                self.baseline, mode="inherit", family=self.successor_family
             )
+            baseline["fields"] = tuple(baseline["fields"])
+            if "components" in baseline:
+                baseline["components"] = tuple(baseline["components"])
+            for name in ("not_imported", "provenance"):
+                if name in baseline:
+                    baseline[name] = MappingProxyType(dict(baseline[name]))
+            object.__setattr__(self, "baseline", MappingProxyType(baseline))
         # PDR-0003: `linked_from` is journaled inside `campaign_created.identity`,
         # so its two mappings are frozen views over private copies for the same
         # reason the policy's are -- nothing a caller still holds can move the
@@ -502,6 +622,11 @@ class LinkedFrom:
         if self.baseline is not None:
             baseline = dict(self.baseline)
             baseline["fields"] = list(baseline["fields"])
+            if "components" in baseline:
+                baseline["components"] = list(baseline["components"])
+            for name in ("not_imported", "provenance"):
+                if name in baseline:
+                    baseline[name] = dict(baseline[name])
             payload["baseline"] = baseline
         return payload
 
@@ -596,6 +721,7 @@ class CampaignIdentityV1:
             if present and isinstance(payload, Mapping) and "secret_oracle_paths" in payload
             else ""
         )
+        baseline_import = " baseline_import" if present and "baseline_import" in payload else ""
         checks = " checks" if present and "checks" in payload else ""
         preflight_retries = (
             " preflight_sample_retries" if present and "preflight_sample_retries" in payload else ""
@@ -607,8 +733,13 @@ class CampaignIdentityV1:
             + verbatim
             + secret_paths
             + checks
-            + preflight_retries,
+            + preflight_retries
+            + baseline_import,
         )
+        if baseline_import:
+            if data["linked_from"] is not None:
+                raise IdentityError("invalid_identity_fields")
+            data["baseline_import"] = _standalone_baseline(data["baseline_import"])
         for name in present:
             _sha(data[name])
         if verbatim:
@@ -1286,6 +1417,7 @@ def build_identity(
     environment_docs_digest: str | None,
     probe: Mapping[str, Any] | None,
     connection: Mapping[str, str | int] | None = None,
+    baseline_import: Mapping[str, Any] | None = None,
 ) -> CampaignIdentityV1:
     """Build the campaign identity from every declared input (spec §4 table).
 
@@ -1342,6 +1474,8 @@ def build_identity(
             payload["checks"] = connection["checks"]
         if "preflight_sample_retries" in connection:
             payload["preflight_sample_retries"] = connection["preflight_sample_retries"]
+    if baseline_import is not None:
+        payload["baseline_import"] = dict(baseline_import)
     return CampaignIdentityV1(payload)
 
 

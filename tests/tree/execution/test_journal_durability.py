@@ -693,3 +693,6 @@ def test_a_declaration_without_room_stops_dispatch_and_leaves_the_writer_healthy
             journal.append("components_declared", declaration())
         assert journal.healthy
         assert dict(journal.declared_components()) == {}
+
+
+pytestmark = pytest.mark.usefixtures("strict_durability")

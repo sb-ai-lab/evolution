@@ -233,6 +233,7 @@ ARTIFACT_FAMILY = EnvelopeFamily(
     _validate_payload,
     NO_OPERATION_EVENTS,
     lambda event: event.endswith("_started") or event == "workspace_opened",
+    pure=True,
 )
 
 

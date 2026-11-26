@@ -438,6 +438,7 @@ S1_FAMILY = EnvelopeFamily(
     # A declaration admits new work like a start does: when the log has
     # no room left beyond its reserved terminals it is refused, not a fault.
     lambda event: event.endswith("_started") or event == "components_declared",
+    pure=True,
 )
 
 

@@ -461,3 +461,65 @@ async def test_public_promotion_transaction_cuts_match_uncut_durable_facts(
     ledger = Counter(r["event"] for r in _records(run / "artifacts.jsonl"))
     assert ledger["promotion_committed"] == 1
     assert verify_evidence(run)["mismatches"] == []
+
+
+@pytest.mark.parametrize("explicit_offset", [False, True], ids=["implicit", "explicit"])
+async def test_b03_evidence_progress_opens_the_first_editor_attempt(
+    tmp_path, monkeypatch, explicit_offset
+):
+    """The provider can diagnose only after the quote from page two reaches its request."""
+    from tests import fake_chat_server
+    from tests.test_tree_campaign_family14_reflector_history import chat_reflector
+    from tests.test_tree_campaign_family15_role_failures import CHAT_GROUP
+
+    quote = "route marker on the second page"
+    received = []
+    evidence_id = "obs:c1:1"
+
+    def reflect(request):
+        if len(request["tools"]) == 1:
+            return fake_chat_server.tool_call("list_files")
+        arguments = {"evidence_id": evidence_id}
+        latest = request["messages"][-1]
+        if latest.get("tool_call_id") == "call-read_evidence":
+            page = json.loads(latest["content"])
+            received.append(page["offset"])
+            if page["offset"] > 0 and quote in page["content"]:
+                return fake_chat_server.tool_call(
+                    "finish_reflection", {"groups": [dict(CHAT_GROUP, root_cause=quote)]}
+                )
+            if explicit_offset:
+                arguments["offset"] = page["next_offset"]
+        return fake_chat_server.tool_call("read_evidence", arguments)
+
+    # Repeat the same decision on every turn, including when the role stalls.
+    base, server = fake_chat_server.start([reflect])
+    root = tmp_path / "two-pages"
+    monkeypatch.setenv("E1_KEY", "test-key")
+
+    def configure(document):
+        shared = ("environment_docs", "families", "max_consecutive_failures", "probe", "selection")
+        document["reflector"] = {
+            **{k: v for k, v in document["reflector"].items() if k in shared},
+            **chat_reflector(base),
+        }
+        corpus = root / document["corpus"]["path"]
+        rows = _records(corpus)
+        rows[0]["public"].update(padding="x" * 16_000, trailing_quote=quote)
+        corpus.write_text("".join(json.dumps(row) + "\n" for row in rows))
+
+    try:
+        run, result = await public_run(
+            root, monkeypatch, configure=configure, campaign={"rounds": 1}
+        )
+    finally:
+        server.shutdown()
+        server.server_close()
+
+    assert received == [0, 16_000], (received, result.terminal, result.code)
+    journal = _records(run / "campaign.jsonl")
+    (finished,) = [r for r in journal if r["event"] == "reflection_finished"]
+    assert finished["payload"]["groups"][0]["root_cause"] == quote
+    opened = next(r for r in journal if r["event"] == "attempt_opened")
+    assert opened["payload"]["attempt_id"] == "r01-a01"
+    assert journal.index(finished) < journal.index(opened)

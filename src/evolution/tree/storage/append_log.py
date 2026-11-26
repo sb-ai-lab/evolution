@@ -20,6 +20,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal, Protocol
 
+from evolution.lineage.state_io import sync_file
 from evolution.tree.storage.envelope import (
     Envelope,
     EnvelopeFamily,
@@ -82,7 +83,7 @@ def _directory(path: Path, *, create: bool = False) -> int:
             if create and index == len(parts) - 2:
                 try:
                     os.mkdir(part, mode=0o700, dir_fd=fd)
-                    os.fsync(fd)
+                    sync_file(fd)
                 except FileExistsError:
                     pass
             child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=fd)
@@ -312,7 +313,7 @@ class AppendLog:
                             if written <= 0:
                                 raise OSError(errno.EIO, "short partial write")
                             offset += written
-                        os.fsync(fd)
+                        sync_file(fd)
                     finally:
                         os.close(fd)
                     os.replace(
@@ -325,7 +326,7 @@ class AppendLog:
                     with suppress(OSError):
                         os.unlink(partial_name, dir_fd=log._directory_fd)
                     raise
-                os.fsync(log._directory_fd)
+                sync_file(log._directory_fd)
                 log._fd = _file(log._directory_fd, file_name, os.O_RDWR | os.O_APPEND)
                 os.fchmod(log._fd, 0o600)
                 log.scan()
@@ -376,7 +377,7 @@ class AppendLog:
                     raise JournalFault("journal_limit_exceeded")
                 if snapshot.valid_bytes != size:
                     os.ftruncate(self._fd, snapshot.valid_bytes)
-                os.fsync(self._fd)
+                sync_file(self._fd)
                 self._state = state
                 self._records = list(snapshot.records)
                 self._bytes = snapshot.valid_bytes
@@ -473,7 +474,7 @@ class AppendLog:
                 if written <= 0:
                     raise OSError(errno.EIO, "short journal write")
                 offset += written
-            os.fsync(self._fd)
+            sync_file(self._fd)
             transition.commit()
             self._records.append(record)
             self._bytes += len(encoded)

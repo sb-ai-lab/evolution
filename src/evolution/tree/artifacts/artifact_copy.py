@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Literal
 
-from evolution.lineage.state_io import fsync_directory
+from evolution.lineage.state_io import fsync_directory, sync_file
 from evolution.tree.artifacts.artifact_errors import ArtifactUnsafeError
 from evolution.tree.artifacts.artifact_policy import (
     ArtifactPolicyV1,
@@ -226,7 +226,7 @@ def fsync_tree(root: Path) -> None:
 def _fsync_path(path: Path, flags: int) -> None:
     fd = os.open(path, flags)
     try:
-        os.fsync(fd)
+        sync_file(fd)
     finally:
         os.close(fd)
 

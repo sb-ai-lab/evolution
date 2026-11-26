@@ -1482,3 +1482,69 @@ def test_a_repair_after_a_cancelled_try_is_still_admitted():
     plain = _cancelled_first_try({})
     with pytest.raises(SchemaError):
         accept(plain, "rollout_started", "r1", retry_ordinal=1)
+
+
+def test_birth_bytes_carry_declared_components(tmp_path):
+    from evolution.tree.execution.journal import Journal, inspect_journal
+    from evolution.tree.execution.journal_identity import RunIdentityV1
+    from tests.tree.execution.test_journal_identity import cases
+
+    state = ledger({"row_provenance": 1})
+    declaration = {"components_digest": schema().components_digest(MAP), "components": MAP}
+    row = imported(
+        state, provenance=["catalog"], components_digest=declaration["components_digest"]
+    )
+    with Journal.create(
+        tmp_path / "born",
+        "run-1",
+        RunIdentityV1(state._identity),
+        cases(),
+        imported=[row.payload],
+        declared_components=[declaration],
+    ):
+        pass
+    records = inspect_journal(tmp_path / "born").records
+    assert [record.event for record in records] == [
+        "run_created",
+        "sample_imported",
+        "components_declared",
+    ]
+    assert records[2].payload == declaration
+    state.accept(
+        Envelope.from_payload(
+            {
+                **row.to_payload(),
+                "sequence": 2,
+                "event": "components_declared",
+                "payload": declaration,
+            },
+            family=S1_FAMILY,
+        )
+    )
+    with pytest.raises(SchemaError):
+        state.accept(imported(state))
+
+
+@pytest.mark.parametrize("fault", ["duplicate", "bad_digest"])
+def test_bad_carried_component_declaration_refuses_before_birth(tmp_path, fault):
+    from evolution.tree.execution.journal import Journal
+    from evolution.tree.execution.journal_identity import RunIdentityV1
+    from tests.tree.execution.test_journal_identity import cases
+
+    state = ledger({"row_provenance": 1})
+    declaration = {"components_digest": schema().components_digest(MAP), "components": MAP}
+    declarations = (
+        [declaration, declaration]
+        if fault == "duplicate"
+        else [{**declaration, "components_digest": "b" * 64}]
+    )
+    with pytest.raises(SchemaError):
+        Journal.create(
+            tmp_path / "born",
+            "run-1",
+            RunIdentityV1(state._identity),
+            cases(),
+            imported=[imported(state).payload],
+            declared_components=declarations,
+        )
+    assert not (tmp_path / "born").exists()

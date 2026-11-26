@@ -1047,3 +1047,143 @@ def test_identity_refuses_invalid_preflight_retry_counts(identity_payload, value
                 "preflight_sample_retries": value,
             }
         )
+
+
+def standalone_declaration():
+    return {
+        **DECLARATION,
+        "mode": "import",
+        "source_measurement_id": "evaluation",
+        "source": {
+            "kind": "evaluation",
+            "run_id": "source-owner",
+            "measurement_id": "evaluation",
+            "identity_digest": "c" * 64,
+            "configuration_digest": "d" * 64,
+            "split": "train",
+            "row_provenance": True,
+        },
+        "imported": 1,
+        "scheduled": 1,
+        "fields": [],
+        "not_imported": dict.fromkeys(
+            (
+                "not_scheduled",
+                "seed_differs",
+                "not_scored",
+                "primary_missing",
+                "out_of_range",
+                "dependency_differs",
+            ),
+            0,
+        ),
+        "components": [],
+        "provenance": {"reported": 1, "unknown": 0, "source_recorded": True},
+        "incompatible": [],
+        "authorization": None,
+        "held_out": None,
+        "held_out_authorization": None,
+    }
+
+
+@pytest.mark.parametrize("family15", [False, True])
+def test_identity_admits_baseline_import_only_with_connection_fields(family15):
+    from evolution.tree.campaign_policy import CampaignPolicyV12
+    from tests.campaign_fakes import v11_policy
+    from tests.family15_fakes import v16_document
+    from tests.test_tree_family14_identity import CONNECTION, identity
+
+    policy = (
+        CampaignPolicyV12.from_payload(v16_document()["campaign"]) if family15 else v11_policy()
+    )
+    payload = identity(policy, CONNECTION).to_payload()
+    payload["baseline_import"] = standalone_declaration()
+    assert CampaignIdentityV1(payload).to_payload() == payload
+    bare = {name: value for name, value in payload.items() if name not in CONNECTION}
+    with pytest.raises(IdentityError):
+        CampaignIdentityV1(bare)
+
+
+@pytest.mark.parametrize(
+    "path,value",
+    [
+        ("extra", 1),
+        ("mode", "inherit"),
+        ("source.kind", "campaign"),
+        ("source.extra", "x"),
+        ("source.configuration_digest", None),
+        ("source.split", None),
+        ("source.row_provenance", 1),
+        ("source_measurement_id", "other"),
+        ("source_prefix_digest", "bad"),
+        ("imported", True),
+        ("scheduled", 0),
+        ("imported", 2),
+        ("origin_runs", 0),
+        ("fields", ["invalid"]),
+        ("not_imported.extra", 0),
+        ("not_imported.not_scored", -1),
+        ("not_imported.not_scored", True),
+        ("components", ["bad"]),
+        ("components", ["a" * 64, "a" * 64]),
+        ("provenance.unknown", 1),
+        ("provenance.source_recorded", 1),
+        ("incompatible", ["target"]),
+        ("incompatible", ["scorer"]),
+        ("authorization", {}),
+        ("held_out", {"split": None, "cases": []}),
+        ("held_out_authorization", {}),
+    ],
+)
+def test_baseline_import_declaration_is_closed(path, value):
+    from tests.campaign_fakes import v11_policy
+    from tests.test_tree_family14_identity import CONNECTION, identity
+
+    declaration = standalone_declaration()
+    section = declaration
+    pieces = path.split(".")
+    for piece in pieces[:-1]:
+        section = section[piece]
+    section[pieces[-1]] = value
+    payload = identity(v11_policy(), CONNECTION).to_payload()
+    payload["baseline_import"] = declaration
+    with pytest.raises(IdentityError, match="invalid_identity_fields"):
+        CampaignIdentityV1(payload)
+
+
+def test_baseline_import_cannot_coexist_with_a_link():
+    from tests.campaign_fakes import v11_policy
+    from tests.test_tree_family14_identity import CONNECTION, identity
+
+    payload = identity(v11_policy(), CONNECTION).to_payload()
+    payload.update(
+        baseline_import=standalone_declaration(), linked_from=_linked_from().to_payload()
+    )
+    with pytest.raises(IdentityError):
+        CampaignIdentityV1(payload)
+
+
+def test_linked_baseline_optional_keys_round_trip():
+    old = _linked_from(baseline=DECLARATION).to_payload()
+    assert LinkedFrom.from_payload(old).to_payload() == old
+    extra = standalone_declaration()
+    baseline = {
+        **DECLARATION,
+        **{key: extra[key] for key in ("not_imported", "components")},
+        "provenance": {"reported": 118, "unknown": 0, "source_recorded": True},
+    }
+    linked = _linked_from(baseline=baseline)
+    assert linked.to_payload()["baseline"] == baseline
+    assert LinkedFrom.from_payload(linked.to_payload()).to_payload() == linked.to_payload()
+
+
+def test_declared_baseline_reads_either_declaration():
+    from evolution.tree.campaign_identity import baseline_source_run, declared_baseline
+
+    standalone = standalone_declaration()
+    linked = {"linked_from": _linked_from(baseline=DECLARATION).to_payload()}
+    assert declared_baseline(linked) == DECLARATION
+    assert baseline_source_run(linked) == "predecessor"
+    assert declared_baseline({"baseline_import": standalone}) == standalone
+    assert baseline_source_run({"baseline_import": standalone}) == "source-owner"
+    assert declared_baseline({}) is None and baseline_source_run({}) is None

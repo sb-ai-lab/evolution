@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Callable, Iterator, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any
 
@@ -14,13 +14,14 @@ from evolution.tree.artifacts.artifact_policy import (
     scan_tree,
     validate_pattern,
 )
-from evolution.tree.execution.journal import EVENTS_FILE, MAX_RECORD_BYTES
+from evolution.tree.execution.journal import EVENTS_FILE, MAX_RECORD_BYTES, inspect_journal
 from evolution.tree.execution.journal_identity import canonical_json
 from evolution.tree.execution.journal_schema import S1_FAMILY, Lifecycle
 from evolution.tree.execution.json_pointer import MISSING, pointer_value
 from evolution.tree.execution.wire_v2 import is_artifact_path
 from evolution.tree.storage.append_log import _scan
 from evolution.tree.storage.envelope import Envelope
+from evolution.tree.storage.journal_errors import JournalBoundaryError
 
 
 class LabelError(ValueError):
@@ -345,6 +346,58 @@ def _replay(records: Sequence[Any]) -> Lifecycle:
 def _union(payload: Mapping[str, Any]) -> tuple[str, ...] | None:
     used = payload.get("provenance")
     return None if used is None else tuple(used)
+
+
+@dataclass(frozen=True)
+class MeasurementProvenance:
+    """Provenance coverage of scheduled samples' latest finished tries."""
+
+    recorded: bool
+    reported: int | None
+    overflow: int | None
+    not_reported: int | None
+    components_declared: int | None
+
+    def to_payload(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+def measurement_provenance(directory: Path) -> MeasurementProvenance:
+    """Read the valid journal prefix without taking a lease or changing files.
+
+    Counts are unknown for an unmarked identity. Missing, unreadable or unborn
+    journals raise ``ValueError("measurement journal unavailable")``.
+    """
+    # campaign_schema imports this module's selection bounds during startup.
+    from evolution.tree.campaign_statistics import latest_rows
+
+    try:
+        snapshot = inspect_journal(directory)
+    except JournalBoundaryError:
+        raise ValueError("measurement journal unavailable") from None
+    if not snapshot.records:
+        raise ValueError("measurement journal unavailable")
+    if snapshot.records[0].payload["identity"].get("row_provenance") != 1:
+        return MeasurementProvenance(False, None, None, None, None)
+    state = _replay(snapshot.records)
+    reported = overflow = not_reported = 0
+    for row in latest_rows(snapshot.records, state):
+        execution = state.executions.get((row.case_id, row.sample_id))
+        if execution is None or execution.event != "rollout_finished":
+            continue
+        if "provenance" in execution.payload:
+            reported += 1
+        elif execution.payload.get("provenance_overflow"):
+            overflow += 1
+        else:
+            not_reported += 1
+    return MeasurementProvenance(
+        True,
+        reported,
+        overflow,
+        not_reported,
+        sum(record.event == "components_declared" for record in snapshot.records),
+    )
 
 
 def baseline_provenance(records: Sequence[Any]) -> dict[str, tuple[SampleProvenance, ...]]:

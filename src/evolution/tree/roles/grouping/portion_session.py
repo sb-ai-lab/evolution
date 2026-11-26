@@ -522,6 +522,14 @@ def _admit(
     return tuple(records)
 
 
+def portion_messages(system: str, rendered: str) -> list[dict[str, Any]]:
+    """Opening sent to the map role for a rendered portion."""
+    return [
+        {"role": "system", "content": system},
+        {"role": "user", "content": PORTION_LEAD + rendered},
+    ]
+
+
 async def run_portion(ctx: PortionContext, portion: MapPortion) -> PortionOutcome:
     """One map session over ``portion``; its admitted groups or why it has none.
 
@@ -551,10 +559,7 @@ async def run_portion(ctx: PortionContext, portion: MapPortion) -> PortionOutcom
     toolbox = GroupingToolbox(
         portion, ctx.table, ctx.reader, read_chars=ctx.limits.read_chars, glimpses=ctx.glimpses
     )
-    messages: list[dict[str, Any]] = [
-        {"role": "system", "content": ctx.system},
-        {"role": "user", "content": PORTION_LEAD + ctx.render(portion)},
-    ]
+    messages = portion_messages(ctx.system, ctx.render(portion))
     observations = sum(len(unit.observations) for unit in portion.units)
     ctx.log.record(
         {
