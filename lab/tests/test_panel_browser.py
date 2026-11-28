@@ -2,6 +2,7 @@
 
 import functools
 import http.server
+import sys
 import threading
 
 import pytest
@@ -9,7 +10,8 @@ import pytest
 from panel_browser import dump_dom, find_browser
 
 BROWSER = find_browser()
-pytestmark = [pytest.mark.slow, pytest.mark.skipif(BROWSER is None, reason="no headless Chromium")]
+pytestmark = pytest.mark.slow
+needs_browser = pytest.mark.skipif(BROWSER is None, reason="no headless Chromium")
 
 
 @pytest.fixture
@@ -30,6 +32,7 @@ def serve(tmp_path):
     server.server_close()
 
 
+@needs_browser
 def test_a_page_that_never_booted_carries_the_browser_console(serve, tmp_path):
     url = serve('<p class="boot">Loading…</p><script>console.error("boot-probe-message")</script>')
     dom = dump_dom(BROWSER, url, budget_ms=2000, workdir=tmp_path)
@@ -38,11 +41,29 @@ def test_a_page_that_never_booted_carries_the_browser_console(serve, tmp_path):
     assert "dbus" not in log
 
 
+@needs_browser
 def test_a_booted_page_comes_back_unchanged(serve, tmp_path):
     url = serve('<p class="boot">Loading…</p><script>console.error("boot-probe-message");'
                 'document.querySelector(".boot").remove()</script>')
     dom = dump_dom(BROWSER, url, budget_ms=2000, workdir=tmp_path)
     assert "browser log" not in dom and "boot-probe-message" in dom  # only the script's own text
+
+
+def test_native_browser_profile_is_created_under_a_new_workdir(tmp_path):
+    workdir = tmp_path / "closed"
+    browser = (
+        "from pathlib import Path\n"
+        "import sys\n"
+        "profile = Path(next(arg.split('=', 1)[1] for arg in sys.argv[2:] "
+        "if arg.startswith('--user-data-dir=')))\n"
+        "assert profile.parent == Path(sys.argv[1]) and profile.is_dir()\n"
+        "print('<p>rendered</p>')\n"
+    )
+
+    dom = dump_dom([sys.executable, "-c", browser, str(workdir)], "http://fixture", workdir=workdir)
+
+    assert dom.strip() == "<p>rendered</p>"
+    assert list(workdir.iterdir()) == []
 
 
 async def test_request_log_records_path_status_and_order_without_the_query():

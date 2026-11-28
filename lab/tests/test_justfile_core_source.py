@@ -10,6 +10,7 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import sys
 import zipfile
 from pathlib import Path
 
@@ -141,7 +142,8 @@ def test_version_mismatch_refuses(repo: Path) -> None:
 
 def test_stale_environment_refuses(repo: Path) -> None:
     a = _git(repo, "rev-parse", "HEAD")
-    _just(repo, "setup")
+    python_version = f"{sys.version_info.major}.{sys.version_info.minor}"
+    _just(repo, f"python={python_version}", "setup")
     assert (repo / "lab/.lab/venv/core-commit").read_text(encoding="utf-8").strip() == a
     _just(repo, "_require-fresh-core")
     _lab_only_commit(repo, "lab only")

@@ -68,6 +68,8 @@ def dump_dom(prefix: list[str], url: str, budget_ms: int = 5000, workdir: Path |
     if _in_docker(prefix):
         done = _dump_in_docker(prefix, [*flags, url])
     else:
+        if workdir is not None:
+            workdir.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(prefix="lab-panel-browser-", dir=workdir) as profile:
             command = [*prefix, "--headless=new", f"--user-data-dir={profile}", *flags, url]
             done = subprocess.run(command, capture_output=True, text=True, timeout=DUMP_S, check=True)
