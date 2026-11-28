@@ -1,0 +1,21 @@
+{
+  "producing_commit": "ffe2101130c030848e68c29d8bdb496fb925dfde",
+  "lab_version": "0.0.3.dev63",
+  "core_version": "2.0.0b15",
+  "lab_wheel_sha256": "e65d99f03094b7188ccc3dc97f545558bddf289888015ce5773644eb840f48d9",
+  "core_wheel_sha256": "56855139bdac1750c28d7ec837e28d5b0c005ad2745b856de9d93c4934ef5352",
+  "reader_run": "tests/fixtures/panel/b14/agent-finished/run",
+  "files_sha256": {
+    "campaign.json": "4ccad6297c3860422f5016f5ca0b8d05798678a09674841aeff2a89961767632",
+    "campaign.txt": "4db4ab9de83d5921752807e2fe1ba27072cf9a8ee738271bf749a8104e766c5f",
+    "live-owner-report.json": "e8d6b72c21000d501a2be6d046ddfa966ad6b320494774fe42c77200416ede48",
+    "live-owner-report.txt": "9265272df83309202783e8763b31b09781972aa03acb89e8d7fee06188accd04",
+    "operation.json": "4e5610866fef13dd9230eabb83f84e6a51588aab3a8e37be779996eb0785714d",
+    "operation.txt": "eac0b6692156e00ecc5ce6e873e18fe1e44f0458d78e6a51b1b117e7be92fce3",
+    "owner-report.json": "8a31a8447668b2f347b6340d4ae17dd82fabeb3248795a15150c23b9af238583",
+    "owner-report.txt": "5be3dd41f8cda5a1115b91fb50445f1f59a50488c628feb5c346deb5f4c84852",
+    "report.md": "148dc888f3661eb3c98c1b1fa63feb0fdaa4984c46c33072257d607ccf9d29c6",
+    "target.json": "03a28ad8a42bba3b8c035c44d6ccf38b992d0a11bf7af7de2b1e6a374a6a504e",
+    "target.txt": "d0dd2e0e1ce29ed90aca7df74f17e42eda469c4a7c4b35e0e6477278e549ff10"
+  }
+}

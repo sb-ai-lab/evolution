@@ -15,7 +15,9 @@ from evolution.tree.execution.check_modes import (
     ENFORCE_ALL,
     CheckModes,
     HitSink,
+    RepeatedReadCheck,
     redact_for_journal,
+    repeated_read_check,
 )
 from evolution.tree.execution.evidence_settings import EvidencePin
 from evolution.tree.execution.interaction import EvalCase
@@ -231,6 +233,10 @@ class ReflectRequest:
     )
     #: Family 15 only; request-local, never part of the wire payload or role identity.
     normalize_empty_keys: bool = False
+    #: Direct /16 chat only. A callable keeps detection lazy when the operator selects off.
+    check_repeated_read: RepeatedReadCheck = field(
+        default_factory=repeated_read_check, repr=False, compare=False
+    )
 
 
 @dataclass(frozen=True)

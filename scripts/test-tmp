@@ -1,0 +1,65 @@
+#!/bin/sh
+# Run test commands with temporary files in RAM (PDR-0059, ADR-0068).
+set -u
+
+fail() {
+    printf 'test-tmp: %s\n' "$*" >&2
+    exit 2
+}
+
+[ "$#" -gt 0 ] || fail 'usage: scripts/test-tmp CMD...'
+export PYTHONDONTWRITEBYTECODE=1
+if [ "${EVOLUTION_TEST_ALLOW_DISK:-}" = 1 ]; then
+    printf 'test-tmp: EVOLUTION_TEST_ALLOW_DISK=1, temporary files go to %s on disk\n' "${TMPDIR:-/tmp}" >&2
+    exec "$@"
+fi
+
+# Full-suite measurement and headroom: docs/development/testing.md.
+ram_mb=${EVOLUTION_TEST_RAMDISK_MB:-1536}
+case "$ram_mb" in ''|*[!0-9]*) fail 'EVOLUTION_TEST_RAMDISK_MB must be a positive integer';; esac
+[ "$ram_mb" -gt 0 ] 2>/dev/null || fail 'EVOLUTION_TEST_RAMDISK_MB must be a positive integer'
+ram_device=
+ram_directory=
+cleanup() {
+    if [ -n "$ram_device" ]; then hdiutil detach -force "$ram_device" >/dev/null 2>&1 || :; fi
+    if [ -n "$ram_directory" ]; then
+        chmod -R u+w "$ram_directory" 2>/dev/null || :
+        rm -rf "$ram_directory"
+    fi
+}
+trap cleanup 0
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+case "$(uname -s)" in
+    Linux)
+        candidate=${TMPDIR:-/tmp}
+        if [ "$(stat -f -c %T "$candidate" 2>/dev/null)" = tmpfs ]; then
+            TMPDIR=$candidate
+        else
+            [ "$(stat -f -c %T /dev/shm 2>/dev/null)" = tmpfs ] || fail "$candidate and /dev/shm are not tmpfs; use RAM or EVOLUTION_TEST_ALLOW_DISK=1"
+            free_kb=$(df -Pk /dev/shm | awk 'NR==2 {print $4}')
+            [ "$free_kb" -ge "$((ram_mb * 1024))" ] || fail "/dev/shm has insufficient free space (need ${ram_mb} MB); use RAM or EVOLUTION_TEST_ALLOW_DISK=1"
+            ram_directory=$(mktemp -d /dev/shm/evo-test.XXXXXX) || fail 'cannot create /dev/shm temporary directory'
+            TMPDIR=$ram_directory
+        fi
+        EVOLUTION_TEST_RAMDISK=$TMPDIR
+        ;;
+    Darwin)
+        # Keep the mount short: Unix socket paths under it must stay within macOS's 104 bytes.
+        ram_volume=evo-$(uuidgen | cut -c1-8) || fail 'cannot name RAM disk'
+        ram_device=$(hdiutil attach -nomount "ram://$((ram_mb * 2048))") || fail 'cannot attach RAM disk'
+        # hdiutil pads the device name with whitespace.
+        ram_device=$(printf '%s' "$ram_device" | awk 'NR==1 {print $1}')
+        diskutil erasevolume APFS "$ram_volume" "$ram_device" >/dev/null || fail 'cannot format RAM disk'
+        ram_mount=/Volumes/$ram_volume
+        TMPDIR=$ram_mount/tmp
+        mkdir -p "$TMPDIR" || fail 'cannot create RAM temporary directory'
+        EVOLUTION_TEST_RAMDISK=$ram_mount
+        ;;
+    *) fail 'unsupported OS; test temporary files require Linux tmpfs or a macOS RAM disk';;
+esac
+export TMPDIR EVOLUTION_TEST_RAMDISK
+"$@"
+result=$?
+exit "$result"

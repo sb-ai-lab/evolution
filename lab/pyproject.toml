@@ -1,0 +1,34 @@
+[build-system]
+requires = ["hatchling>=1.31,<2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "evolution-lab"
+version = "0.0.3.dev81"
+description = "Preparation and evaluation tools for native Evolution v2"
+requires-python = ">=3.11.4"
+dependencies = ["evo-skills==2.0.0b22", "pydantic>=2,<3", "httpx>=0.27,<1", "jsonschema>=4.18,<5", "psutil>=7,<8; sys_platform == \"darwin\""]
+
+[project.optional-dependencies]
+gateway = ["fastapi>=0.115,<1", "uvicorn>=0.30,<1"]
+service = ["fastapi>=0.115,<1", "uvicorn>=0.30,<1"]
+panel = ["fastapi>=0.115,<1", "uvicorn>=0.30,<1"]
+mcp = ["mcp>=2.3,<3"]
+dev = ["pytest>=8", "pytest-asyncio>=0.23", "build>=1.2", "psutil>=7,<8", "fastapi>=0.115,<1", "uvicorn>=0.30,<1", "evo-skills[tree]==2.0.0b22", "mcp>=2.3,<3"]
+
+[project.scripts]
+lab = "evolution_lab.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/evolution_lab"]
+
+[tool.hatch.build.targets.sdist]
+only-include = ["src", "tests", "pyproject.toml", "README.md", "examples", "docs/api"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+asyncio_mode = "auto"
+markers = [
+    "slow: a module that runs campaigns, starts Lab services or subprocesses, or drives a browser; just test-fast deselects it with -m 'not slow'",
+]

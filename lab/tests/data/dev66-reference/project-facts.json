@@ -1,0 +1,179 @@
+{
+  "schema": "lab-project-facts/4",
+  "project": "neutral",
+  "implementation": "agent",
+  "pair": {
+    "lab": "0.0.3.dev65",
+    "core": "2.0.0b15"
+  },
+  "revision": {
+    "schema": "lab-materials-revision/1",
+    "digest": "sha256:0fbf1f10fb77beff000494688536999d7d399fee268572d19079bbd1395aa278",
+    "places": [],
+    "files": 1,
+    "git": null
+  },
+  "facts": [
+    {
+      "id": "implementation.available",
+      "subject": {
+        "implementation": "agent"
+      },
+      "holds": true,
+      "value": true,
+      "source": {
+        "kind": "filesystem"
+      },
+      "stale_reason": null,
+      "carried_over": []
+    },
+    {
+      "id": "implementation.ported",
+      "subject": {
+        "implementation": "agent"
+      },
+      "holds": false,
+      "value": false,
+      "source": {
+        "kind": "origin",
+        "implementation": null,
+        "reason": "not_ported"
+      },
+      "stale_reason": null,
+      "carried_over": []
+    },
+    {
+      "id": "materials.revision",
+      "subject": null,
+      "holds": true,
+      "value": {
+        "digest": "sha256:0fbf1f10fb77beff000494688536999d7d399fee268572d19079bbd1395aa278",
+        "git": null
+      },
+      "source": {
+        "kind": "revision"
+      },
+      "stale_reason": null,
+      "carried_over": []
+    },
+    {
+      "id": "package.present",
+      "subject": {
+        "implementation": "agent"
+      },
+      "holds": true,
+      "value": true,
+      "source": {
+        "kind": "package_entry",
+        "entry": null,
+        "reason": null
+      },
+      "stale_reason": null,
+      "carried_over": []
+    },
+    {
+      "id": "package.valid",
+      "subject": {
+        "implementation": "agent"
+      },
+      "holds": true,
+      "value": {
+        "scope": "form"
+      },
+      "source": {
+        "kind": "package_entry",
+        "errors": []
+      },
+      "stale_reason": null,
+      "carried_over": []
+    },
+    {
+      "id": "check.passed",
+      "subject": {
+        "implementation": "agent"
+      },
+      "holds": true,
+      "value": true,
+      "source": {
+        "kind": "task",
+        "id": "check-1",
+        "pair": {
+          "lab": "0.0.3.dev65",
+          "core": "2.0.0b15"
+        },
+        "inputs_digest": "sha256:0fbf1f10fb77beff000494688536999d7d399fee268572d19079bbd1395aa278"
+      },
+      "stale_reason": null,
+      "carried_over": []
+    },
+    {
+      "id": "conformance.passed",
+      "subject": {
+        "implementation": "agent"
+      },
+      "holds": true,
+      "value": true,
+      "source": {
+        "kind": "task",
+        "id": "conformance-2",
+        "pair": {
+          "lab": "0.0.3.dev65",
+          "core": "2.0.0b15"
+        },
+        "inputs_digest": "sha256:0fbf1f10fb77beff000494688536999d7d399fee268572d19079bbd1395aa278"
+      },
+      "stale_reason": null,
+      "carried_over": []
+    },
+    {
+      "id": "baseline.measured",
+      "subject": {
+        "implementation": "agent"
+      },
+      "holds": true,
+      "value": true,
+      "source": {
+        "kind": "operation",
+        "id": "evaluation-1",
+        "pair": {
+          "lab": "0.0.3.dev65",
+          "core": "2.0.0b15"
+        },
+        "inputs_digest": "sha256:0fbf1f10fb77beff000494688536999d7d399fee268572d19079bbd1395aa278"
+      },
+      "stale_reason": null,
+      "carried_over": []
+    },
+    {
+      "id": "connected",
+      "subject": {
+        "implementation": "agent"
+      },
+      "holds": true,
+      "value": true,
+      "source": {
+        "kind": "derived",
+        "facts": [
+          "check.passed",
+          "conformance.passed",
+          "baseline.measured"
+        ]
+      },
+      "stale_reason": null,
+      "carried_over": []
+    },
+    {
+      "id": "campaigns",
+      "subject": {
+        "implementation": "agent"
+      },
+      "holds": false,
+      "value": [],
+      "source": {
+        "kind": "links"
+      },
+      "stale_reason": null,
+      "carried_over": []
+    }
+  ]
+}

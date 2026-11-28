@@ -1,0 +1,141 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "skill_path",
+    "files",
+    "place_before",
+    "outside_changes",
+    "review"
+  ],
+  "properties": {
+    "schema": {
+      "const": "create-skill-build/1"
+    },
+    "skill_path": {
+      "$ref": "#/$defs/relpath"
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "role"
+        ],
+        "properties": {
+          "path": {
+            "$ref": "#/$defs/relpath"
+          },
+          "role": {
+            "$ref": "#/$defs/text"
+          }
+        }
+      },
+      "minItems": 1
+    },
+    "place_before": {
+      "$ref": "#/$defs/digest"
+    },
+    "outside_changes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/relpath"
+      }
+    },
+    "review": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "notes"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "approved",
+            "changes_requested"
+          ]
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "severity",
+              "text"
+            ],
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/id"
+              },
+              "severity": {
+                "enum": [
+                  "blocker",
+                  "major",
+                  "minor"
+                ]
+              },
+              "text": {
+                "$ref": "#/$defs/text"
+              }
+            }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "changes_requested"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "notes": {
+                "contains": {
+                  "properties": {
+                    "severity": {
+                      "enum": [
+                        "blocker",
+                        "major"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "severity"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+    },
+    "relpath": {
+      "type": "string",
+      "pattern": "^(?!/)(?!\\.$)(?!(?:.*/)?\\.\\.(?:/|$)).+$"
+    },
+    "text": {
+      "type": "string",
+      "minLength": 1
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    }
+  }
+}

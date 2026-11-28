@@ -1,0 +1,4187 @@
+{
+ "/v1/health": {
+  "status": 200,
+  "body": {
+   "schema": "lab-service-health/2",
+   "lab_version": "0.0.3.dev52",
+   "core_version": "2.0.0b6",
+   "distributions": [],
+   "owner_generation": "7ca5ca2d4d98409099aca8732ea5d696",
+   "active_operation_id": null,
+   "blockers": [
+    {
+     "kind": "target",
+     "id": "da9b71b762844afda6ec013b66507a9d"
+    }
+   ],
+   "service_state": "running",
+   "service_environment": {
+    "schema": "lab-service-environment/2",
+    "digest": "4aa35475dba482c287132bfa7d467a266745759f3d68d227dd455c6d1e886524",
+    "executable": "/home/user/.codex/worktrees/c9da/evolution_lab/.local-tmp/dev52-panel-b6/venv/bin/python",
+    "python_version": "3.12.13",
+    "executable_sha256": "9544d2a29138833e6177d45dbc57468d37710b5080c901fbb579d53f251cdd6f",
+    "platform": {
+     "system": "Linux",
+     "machine": "x86_64"
+    },
+    "distributions": [
+     {
+      "name": "evo-skills",
+      "version": "2.0.0b6",
+      "wheel_sha256": "acdbc710902ea448fe1f22308250ba35768df5ee1cf4669c5b6751cb46514ec0"
+     },
+     {
+      "name": "evolution-lab",
+      "version": "0.0.3.dev52",
+      "wheel_sha256": "bb44b44e4593d9d91e274dbaa7849e589a03984840dea8996a70c1d4ea44c89c"
+     }
+    ],
+    "runtime_files": [],
+    "proof_profile": "wheel-members/1"
+   }
+  }
+ },
+ "/v1/scenarios": {
+  "status": 200,
+  "body": {
+   "schema": "lab-scenario-list/1",
+   "catalogue": {
+    "schema": "lab-scenario-catalogue/1",
+    "catalogue_version": 8,
+    "scenarios": [
+     {
+      "id": "connect",
+      "version": 5,
+      "digest": "633f0ccc62fd932552adfe771536d5c6ff9e447b02ab6626d7bec26a07a585ba"
+     },
+     {
+      "id": "evolve",
+      "version": 2,
+      "digest": "5507587c2b30650197698b3a4bee72f612451fa20bc813164ec5598f2e4b7d97"
+     },
+     {
+      "id": "restructure",
+      "version": 2,
+      "digest": "333666ed317f1e784bd02ccd8b4a26e82a4137f549ac249f37f530feb260f59d"
+     }
+    ],
+    "digest": "ab93db5ba0785dcc7c56e4f251e0492ff5be40f5758b7c87b3e1a190a5d964a7"
+   },
+   "scenarios": [
+    {
+     "descriptor": {
+      "schema": "lab-scenario/2",
+      "id": "connect",
+      "version": 5,
+      "title": "Connect an agent",
+      "skill": "SKILL.md",
+      "subject": "implementation",
+      "requires": [
+       "implementation.available"
+      ],
+      "produces": [
+       "connected"
+      ],
+      "repeatable": null,
+      "schemas": {
+       "spec-answers/1": "schemas/spec-answers-1.json"
+      },
+      "steps": [
+       {
+        "id": "spec",
+        "title": "Write the spec",
+        "kind": "work",
+        "human_only": false,
+        "optional": false,
+        "requires": [],
+        "outputs": [
+         {
+          "artifact": {
+           "path": "SPEC.md",
+           "check": "exists"
+          }
+         },
+         {
+          "artifact": {
+           "path": "spec.answers.json",
+           "check": "schema",
+           "schema": "spec-answers/1"
+          }
+         }
+        ],
+        "skill": "SKILL.md#spec"
+       },
+       {
+        "id": "spec-confirm",
+        "title": "Confirm the spec",
+        "kind": "confirm",
+        "human_only": false,
+        "optional": false,
+        "requires": [
+         "spec"
+        ],
+        "outputs": [
+         {
+          "attestation": {
+           "claim": "spec.confirmed",
+           "path": "SPEC.md"
+          }
+         }
+        ],
+        "skill": "SKILL.md#spec-confirm"
+       },
+       {
+        "id": "package",
+        "title": "Assemble the Lab package",
+        "kind": "work",
+        "human_only": false,
+        "optional": false,
+        "requires": [],
+        "outputs": [
+         {
+          "artifact": {
+           "path": "@package",
+           "check": "package"
+          }
+         }
+        ],
+        "skill": "SKILL.md#package"
+       },
+       {
+        "id": "check",
+        "title": "Check the connection",
+        "kind": "operation",
+        "human_only": false,
+        "optional": false,
+        "requires": [
+         "package"
+        ],
+        "outputs": [
+         {
+          "operation": {
+           "kind": "check",
+           "outcome": "passed"
+          }
+         }
+        ],
+        "skill": "SKILL.md#check"
+       },
+       {
+        "id": "conformance",
+        "title": "Run conformance",
+        "kind": "operation",
+        "human_only": false,
+        "optional": false,
+        "requires": [
+         "package"
+        ],
+        "outputs": [
+         {
+          "operation": {
+           "kind": "conformance",
+           "outcome": "passed"
+          }
+         }
+        ],
+        "skill": "SKILL.md#conformance"
+       },
+       {
+        "id": "baseline",
+        "title": "Measure a short baseline",
+        "kind": "operation",
+        "human_only": true,
+        "optional": false,
+        "requires": [
+         "check",
+         "conformance"
+        ],
+        "outputs": [
+         {
+          "operation": {
+           "kind": "evaluation",
+           "outcome": "measured"
+          }
+         }
+        ],
+        "skill": "SKILL.md#baseline"
+       }
+      ],
+      "digest": "633f0ccc62fd932552adfe771536d5c6ff9e447b02ab6626d7bec26a07a585ba"
+     },
+     "skill_path": "/home/user/.codex/worktrees/c9da/evolution_lab/.local-tmp/dev52-panel-b6/venv/lib/python3.12/site-packages/evolution_lab/guides/scenarios/connect/SKILL.md"
+    },
+    {
+     "descriptor": {
+      "schema": "lab-scenario/2",
+      "id": "evolve",
+      "version": 2,
+      "title": "Evolve the agent",
+      "skill": "SKILL.md",
+      "subject": "implementation",
+      "requires": [
+       "connected"
+      ],
+      "produces": [
+       "campaigns"
+      ],
+      "repeatable": {
+       "cycle": "operation.campaign"
+      },
+      "schemas": {},
+      "steps": [
+       {
+        "id": "plan",
+        "title": "Plan the campaign",
+        "kind": "decide",
+        "human_only": false,
+        "optional": false,
+        "requires": [],
+        "outputs": [
+         {
+          "artifact": {
+           "path": "@manifest",
+           "check": "manifest"
+          }
+         }
+        ],
+        "skill": "SKILL.md#plan"
+       },
+       {
+        "id": "prepare",
+        "title": "Prepare the campaign",
+        "kind": "operation",
+        "human_only": false,
+        "optional": false,
+        "requires": [
+         "plan"
+        ],
+        "outputs": [
+         {
+          "operation": {
+           "kind": "prepare.campaign",
+           "outcome": "prepared"
+          }
+         }
+        ],
+        "skill": "SKILL.md#prepare"
+       },
+       {
+        "id": "run",
+        "title": "Run the campaign",
+        "kind": "operation",
+        "human_only": true,
+        "optional": false,
+        "requires": [
+         "prepare"
+        ],
+        "outputs": [
+         {
+          "operation": {
+           "kind": "campaign",
+           "outcome": "terminal"
+          }
+         }
+        ],
+        "skill": "SKILL.md#run"
+       },
+       {
+        "id": "result",
+        "title": "Collect the result",
+        "kind": "operation",
+        "human_only": false,
+        "optional": true,
+        "requires": [
+         "run"
+        ],
+        "outputs": [
+         {
+          "operation": {
+           "kind": "export",
+           "outcome": "done"
+          }
+         }
+        ],
+        "skill": "SKILL.md#result"
+       }
+      ],
+      "digest": "5507587c2b30650197698b3a4bee72f612451fa20bc813164ec5598f2e4b7d97"
+     },
+     "skill_path": "/home/user/.codex/worktrees/c9da/evolution_lab/.local-tmp/dev52-panel-b6/venv/lib/python3.12/site-packages/evolution_lab/guides/scenarios/evolve/SKILL.md"
+    },
+    {
+     "descriptor": {
+      "schema": "lab-scenario/2",
+      "id": "restructure",
+      "version": 2,
+      "title": "Port the agent onto a template",
+      "skill": "SKILL.md",
+      "subject": "implementation",
+      "requires": [
+       "implementation.ported"
+      ],
+      "produces": [
+       "restructure.port_accepted"
+      ],
+      "repeatable": null,
+      "schemas": {
+       "behavior-map/2": "schemas/behavior-map-2.json",
+       "goal/2": "schemas/goal-2.json",
+       "port-spec/2": "schemas/port-spec-2.json",
+       "scope/1": "schemas/scope-1.json",
+       "verify/2": "schemas/verify-2.json"
+      },
+      "steps": [
+       {
+        "id": "analysis",
+        "title": "Map what the agent does",
+        "kind": "decide",
+        "human_only": false,
+        "optional": false,
+        "requires": [],
+        "outputs": [
+         {
+          "artifact": {
+           "path": "restructure/{implementation}/behavior-map.json",
+           "check": "schema",
+           "schema": "behavior-map/2"
+          }
+         }
+        ],
+        "skill": "SKILL.md#analysis"
+       },
+       {
+        "id": "analysis-confirm",
+        "title": "Confirm the behaviour map",
+        "kind": "confirm",
+        "human_only": true,
+        "optional": false,
+        "requires": [
+         "analysis"
+        ],
+        "outputs": [
+         {
+          "attestation": {
+           "claim": "restructure.map_confirmed",
+           "path": "restructure/{implementation}/behavior-map.json"
+          }
+         }
+        ],
+        "skill": "SKILL.md#analysis-confirm"
+       },
+       {
+        "id": "goal",
+        "title": "Agree on the goal",
+        "kind": "decide",
+        "human_only": false,
+        "optional": false,
+        "requires": [
+         "analysis-confirm"
+        ],
+        "outputs": [
+         {
+          "artifact": {
+           "path": "restructure/{implementation}/goal.json",
+           "check": "schema",
+           "schema": "goal/2"
+          }
+         }
+        ],
+        "skill": "SKILL.md#goal"
+       },
+       {
+        "id": "brief",
+        "title": "Write the brief for the builder",
+        "kind": "decide",
+        "human_only": false,
+        "optional": false,
+        "requires": [
+         "goal"
+        ],
+        "outputs": [
+         {
+          "artifact": {
+           "path": "restructure/{implementation}/port-spec.json",
+           "check": "schema",
+           "schema": "port-spec/2"
+          }
+         },
+         {
+          "artifact": {
+           "path": "restructure/{implementation}/scope.json",
+           "check": "schema",
+           "schema": "scope/1"
+          }
+         }
+        ],
+        "skill": "SKILL.md#brief"
+       },
+       {
+        "id": "brief-confirm",
+        "title": "Confirm the brief and start the build",
+        "kind": "confirm",
+        "human_only": true,
+        "optional": false,
+        "requires": [
+         "brief"
+        ],
+        "outputs": [
+         {
+          "attestation": {
+           "claim": "restructure.brief_confirmed",
+           "path": "restructure/{implementation}/scope.json"
+          }
+         }
+        ],
+        "skill": "SKILL.md#brief-confirm"
+       },
+       {
+        "id": "build",
+        "title": "Build the port",
+        "kind": "work",
+        "human_only": false,
+        "optional": false,
+        "requires": [
+         "brief-confirm",
+         "implementation.available"
+        ],
+        "outputs": [
+         {
+          "artifact": {
+           "path": "restructure/{implementation}/BUILD_REPORT.md",
+           "check": "exists"
+          }
+         }
+        ],
+        "skill": "SKILL.md#build"
+       },
+       {
+        "id": "verify",
+        "title": "Verify the behaviour is kept",
+        "kind": "work",
+        "human_only": false,
+        "optional": false,
+        "requires": [
+         "build"
+        ],
+        "outputs": [
+         {
+          "artifact": {
+           "path": "restructure/{implementation}/verify.json",
+           "check": "schema",
+           "schema": "verify/2"
+          }
+         }
+        ],
+        "skill": "SKILL.md#verify"
+       },
+       {
+        "id": "accept",
+        "title": "Accept the port",
+        "kind": "confirm",
+        "human_only": true,
+        "optional": false,
+        "requires": [
+         "verify"
+        ],
+        "outputs": [
+         {
+          "attestation": {
+           "claim": "restructure.port_accepted",
+           "path": "restructure/{implementation}/verify.json"
+          }
+         }
+        ],
+        "skill": "SKILL.md#accept"
+       }
+      ],
+      "digest": "333666ed317f1e784bd02ccd8b4a26e82a4137f549ac249f37f530feb260f59d"
+     },
+     "skill_path": "/home/user/.codex/worktrees/c9da/evolution_lab/.local-tmp/dev52-panel-b6/venv/lib/python3.12/site-packages/evolution_lab/guides/scenarios/restructure/SKILL.md"
+    }
+   ]
+  }
+ },
+ "/v1/targets": {
+  "status": 200,
+  "body": {
+   "schema": "lab-owner-target-list/1",
+   "targets": [
+    {
+     "schema": "lab-owner-target/1",
+     "id": "66cb910dffa041df8391ee2127304c53",
+     "owner_generation": "7ca5ca2d4d98409099aca8732ea5d696",
+     "launch_digest": "d959458a61684a0e7a7bbcaa247e02fbb124f9a72dbd52ed48a47e8f6023cb73",
+     "bundle_digest": "fd1cec01323dec3b6d6596355338c27526da87a800bca0b29c7ed6aeb6f04fbc",
+     "state": "stopped",
+     "base_url": "http://127.0.0.1:57967",
+     "boot_id": "a674eb7294e14c26834a3560a82dae40",
+     "health": {
+      "allowed_artifact_root": "/home/user/.codex/worktrees/c9da/evolution_lab/.superpowers/panel-capture/ed4c8de1ab5b4a5c8daa0620b9e96981/state-main/artifacts",
+      "boot_id": "a674eb7294e14c26834a3560a82dae40",
+      "capabilities": {
+       "attests": [
+        "loaded_candidate_digest",
+        "dependency_digest"
+       ],
+       "instantiable": true,
+       "materialization": [
+        "artifact_root_injection"
+       ],
+       "max_concurrent_sessions": 1,
+       "max_input_bytes": 1048576,
+       "max_instances": 4,
+       "max_output_bytes": 4096
+      },
+      "contract_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "instances": [],
+      "policy_digest": "384604dcc63fb6815da879606f2a66f7d310a285cafcb79e6e68feb711985937",
+      "protocol_version": "2",
+      "ready": true,
+      "runtime_ref_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "seed_mode": "exact",
+      "settings_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "target_id": "lab-demo-demo-scorer-fault"
+     },
+     "cleanup": {
+      "state": "confirmed",
+      "complete": true
+     },
+     "failure": null
+    },
+    {
+     "schema": "lab-owner-target/1",
+     "id": "da9b71b762844afda6ec013b66507a9d",
+     "owner_generation": "7ca5ca2d4d98409099aca8732ea5d696",
+     "launch_digest": "d959458a61684a0e7a7bbcaa247e02fbb124f9a72dbd52ed48a47e8f6023cb73",
+     "bundle_digest": "fd1cec01323dec3b6d6596355338c27526da87a800bca0b29c7ed6aeb6f04fbc",
+     "state": "ready",
+     "base_url": "http://127.0.0.1:57967",
+     "boot_id": "09c144a302594726b6aca9ecc71bcd0f",
+     "health": {
+      "allowed_artifact_root": "/home/user/.codex/worktrees/c9da/evolution_lab/.superpowers/panel-capture/ed4c8de1ab5b4a5c8daa0620b9e96981/state-main/artifacts",
+      "boot_id": "09c144a302594726b6aca9ecc71bcd0f",
+      "capabilities": {
+       "attests": [
+        "loaded_candidate_digest",
+        "dependency_digest"
+       ],
+       "instantiable": true,
+       "materialization": [
+        "artifact_root_injection"
+       ],
+       "max_concurrent_sessions": 1,
+       "max_input_bytes": 1048576,
+       "max_instances": 4,
+       "max_output_bytes": 4096
+      },
+      "contract_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "instances": [],
+      "policy_digest": "384604dcc63fb6815da879606f2a66f7d310a285cafcb79e6e68feb711985937",
+      "protocol_version": "2",
+      "ready": true,
+      "runtime_ref_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "seed_mode": "exact",
+      "settings_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "target_id": "lab-demo-demo-scorer-fault"
+     },
+     "cleanup": {
+      "state": "pending",
+      "complete": null
+     },
+     "failure": null
+    }
+   ]
+  }
+ },
+ "/v1/operations": {
+  "status": 200,
+  "body": {
+   "schema": "lab-operation-list/6",
+   "operations": [
+    {
+     "schema": "lab-operation-status/6",
+     "id": "aeb59299c98d40878b96911d12424b36",
+     "owner_generation": "7ca5ca2d4d98409099aca8732ea5d696",
+     "prepared_digest": "6f4aaf2923c8478fbb8a2c050fe0766017b5f624b2c48c42a17fba610a52774b",
+     "kind": "campaign",
+     "target_ref": {
+      "schema": "lab-target-ref/1",
+      "id": "da9b71b762844afda6ec013b66507a9d",
+      "owner_generation": "7ca5ca2d4d98409099aca8732ea5d696"
+     },
+     "control_state": "finished",
+     "process": {
+      "launched": true,
+      "exit_code": 1,
+      "cleanup_complete": true,
+      "forced": false
+     },
+     "target_cleanup": {
+      "state": "confirmed",
+      "complete": true
+     },
+     "result": {
+      "schema": "lab-operation-result/1",
+      "kind": "campaign",
+      "prepared_digest": "6f4aaf2923c8478fbb8a2c050fe0766017b5f624b2c48c42a17fba610a52774b",
+      "process": {
+       "launched": true,
+       "exit_code": 1,
+       "cleanup_complete": true,
+       "forced": false
+      },
+      "core": {
+       "actions": [
+        {
+         "fields": {
+          "measurement_id": "m-r00-champion",
+          "round": 1,
+          "stage": 1
+         },
+         "kind": "MeasureBaselineStage"
+        }
+       ],
+       "alpha": null,
+       "campaign_outcome": null,
+       "caveats": [
+        {
+         "attempt_id": null,
+         "kind": "observe_gate_not_enforced",
+         "round": null
+        },
+        {
+         "attempt_id": null,
+         "kind": "uncalibrated_point_estimates",
+         "round": null
+        },
+        {
+         "attempt_id": null,
+         "kind": "champion_not_contemporaneous",
+         "round": null
+        }
+       ],
+       "claim_scope": "campaign",
+       "complete": false,
+       "condition_changes": [],
+       "connection": {
+        "attempts": 1,
+        "binding_digest": "a30a2ef06311ed238daeb043a11bc4428e54983326c4a603e8afb8a4f02df417",
+        "detail": null,
+        "operation_id": "8d0a7c706f2c43b794ede4e44504ae4d",
+        "outcome": "compatible",
+        "state": "compatible"
+       },
+       "consistency": "durable",
+       "corpus_split": {
+        "mode": "implicit_train",
+        "partition_digest": "7b790d091190b5271f203b39ec9119cbb055f74f372f76ce8f32797d800769d4",
+        "scope": "train",
+        "test_cases": 0,
+        "train_cases": 2
+       },
+       "final_champion": {
+        "baseline_origin": "seed",
+        "digest": "fbd7fa5cd7695fbda3cd44d6052a66419e46395644eabfaf65a0dabc0dabc8c4",
+        "measurement_complete": false,
+        "measurement_id": "m-r00-champion",
+        "version": "v0"
+       },
+       "identity_digest": "de2ab005407622bbc2affa886e7702220a1a690e2fc36d988071f67cbe0c8ae7",
+       "indeterminate": {
+        "counts": {
+         "environment": 0,
+         "rollout": 0,
+         "scorer": 0,
+         "target": 0
+        },
+        "denominator": 2,
+        "lineage": null,
+        "threshold_reached": null,
+        "window": {
+         "counts": {
+          "environment": 0,
+          "rollout": 0,
+          "scorer": 0,
+          "target": 0
+         },
+         "denominator": 0,
+         "start": 9
+        }
+       },
+       "kind": "campaign_status",
+       "lineage": {
+        "candidates": [],
+        "champion": "v0",
+        "champions": [
+         "v0"
+        ],
+        "stopped_code": null,
+        "store_state": "active"
+       },
+       "linked_from": null,
+       "measurements": [
+        {
+         "call_failures_by_code": {},
+         "call_retries": 0,
+         "candidate_digest": "fbd7fa5cd7695fbda3cd44d6052a66419e46395644eabfaf65a0dabc0dabc8c4",
+         "classification": "born",
+         "condition_epoch": 0,
+         "excluded_pairs": null,
+         "imported": 0,
+         "locator": "measurements/m-r00-champion/events.jsonl",
+         "measurement_id": "m-r00-champion",
+         "repair_tries": 0,
+         "repairs_scored": 0,
+         "status": {
+          "candidate_digest": "fbd7fa5cd7695fbda3cd44d6052a66419e46395644eabfaf65a0dabc0dabc8c4",
+          "complete": true,
+          "consistency": "observed",
+          "diagnostics": [],
+          "journal_integrity": "complete",
+          "kind": "status",
+          "last_sequence": 45,
+          "lower_bound": false,
+          "owned_instances": [],
+          "prefix_digest": "0d1bc6b35b36cbef6ae258a6d9f068ef0b1804097b10649effc7d09b957a203a",
+          "recovery_actions": [],
+          "references": [
+           {
+            "content_digest": "0d1bc6b35b36cbef6ae258a6d9f068ef0b1804097b10649effc7d09b957a203a",
+            "kind": "journal_record",
+            "locator": "events.jsonl#bytes=0:22197",
+            "run_id": "m-r00-champion",
+            "version": 1
+           }
+          ],
+          "run_id": "m-r00-champion",
+          "run_identity_digest": "13a1bf0f0b800776d3b660e932821ad4b1ebf659f3bf6a3cd01425f65f6e2dc6",
+          "samples": [
+           {
+            "candidate_digest": "fbd7fa5cd7695fbda3cd44d6052a66419e46395644eabfaf65a0dabc0dabc8c4",
+            "case_id": "q1",
+            "critical_pass": true,
+            "evaluation": {
+             "kind": "score",
+             "outcome": "completed",
+             "owner": null,
+             "reason": null
+            },
+            "execution": {
+             "kind": "score",
+             "outcome": "completed",
+             "owner": null,
+             "reason": null
+            },
+            "execution_state": "finished",
+            "metrics": {
+             "score": 0.0
+            },
+            "sample_id": "01",
+            "scoring_state": "finished",
+            "tries": 1
+           },
+           {
+            "candidate_digest": "fbd7fa5cd7695fbda3cd44d6052a66419e46395644eabfaf65a0dabc0dabc8c4",
+            "case_id": "q2",
+            "critical_pass": true,
+            "evaluation": {
+             "kind": "score",
+             "outcome": "completed",
+             "owner": null,
+             "reason": null
+            },
+            "execution": {
+             "kind": "score",
+             "outcome": "completed",
+             "owner": null,
+             "reason": null
+            },
+            "execution_state": "finished",
+            "metrics": {
+             "fixture_auxiliary": 0.0
+            },
+            "sample_id": "01",
+            "scoring_state": "finished",
+            "tries": 1
+           }
+          ],
+          "schema_version": 1,
+          "valid_bytes": 22197
+         },
+         "tries": 2
+        }
+       ],
+       "rebases": [],
+       "resilience": {
+        "attempts_saved": 0,
+        "continuation_turns": 0,
+        "rounds_skipped": 0
+       },
+       "roles": {
+        "editor": {
+         "kind": "subprocess"
+        },
+        "grouper": {
+         "kind": "fields"
+        },
+        "reflector": {
+         "kind": "subprocess"
+        }
+       },
+       "rounds": [
+        {
+         "attempts": [],
+         "baseline_complete": false,
+         "baseline_measurement_id": "m-r00-champion",
+         "champion_complete": false,
+         "final": [],
+         "gate_scope": null,
+         "outcome": null,
+         "reason": null,
+         "round": 1,
+         "visitation": null
+        }
+       ],
+       "run_id": "c-aeb59299c98d40878b96911d12424b36",
+       "schema_version": 1,
+       "settings": {
+        "baseline_refresh": {
+         "count": 0,
+         "every_rounds": 3,
+         "performed": []
+        },
+        "round_stop": "first_accepted",
+        "stability": "stable"
+       },
+       "siblings": {
+        "artifact_store": "born",
+        "m-r00-champion": "born"
+       },
+       "suspended": true,
+       "suspensions": [
+        {
+         "evidence_kind": "fault_rows",
+         "owner": "scorer",
+         "reason": "scorer_metric_missing",
+         "seq": 9
+        }
+       ],
+       "verification": null
+      },
+      "coverage": null,
+      "stop_reason": null,
+      "campaign_execution": null,
+      "persistence": {
+       "state": "saved",
+       "failure": null
+      }
+     },
+     "failure": null,
+     "refusal": null,
+     "results_state": "present",
+     "executor": {
+      "kind": "lab-campaign-worker/1",
+      "environment_digest": "4aa35475dba482c287132bfa7d467a266745759f3d68d227dd455c6d1e886524",
+      "lab_wheel_sha256": "bb44b44e4593d9d91e274dbaa7849e589a03984840dea8996a70c1d4ea44c89c",
+      "core_wheel_sha256": "acdbc710902ea448fe1f22308250ba35768df5ee1cf4669c5b6751cb46514ec0",
+      "module_hashes": {
+       "evolution_lab.owner._campaign_worker": "8ed9aa3ad2972b8fbee93e46e42de19ba716ebe7aa9c177cca3c9f4a5877a532",
+       "evolution_lab.owner._helper": "e5bf12aaafccefc000b7b57096f6bed956540f75969c5f78be16564e835e34ab",
+       "evolution_lab.owner.settlement": "50761e57a5f99c800cc6470bef219201324b00bef8c5604c3e9258152668c2a1"
+      }
+     },
+     "retained_summary": null,
+     "starts": [
+      {
+       "start": 1,
+       "scope_id": "b04abfb9bd33425b90e6b4ee50cf8ead",
+       "owner_generation": "7ca5ca2d4d98409099aca8732ea5d696",
+       "target_ref": {
+        "schema": "lab-target-ref/1",
+        "id": "da9b71b762844afda6ec013b66507a9d",
+        "owner_generation": "7ca5ca2d4d98409099aca8732ea5d696"
+       },
+       "process": {
+        "launched": true,
+        "exit_code": 1,
+        "cleanup_complete": true,
+        "forced": false
+       },
+       "target_cleanup": {
+        "state": "confirmed",
+        "complete": true
+       },
+       "failure": null,
+       "settlement": "positive",
+       "refusal": null
+      }
+     ],
+     "resume": {
+      "state": "ready",
+      "reason": null,
+      "target": null
+     },
+     "entrypoint": "inputs/project/lab/manifest.json",
+     "progress": {
+      "kind": "campaign",
+      "phase": "suspended",
+      "stages": [
+       "baseline"
+      ],
+      "rounds": {
+       "completed": 0,
+       "current": 1,
+       "planned": 2
+      },
+      "attempts": {
+       "current_round": {
+        "closed": 0,
+        "running": 0,
+        "planned": 1
+       },
+       "total": 0
+      },
+      "coverage": null,
+      "policy_state": "present",
+      "observed_at": "2026-10-17T17:56:18.167240Z"
+     },
+     "progress_state": "present",
+     "times": {
+      "first_event_at": "2026-10-17T17:56:17.659848Z",
+      "last_event_at": "2026-10-17T17:56:18.167240Z"
+     },
+     "times_state": "present",
+     "times_source": "core_raw",
+     "times_reason": null
+    }
+   ]
+  }
+ },
+ "/v1/operations?view=summary": {
+  "status": 200,
+  "body": {
+   "schema": "lab-operation-summary-list/1",
+   "operations": [
+    {
+     "id": "aeb59299c98d40878b96911d12424b36",
+     "kind": "campaign",
+     "entrypoint": "inputs/project/lab/manifest.json",
+     "control_state": "finished",
+     "results_state": "present",
+     "resume": {
+      "state": "ready",
+      "reason": null,
+      "target": null
+     },
+     "progress": {
+      "kind": "campaign",
+      "phase": "suspended",
+      "stages": [
+       "baseline"
+      ],
+      "rounds": {
+       "completed": 0,
+       "current": 1,
+       "planned": 2
+      },
+      "attempts": {
+       "current_round": {
+        "closed": 0,
+        "running": 0,
+        "planned": 1
+       },
+       "total": 0
+      },
+      "coverage": null,
+      "policy_state": "present",
+      "observed_at": "2026-10-17T17:56:18.167240Z"
+     },
+     "progress_state": "present",
+     "times": {
+      "first_event_at": "2026-10-17T17:56:17.659848Z",
+      "last_event_at": "2026-10-17T17:56:18.167240Z"
+     },
+     "times_state": "present",
+     "times_source": "core_raw",
+     "times_reason": null,
+     "outcome": null
+    }
+   ]
+  }
+ },
+ "/v1/scenarios/connect": {
+  "status": 200,
+  "body": {
+   "schema": "lab-scenario-entry/1",
+   "descriptor": {
+    "schema": "lab-scenario/2",
+    "id": "connect",
+    "version": 5,
+    "title": "Connect an agent",
+    "skill": "SKILL.md",
+    "subject": "implementation",
+    "requires": [
+     "implementation.available"
+    ],
+    "produces": [
+     "connected"
+    ],
+    "repeatable": null,
+    "schemas": {
+     "spec-answers/1": "schemas/spec-answers-1.json"
+    },
+    "steps": [
+     {
+      "id": "spec",
+      "title": "Write the spec",
+      "kind": "work",
+      "human_only": false,
+      "optional": false,
+      "requires": [],
+      "outputs": [
+       {
+        "artifact": {
+         "path": "SPEC.md",
+         "check": "exists"
+        }
+       },
+       {
+        "artifact": {
+         "path": "spec.answers.json",
+         "check": "schema",
+         "schema": "spec-answers/1"
+        }
+       }
+      ],
+      "skill": "SKILL.md#spec"
+     },
+     {
+      "id": "spec-confirm",
+      "title": "Confirm the spec",
+      "kind": "confirm",
+      "human_only": false,
+      "optional": false,
+      "requires": [
+       "spec"
+      ],
+      "outputs": [
+       {
+        "attestation": {
+         "claim": "spec.confirmed",
+         "path": "SPEC.md"
+        }
+       }
+      ],
+      "skill": "SKILL.md#spec-confirm"
+     },
+     {
+      "id": "package",
+      "title": "Assemble the Lab package",
+      "kind": "work",
+      "human_only": false,
+      "optional": false,
+      "requires": [],
+      "outputs": [
+       {
+        "artifact": {
+         "path": "@package",
+         "check": "package"
+        }
+       }
+      ],
+      "skill": "SKILL.md#package"
+     },
+     {
+      "id": "check",
+      "title": "Check the connection",
+      "kind": "operation",
+      "human_only": false,
+      "optional": false,
+      "requires": [
+       "package"
+      ],
+      "outputs": [
+       {
+        "operation": {
+         "kind": "check",
+         "outcome": "passed"
+        }
+       }
+      ],
+      "skill": "SKILL.md#check"
+     },
+     {
+      "id": "conformance",
+      "title": "Run conformance",
+      "kind": "operation",
+      "human_only": false,
+      "optional": false,
+      "requires": [
+       "package"
+      ],
+      "outputs": [
+       {
+        "operation": {
+         "kind": "conformance",
+         "outcome": "passed"
+        }
+       }
+      ],
+      "skill": "SKILL.md#conformance"
+     },
+     {
+      "id": "baseline",
+      "title": "Measure a short baseline",
+      "kind": "operation",
+      "human_only": true,
+      "optional": false,
+      "requires": [
+       "check",
+       "conformance"
+      ],
+      "outputs": [
+       {
+        "operation": {
+         "kind": "evaluation",
+         "outcome": "measured"
+        }
+       }
+      ],
+      "skill": "SKILL.md#baseline"
+     }
+    ],
+    "digest": "633f0ccc62fd932552adfe771536d5c6ff9e447b02ab6626d7bec26a07a585ba"
+   },
+   "skill_path": "/home/user/.codex/worktrees/c9da/evolution_lab/.local-tmp/dev52-panel-b6/venv/lib/python3.12/site-packages/evolution_lab/guides/scenarios/connect/SKILL.md"
+  }
+ },
+ "/v1/scenarios/evolve": {
+  "status": 200,
+  "body": {
+   "schema": "lab-scenario-entry/1",
+   "descriptor": {
+    "schema": "lab-scenario/2",
+    "id": "evolve",
+    "version": 2,
+    "title": "Evolve the agent",
+    "skill": "SKILL.md",
+    "subject": "implementation",
+    "requires": [
+     "connected"
+    ],
+    "produces": [
+     "campaigns"
+    ],
+    "repeatable": {
+     "cycle": "operation.campaign"
+    },
+    "schemas": {},
+    "steps": [
+     {
+      "id": "plan",
+      "title": "Plan the campaign",
+      "kind": "decide",
+      "human_only": false,
+      "optional": false,
+      "requires": [],
+      "outputs": [
+       {
+        "artifact": {
+         "path": "@manifest",
+         "check": "manifest"
+        }
+       }
+      ],
+      "skill": "SKILL.md#plan"
+     },
+     {
+      "id": "prepare",
+      "title": "Prepare the campaign",
+      "kind": "operation",
+      "human_only": false,
+      "optional": false,
+      "requires": [
+       "plan"
+      ],
+      "outputs": [
+       {
+        "operation": {
+         "kind": "prepare.campaign",
+         "outcome": "prepared"
+        }
+       }
+      ],
+      "skill": "SKILL.md#prepare"
+     },
+     {
+      "id": "run",
+      "title": "Run the campaign",
+      "kind": "operation",
+      "human_only": true,
+      "optional": false,
+      "requires": [
+       "prepare"
+      ],
+      "outputs": [
+       {
+        "operation": {
+         "kind": "campaign",
+         "outcome": "terminal"
+        }
+       }
+      ],
+      "skill": "SKILL.md#run"
+     },
+     {
+      "id": "result",
+      "title": "Collect the result",
+      "kind": "operation",
+      "human_only": false,
+      "optional": true,
+      "requires": [
+       "run"
+      ],
+      "outputs": [
+       {
+        "operation": {
+         "kind": "export",
+         "outcome": "done"
+        }
+       }
+      ],
+      "skill": "SKILL.md#result"
+     }
+    ],
+    "digest": "5507587c2b30650197698b3a4bee72f612451fa20bc813164ec5598f2e4b7d97"
+   },
+   "skill_path": "/home/user/.codex/worktrees/c9da/evolution_lab/.local-tmp/dev52-panel-b6/venv/lib/python3.12/site-packages/evolution_lab/guides/scenarios/evolve/SKILL.md"
+  }
+ },
+ "/v1/scenarios/restructure": {
+  "status": 200,
+  "body": {
+   "schema": "lab-scenario-entry/1",
+   "descriptor": {
+    "schema": "lab-scenario/2",
+    "id": "restructure",
+    "version": 2,
+    "title": "Port the agent onto a template",
+    "skill": "SKILL.md",
+    "subject": "implementation",
+    "requires": [
+     "implementation.ported"
+    ],
+    "produces": [
+     "restructure.port_accepted"
+    ],
+    "repeatable": null,
+    "schemas": {
+     "behavior-map/2": "schemas/behavior-map-2.json",
+     "goal/2": "schemas/goal-2.json",
+     "port-spec/2": "schemas/port-spec-2.json",
+     "scope/1": "schemas/scope-1.json",
+     "verify/2": "schemas/verify-2.json"
+    },
+    "steps": [
+     {
+      "id": "analysis",
+      "title": "Map what the agent does",
+      "kind": "decide",
+      "human_only": false,
+      "optional": false,
+      "requires": [],
+      "outputs": [
+       {
+        "artifact": {
+         "path": "restructure/{implementation}/behavior-map.json",
+         "check": "schema",
+         "schema": "behavior-map/2"
+        }
+       }
+      ],
+      "skill": "SKILL.md#analysis"
+     },
+     {
+      "id": "analysis-confirm",
+      "title": "Confirm the behaviour map",
+      "kind": "confirm",
+      "human_only": true,
+      "optional": false,
+      "requires": [
+       "analysis"
+      ],
+      "outputs": [
+       {
+        "attestation": {
+         "claim": "restructure.map_confirmed",
+         "path": "restructure/{implementation}/behavior-map.json"
+        }
+       }
+      ],
+      "skill": "SKILL.md#analysis-confirm"
+     },
+     {
+      "id": "goal",
+      "title": "Agree on the goal",
+      "kind": "decide",
+      "human_only": false,
+      "optional": false,
+      "requires": [
+       "analysis-confirm"
+      ],
+      "outputs": [
+       {
+        "artifact": {
+         "path": "restructure/{implementation}/goal.json",
+         "check": "schema",
+         "schema": "goal/2"
+        }
+       }
+      ],
+      "skill": "SKILL.md#goal"
+     },
+     {
+      "id": "brief",
+      "title": "Write the brief for the builder",
+      "kind": "decide",
+      "human_only": false,
+      "optional": false,
+      "requires": [
+       "goal"
+      ],
+      "outputs": [
+       {
+        "artifact": {
+         "path": "restructure/{implementation}/port-spec.json",
+         "check": "schema",
+         "schema": "port-spec/2"
+        }
+       },
+       {
+        "artifact": {
+         "path": "restructure/{implementation}/scope.json",
+         "check": "schema",
+         "schema": "scope/1"
+        }
+       }
+      ],
+      "skill": "SKILL.md#brief"
+     },
+     {
+      "id": "brief-confirm",
+      "title": "Confirm the brief and start the build",
+      "kind": "confirm",
+      "human_only": true,
+      "optional": false,
+      "requires": [
+       "brief"
+      ],
+      "outputs": [
+       {
+        "attestation": {
+         "claim": "restructure.brief_confirmed",
+         "path": "restructure/{implementation}/scope.json"
+        }
+       }
+      ],
+      "skill": "SKILL.md#brief-confirm"
+     },
+     {
+      "id": "build",
+      "title": "Build the port",
+      "kind": "work",
+      "human_only": false,
+      "optional": false,
+      "requires": [
+       "brief-confirm",
+       "implementation.available"
+      ],
+      "outputs": [
+       {
+        "artifact": {
+         "path": "restructure/{implementation}/BUILD_REPORT.md",
+         "check": "exists"
+        }
+       }
+      ],
+      "skill": "SKILL.md#build"
+     },
+     {
+      "id": "verify",
+      "title": "Verify the behaviour is kept",
+      "kind": "work",
+      "human_only": false,
+      "optional": false,
+      "requires": [
+       "build"
+      ],
+      "outputs": [
+       {
+        "artifact": {
+         "path": "restructure/{implementation}/verify.json",
+         "check": "schema",
+         "schema": "verify/2"
+        }
+       }
+      ],
+      "skill": "SKILL.md#verify"
+     },
+     {
+      "id": "accept",
+      "title": "Accept the port",
+      "kind": "confirm",
+      "human_only": true,
+      "optional": false,
+      "requires": [
+       "verify"
+      ],
+      "outputs": [
+       {
+        "attestation": {
+         "claim": "restructure.port_accepted",
+         "path": "restructure/{implementation}/verify.json"
+        }
+       }
+      ],
+      "skill": "SKILL.md#accept"
+     }
+    ],
+    "digest": "333666ed317f1e784bd02ccd8b4a26e82a4137f549ac249f37f530feb260f59d"
+   },
+   "skill_path": "/home/user/.codex/worktrees/c9da/evolution_lab/.local-tmp/dev52-panel-b6/venv/lib/python3.12/site-packages/evolution_lab/guides/scenarios/restructure/SKILL.md"
+  }
+ },
+ "/v1/targets/66cb910dffa041df8391ee2127304c53?owner_generation=7ca5ca2d4d98409099aca8732ea5d696": {
+  "status": 200,
+  "body": {
+   "schema": "lab-owner-target/1",
+   "id": "66cb910dffa041df8391ee2127304c53",
+   "owner_generation": "7ca5ca2d4d98409099aca8732ea5d696",
+   "launch_digest": "d959458a61684a0e7a7bbcaa247e02fbb124f9a72dbd52ed48a47e8f6023cb73",
+   "bundle_digest": "fd1cec01323dec3b6d6596355338c27526da87a800bca0b29c7ed6aeb6f04fbc",
+   "state": "stopped",
+   "base_url": "http://127.0.0.1:57967",
+   "boot_id": "a674eb7294e14c26834a3560a82dae40",
+   "health": {
+    "allowed_artifact_root": "/home/user/.codex/worktrees/c9da/evolution_lab/.superpowers/panel-capture/ed4c8de1ab5b4a5c8daa0620b9e96981/state-main/artifacts",
+    "boot_id": "a674eb7294e14c26834a3560a82dae40",
+    "capabilities": {
+     "attests": [
+      "loaded_candidate_digest",
+      "dependency_digest"
+     ],
+     "instantiable": true,
+     "materialization": [
+      "artifact_root_injection"
+     ],
+     "max_concurrent_sessions": 1,
+     "max_input_bytes": 1048576,
+     "max_instances": 4,
+     "max_output_bytes": 4096
+    },
+    "contract_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "instances": [],
+    "policy_digest": "384604dcc63fb6815da879606f2a66f7d310a285cafcb79e6e68feb711985937",
+    "protocol_version": "2",
+    "ready": true,
+    "runtime_ref_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "seed_mode": "exact",
+    "settings_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "target_id": "lab-demo-demo-scorer-fault"
+   },
+   "cleanup": {
+    "state": "confirmed",
+    "complete": true
+   },
+   "failure": null
+  }
+ },
+ "/v1/targets/da9b71b762844afda6ec013b66507a9d?owner_generation=7ca5ca2d4d98409099aca8732ea5d696": {
+  "status": 200,
+  "body": {
+   "schema": "lab-owner-target/1",
+   "id": "da9b71b762844afda6ec013b66507a9d",
+   "owner_generation": "7ca5ca2d4d98409099aca8732ea5d696",
+   "launch_digest": "d959458a61684a0e7a7bbcaa247e02fbb124f9a72dbd52ed48a47e8f6023cb73",
+   "bundle_digest": "fd1cec01323dec3b6d6596355338c27526da87a800bca0b29c7ed6aeb6f04fbc",
+   "state": "ready",
+   "base_url": "http://127.0.0.1:57967",
+   "boot_id": "09c144a302594726b6aca9ecc71bcd0f",
+   "health": {
+    "allowed_artifact_root": "/home/user/.codex/worktrees/c9da/evolution_lab/.superpowers/panel-capture/ed4c8de1ab5b4a5c8daa0620b9e96981/state-main/artifacts",
+    "boot_id": "09c144a302594726b6aca9ecc71bcd0f",
+    "capabilities": {
+     "attests": [
+      "loaded_candidate_digest",
+      "dependency_digest"
+     ],
+     "instantiable": true,
+     "materialization": [
+      "artifact_root_injection"
+     ],
+     "max_concurrent_sessions": 1,
+     "max_input_bytes": 1048576,
+     "max_instances": 4,
+     "max_output_bytes": 4096
+    },
+    "contract_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "instances": [],
+    "policy_digest": "384604dcc63fb6815da879606f2a66f7d310a285cafcb79e6e68feb711985937",
+    "protocol_version": "2",
+    "ready": true,
+    "runtime_ref_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "seed_mode": "exact",
+    "settings_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "target_id": "lab-demo-demo-scorer-fault"
+   },
+   "cleanup": {
+    "state": "pending",
+    "complete": null
+   },
+   "failure": null
+  }
+ },
+ "/v1/projects": {
+  "status": 200,
+  "body": {
+   "schema": "lab-project-list/2",
+   "projects": [
+    {
+     "schema": "lab-project/2",
+     "id": "demo-scorer-fault",
+     "name": "Demo (demo-scorer-fault)",
+     "state": "ready",
+     "failure": null,
+     "created_at": "2026-10-17T17:56:06Z",
+     "archived": null,
+     "record_version": 1,
+     "working_copy": {
+      "path": "/tmp/lab-fixture-home/clones/demo-scorer-fault",
+      "created_by_lab": true,
+      "git": false,
+      "source": null
+     },
+     "materials_root": "lab",
+     "exclude": [],
+     "implementations": [
+      {
+       "id": "demo",
+       "name": "demo",
+       "place": "agent",
+       "origin": {
+        "kind": "connected"
+       },
+       "package_entry": "package.json",
+       "archived": null,
+       "port": null
+      }
+     ]
+    }
+   ]
+  }
+ },
+ "/v1/projects/demo-scorer-fault": {
+  "status": 200,
+  "body": {
+   "schema": "lab-project/2",
+   "id": "demo-scorer-fault",
+   "name": "Demo (demo-scorer-fault)",
+   "state": "ready",
+   "failure": null,
+   "created_at": "2026-10-17T17:56:06Z",
+   "archived": null,
+   "record_version": 1,
+   "working_copy": {
+    "path": "/tmp/lab-fixture-home/clones/demo-scorer-fault",
+    "created_by_lab": true,
+    "git": false,
+    "source": null
+   },
+   "materials_root": "lab",
+   "exclude": [],
+   "implementations": [
+    {
+     "id": "demo",
+     "name": "demo",
+     "place": "agent",
+     "origin": {
+      "kind": "connected"
+     },
+     "package_entry": "package.json",
+     "archived": null,
+     "port": null
+    }
+   ]
+  }
+ },
+ "/v1/projects/demo-scorer-fault/status": {
+  "status": 200,
+  "body": {
+   "schema": "lab-project-status/6",
+   "project": "demo-scorer-fault",
+   "implementation": "demo",
+   "pair": {
+    "lab": "0.0.3.dev52",
+    "core": "2.0.0b6"
+   },
+   "catalogue": {
+    "version": 8,
+    "digest": "ab93db5ba0785dcc7c56e4f251e0492ff5be40f5758b7c87b3e1a190a5d964a7"
+   },
+   "facts": [
+    {
+     "id": "implementation.available",
+     "subject": {
+      "implementation": "demo"
+     },
+     "holds": true,
+     "value": true,
+     "source": {
+      "kind": "filesystem"
+     },
+     "stale_reason": null,
+     "carried_over": []
+    },
+    {
+     "id": "implementation.ported",
+     "subject": {
+      "implementation": "demo"
+     },
+     "holds": false,
+     "value": false,
+     "source": {
+      "kind": "origin",
+      "implementation": null,
+      "reason": "not_ported"
+     },
+     "stale_reason": null,
+     "carried_over": []
+    },
+    {
+     "id": "materials.revision",
+     "subject": null,
+     "holds": true,
+     "value": {
+      "digest": "sha256:178e89375082ee2b08dac8d747ec740205eb9994b145e58fd9fd35309b7fc170",
+      "git": null
+     },
+     "source": {
+      "kind": "revision"
+     },
+     "stale_reason": null,
+     "carried_over": []
+    },
+    {
+     "id": "package.present",
+     "subject": {
+      "implementation": "demo"
+     },
+     "holds": true,
+     "value": true,
+     "source": {
+      "kind": "package_entry",
+      "entry": "package.json",
+      "reason": null
+     },
+     "stale_reason": null,
+     "carried_over": []
+    },
+    {
+     "id": "package.valid",
+     "subject": {
+      "implementation": "demo"
+     },
+     "holds": true,
+     "value": {
+      "scope": "form"
+     },
+     "source": {
+      "kind": "package_entry",
+      "errors": []
+     },
+     "stale_reason": null,
+     "carried_over": []
+    },
+    {
+     "id": "check.passed",
+     "subject": {
+      "implementation": "demo"
+     },
+     "holds": true,
+     "value": true,
+     "source": {
+      "kind": "task",
+      "id": "68bc0fddb3b94ffe9b1cc955ef5aba31",
+      "pair": {
+       "lab": "0.0.3.dev52",
+       "core": "2.0.0b6"
+      },
+      "inputs_digest": "sha256:438779224d4d682aeb38e26eb2c84517ff91fd1bfc09fac14235c86dc1baece2"
+     },
+     "stale_reason": null,
+     "carried_over": []
+    },
+    {
+     "id": "conformance.passed",
+     "subject": {
+      "implementation": "demo"
+     },
+     "holds": true,
+     "value": true,
+     "source": {
+      "kind": "task",
+      "id": "1c105763feab40b0b4e0640499ff3128",
+      "pair": {
+       "lab": "0.0.3.dev52",
+       "core": "2.0.0b6"
+      },
+      "inputs_digest": "sha256:438779224d4d682aeb38e26eb2c84517ff91fd1bfc09fac14235c86dc1baece2"
+     },
+     "stale_reason": null,
+     "carried_over": []
+    },
+    {
+     "id": "baseline.measured",
+     "subject": {
+      "implementation": "demo"
+     },
+     "holds": false,
+     "value": false,
+     "source": null,
+     "stale_reason": null,
+     "carried_over": []
+    },
+    {
+     "id": "connected",
+     "subject": {
+      "implementation": "demo"
+     },
+     "holds": false,
+     "value": false,
+     "source": {
+      "kind": "derived",
+      "facts": [
+       "check.passed",
+       "conformance.passed",
+       "baseline.measured"
+      ]
+     },
+     "stale_reason": null,
+     "carried_over": []
+    },
+    {
+     "id": "campaigns",
+     "subject": {
+      "implementation": "demo"
+     },
+     "holds": true,
+     "value": [
+      {
+       "operation_id": "aeb59299c98d40878b96911d12424b36",
+       "pair": {
+        "lab": "0.0.3.dev52",
+        "core": "2.0.0b6"
+       },
+       "control_state": "finished",
+       "resume": {
+        "state": "ready",
+        "reason": null,
+        "target": null
+       },
+       "results_state": "present",
+       "detail": "available"
+      }
+     ],
+     "source": {
+      "kind": "links"
+     },
+     "stale_reason": null,
+     "carried_over": []
+    },
+    {
+     "id": "spec.confirmed",
+     "subject": {
+      "implementation": "demo"
+     },
+     "holds": true,
+     "value": true,
+     "source": {
+      "kind": "confirmation",
+      "id": "c-872872e84f848563",
+      "attests": {
+       "digest": "sha256:1b6f627b57e9f864a6d4450eefcd2fa40b71d39f5de01d8273cc7d5a2be97382",
+       "path": "SPEC.md"
+      },
+      "channel": "cli",
+      "author": "tester",
+      "created_at": "2026-10-17T17:56:07Z"
+     },
+     "stale_reason": null,
+     "carried_over": []
+    }
+   ],
+   "scenarios": [
+    {
+     "id": "connect",
+     "version": 5,
+     "repeatable": false,
+     "state": "available",
+     "missing": [],
+     "steps": [
+      {
+       "id": "spec",
+       "title": "Write the spec",
+       "state": "done",
+       "optional": false,
+       "human_only": false,
+       "missing": [],
+       "blocked_reason": null,
+       "invalid": [],
+       "stale_reason": null,
+       "carried_over": [],
+       "sources": [
+        {
+         "artifact": "SPEC.md",
+         "digest": "sha256:1b6f627b57e9f864a6d4450eefcd2fa40b71d39f5de01d8273cc7d5a2be97382"
+        },
+        {
+         "artifact": "spec.answers.json",
+         "digest": "sha256:b17adbe4eb986907f20952cfe62767af69cea4ac5eedc0d64e98c135a4d1408f"
+        }
+       ],
+       "done_at": null
+      },
+      {
+       "id": "spec-confirm",
+       "title": "Confirm the spec",
+       "state": "done",
+       "optional": false,
+       "human_only": false,
+       "missing": [],
+       "blocked_reason": null,
+       "invalid": [],
+       "stale_reason": null,
+       "carried_over": [],
+       "sources": [
+        {
+         "fact": "spec.confirmed",
+         "confirmations": [
+          {
+           "id": "c-872872e84f848563",
+           "author": "tester",
+           "channel": "cli",
+           "created_at": "2026-10-17T17:56:07Z"
+          }
+         ]
+        }
+       ],
+       "done_at": "2026-10-17T17:56:07Z"
+      },
+      {
+       "id": "package",
+       "title": "Assemble the Lab package",
+       "state": "done",
+       "optional": false,
+       "human_only": false,
+       "missing": [],
+       "blocked_reason": null,
+       "invalid": [],
+       "stale_reason": null,
+       "carried_over": [],
+       "sources": [
+        {
+         "fact": "package.valid",
+         "confirmations": []
+        }
+       ],
+       "done_at": null
+      },
+      {
+       "id": "check",
+       "title": "Check the connection",
+       "state": "done",
+       "optional": false,
+       "human_only": false,
+       "missing": [],
+       "blocked_reason": null,
+       "invalid": [],
+       "stale_reason": null,
+       "carried_over": [],
+       "sources": [
+        {
+         "fact": "check.passed",
+         "confirmations": []
+        }
+       ],
+       "done_at": null
+      },
+      {
+       "id": "conformance",
+       "title": "Run conformance",
+       "state": "done",
+       "optional": false,
+       "human_only": false,
+       "missing": [],
+       "blocked_reason": null,
+       "invalid": [],
+       "stale_reason": null,
+       "carried_over": [],
+       "sources": [
+        {
+         "fact": "conformance.passed",
+         "confirmations": []
+        }
+       ],
+       "done_at": null
+      },
+      {
+       "id": "baseline",
+       "title": "Measure a short baseline",
+       "state": "ready",
+       "optional": false,
+       "human_only": true,
+       "missing": [],
+       "blocked_reason": null,
+       "invalid": [],
+       "stale_reason": null,
+       "carried_over": [],
+       "sources": [],
+       "done_at": null
+      }
+     ]
+    },
+    {
+     "id": "evolve",
+     "version": 2,
+     "repeatable": true,
+     "state": "unavailable",
+     "missing": [
+      "connected"
+     ],
+     "next_cycle": {
+      "steps": [
+       {
+        "id": "plan",
+        "title": "Plan the campaign",
+        "state": "done",
+        "optional": false,
+        "human_only": false,
+        "missing": [],
+        "blocked_reason": null,
+        "invalid": [],
+        "stale_reason": null,
+        "carried_over": [],
+        "sources": [
+         {
+          "artifact": "@manifest"
+         }
+        ],
+        "done_at": null
+       },
+       {
+        "id": "prepare",
+        "title": "Prepare the campaign",
+        "state": "done",
+        "optional": false,
+        "human_only": false,
+        "missing": [],
+        "blocked_reason": null,
+        "invalid": [],
+        "stale_reason": null,
+        "carried_over": [],
+        "sources": [
+         {
+          "prepared": "6f4aaf2923c8478fbb8a2c050fe0766017b5f624b2c48c42a17fba610a52774b"
+         }
+        ],
+        "done_at": "2026-10-17T17:56:13Z"
+       },
+       {
+        "id": "run",
+        "title": "Run the campaign",
+        "state": "ready",
+        "optional": false,
+        "human_only": true,
+        "missing": [],
+        "blocked_reason": null,
+        "invalid": [],
+        "stale_reason": null,
+        "carried_over": [],
+        "sources": [],
+        "done_at": null
+       },
+       {
+        "id": "result",
+        "title": "Collect the result",
+        "state": "blocked",
+        "optional": true,
+        "human_only": false,
+        "missing": [
+         "run"
+        ],
+        "blocked_reason": null,
+        "invalid": [],
+        "stale_reason": null,
+        "carried_over": [],
+        "sources": [],
+        "done_at": null
+       }
+      ]
+     },
+     "cycles": [
+      {
+       "operation_id": "aeb59299c98d40878b96911d12424b36",
+       "order": 1,
+       "pair": {
+        "lab": "0.0.3.dev52",
+        "core": "2.0.0b6"
+       },
+       "current": true,
+       "detail": "available",
+       "control_state": "finished",
+       "resume": {
+        "state": "ready",
+        "reason": null,
+        "target": null
+       },
+       "outcome": null,
+       "complete": false,
+       "steps": [
+        {
+         "id": "plan",
+         "title": "Plan the campaign",
+         "state": "done",
+         "optional": false,
+         "human_only": false,
+         "missing": [],
+         "blocked_reason": null,
+         "invalid": [],
+         "stale_reason": null,
+         "carried_over": [],
+         "sources": [
+          {
+           "bundle": "fd1cec01323dec3b6d6596355338c27526da87a800bca0b29c7ed6aeb6f04fbc"
+          }
+         ],
+         "done_at": "2026-10-17T17:56:07Z"
+        },
+        {
+         "id": "prepare",
+         "title": "Prepare the campaign",
+         "state": "done",
+         "optional": false,
+         "human_only": false,
+         "missing": [],
+         "blocked_reason": null,
+         "invalid": [],
+         "stale_reason": null,
+         "carried_over": [],
+         "sources": [
+          {
+           "prepared": "6f4aaf2923c8478fbb8a2c050fe0766017b5f624b2c48c42a17fba610a52774b"
+          }
+         ],
+         "done_at": "2026-10-17T17:56:13Z"
+        },
+        {
+         "id": "run",
+         "title": "Run the campaign",
+         "state": "blocked",
+         "optional": false,
+         "human_only": true,
+         "missing": [],
+         "blocked_reason": {
+          "code": "campaign_suspended"
+         },
+         "invalid": [],
+         "stale_reason": null,
+         "carried_over": [],
+         "sources": [],
+         "done_at": null
+        },
+        {
+         "id": "result",
+         "title": "Collect the result",
+         "state": "blocked",
+         "optional": true,
+         "human_only": false,
+         "missing": [
+          "run"
+         ],
+         "blocked_reason": null,
+         "invalid": [],
+         "stale_reason": null,
+         "carried_over": [],
+         "sources": [],
+         "done_at": null
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "id": "restructure",
+     "version": 2,
+     "repeatable": false,
+     "state": "unavailable",
+     "missing": [
+      "implementation.ported"
+     ],
+     "steps": [
+      {
+       "id": "analysis",
+       "title": "Map what the agent does",
+       "state": "ready",
+       "optional": false,
+       "human_only": false,
+       "missing": [],
+       "blocked_reason": null,
+       "invalid": [],
+       "stale_reason": null,
+       "carried_over": [],
+       "sources": [],
+       "done_at": null
+      },
+      {
+       "id": "analysis-confirm",
+       "title": "Confirm the behaviour map",
+       "state": "blocked",
+       "optional": false,
+       "human_only": true,
+       "missing": [
+        "analysis"
+       ],
+       "blocked_reason": null,
+       "invalid": [],
+       "stale_reason": null,
+       "carried_over": [],
+       "sources": [],
+       "done_at": null
+      },
+      {
+       "id": "goal",
+       "title": "Agree on the goal",
+       "state": "blocked",
+       "optional": false,
+       "human_only": false,
+       "missing": [
+        "analysis-confirm"
+       ],
+       "blocked_reason": null,
+       "invalid": [],
+       "stale_reason": null,
+       "carried_over": [],
+       "sources": [],
+       "done_at": null
+      },
+      {
+       "id": "brief",
+       "title": "Write the brief for the builder",
+       "state": "blocked",
+       "optional": false,
+       "human_only": false,
+       "missing": [
+        "goal"
+       ],
+       "blocked_reason": null,
+       "invalid": [],
+       "stale_reason": null,
+       "carried_over": [],
+       "sources": [],
+       "done_at": null
+      },
+      {
+       "id": "brief-confirm",
+       "title": "Confirm the brief and start the build",
+       "state": "blocked",
+       "optional": false,
+       "human_only": true,
+       "missing": [
+        "brief"
+       ],
+       "blocked_reason": null,
+       "invalid": [],
+       "stale_reason": null,
+       "carried_over": [],
+       "sources": [],
+       "done_at": null
+      },
+      {
+       "id": "build",
+       "title": "Build the port",
+       "state": "blocked",
+       "optional": false,
+       "human_only": false,
+       "missing": [
+        "brief-confirm"
+       ],
+       "blocked_reason": null,
+       "invalid": [],
+       "stale_reason": null,
+       "carried_over": [],
+       "sources": [],
+       "done_at": null
+      },
+      {
+       "id": "verify",
+       "title": "Verify the behaviour is kept",
+       "state": "blocked",
+       "optional": false,
+       "human_only": false,
+       "missing": [
+        "build"
+       ],
+       "blocked_reason": null,
+       "invalid": [],
+       "stale_reason": null,
+       "carried_over": [],
+       "sources": [],
+       "done_at": null
+      },
+      {
+       "id": "accept",
+       "title": "Accept the port",
+       "state": "blocked",
+       "optional": false,
+       "human_only": true,
+       "missing": [
+        "verify"
+       ],
+       "blocked_reason": null,
+       "invalid": [],
+       "stale_reason": null,
+       "carried_over": [],
+       "sources": [],
+       "done_at": null
+      }
+     ]
+    }
+   ]
+  }
+ },
+ "/v1/projects/demo-scorer-fault/facts": {
+  "status": 200,
+  "body": {
+   "schema": "lab-project-facts/4",
+   "project": "demo-scorer-fault",
+   "implementation": "demo",
+   "pair": {
+    "lab": "0.0.3.dev52",
+    "core": "2.0.0b6"
+   },
+   "revision": {
+    "schema": "lab-materials-revision/1",
+    "digest": "sha256:178e89375082ee2b08dac8d747ec740205eb9994b145e58fd9fd35309b7fc170",
+    "places": [
+     {
+      "role": "materials_root",
+      "path": "lab",
+      "digest": "sha256:de6a7274c6653336e64edc4873df999c20da9658a11f27485401a06e193dc4d7"
+     },
+     {
+      "role": "implementation",
+      "path": "agent",
+      "digest": "sha256:403d6201f0575c7ca7941842d61041709c8d5bde6391b42652b72018b5d6752d",
+      "id": "demo"
+     }
+    ],
+    "files": 14,
+    "git": null
+   },
+   "facts": [
+    {
+     "id": "implementation.available",
+     "subject": {
+      "implementation": "demo"
+     },
+     "holds": true,
+     "value": true,
+     "source": {
+      "kind": "filesystem"
+     },
+     "stale_reason": null,
+     "carried_over": []
+    },
+    {
+     "id": "implementation.ported",
+     "subject": {
+      "implementation": "demo"
+     },
+     "holds": false,
+     "value": false,
+     "source": {
+      "kind": "origin",
+      "implementation": null,
+      "reason": "not_ported"
+     },
+     "stale_reason": null,
+     "carried_over": []
+    },
+    {
+     "id": "materials.revision",
+     "subject": null,
+     "holds": true,
+     "value": {
+      "digest": "sha256:178e89375082ee2b08dac8d747ec740205eb9994b145e58fd9fd35309b7fc170",
+      "git": null
+     },
+     "source": {
+      "kind": "revision"
+     },
+     "stale_reason": null,
+     "carried_over": []
+    },
+    {
+     "id": "package.present",
+     "subject": {
+      "implementation": "demo"
+     },
+     "holds": true,
+     "value": true,
+     "source": {
+      "kind": "package_entry",
+      "entry": "package.json",
+      "reason": null
+     },
+     "stale_reason": null,
+     "carried_over": []
+    },
+    {
+     "id": "package.valid",
+     "subject": {
+      "implementation": "demo"
+     },
+     "holds": true,
+     "value": {
+      "scope": "form"
+     },
+     "source": {
+      "kind": "package_entry",
+      "errors": []
+     },
+     "stale_reason": null,
+     "carried_over": []
+    },
+    {
+     "id": "check.passed",
+     "subject": {
+      "implementation": "demo"
+     },
+     "holds": true,
+     "value": true,
+     "source": {
+      "kind": "task",
+      "id": "68bc0fddb3b94ffe9b1cc955ef5aba31",
+      "pair": {
+       "lab": "0.0.3.dev52",
+       "core": "2.0.0b6"
+      },
+      "inputs_digest": "sha256:438779224d4d682aeb38e26eb2c84517ff91fd1bfc09fac14235c86dc1baece2"
+     },
+     "stale_reason": null,
+     "carried_over": []
+    },
+    {
+     "id": "conformance.passed",
+     "subject": {
+      "implementation": "demo"
+     },
+     "holds": true,
+     "value": true,
+     "source": {
+      "kind": "task",
+      "id": "1c105763feab40b0b4e0640499ff3128",
+      "pair": {
+       "lab": "0.0.3.dev52",
+       "core": "2.0.0b6"
+      },
+      "inputs_digest": "sha256:438779224d4d682aeb38e26eb2c84517ff91fd1bfc09fac14235c86dc1baece2"
+     },
+     "stale_reason": null,
+     "carried_over": []
+    },
+    {
+     "id": "baseline.measured",
+     "subject": {
+      "implementation": "demo"
+     },
+     "holds": false,
+     "value": false,
+     "source": null,
+     "stale_reason": null,
+     "carried_over": []
+    },
+    {
+     "id": "connected",
+     "subject": {
+      "implementation": "demo"
+     },
+     "holds": false,
+     "value": false,
+     "source": {
+      "kind": "derived",
+      "facts": [
+       "check.passed",
+       "conformance.passed",
+       "baseline.measured"
+      ]
+     },
+     "stale_reason": null,
+     "carried_over": []
+    },
+    {
+     "id": "campaigns",
+     "subject": {
+      "implementation": "demo"
+     },
+     "holds": true,
+     "value": [
+      {
+       "operation_id": "aeb59299c98d40878b96911d12424b36",
+       "pair": {
+        "lab": "0.0.3.dev52",
+        "core": "2.0.0b6"
+       },
+       "control_state": "finished",
+       "resume": {
+        "state": "ready",
+        "reason": null,
+        "target": null
+       },
+       "results_state": "present",
+       "detail": "available"
+      }
+     ],
+     "source": {
+      "kind": "links"
+     },
+     "stale_reason": null,
+     "carried_over": []
+    },
+    {
+     "id": "spec.confirmed",
+     "subject": {
+      "implementation": "demo"
+     },
+     "holds": true,
+     "value": true,
+     "source": {
+      "kind": "confirmation",
+      "id": "c-872872e84f848563",
+      "attests": {
+       "digest": "sha256:1b6f627b57e9f864a6d4450eefcd2fa40b71d39f5de01d8273cc7d5a2be97382",
+       "path": "SPEC.md"
+      },
+      "channel": "cli",
+      "author": "tester",
+      "created_at": "2026-10-17T17:56:07Z"
+     },
+     "stale_reason": null,
+     "carried_over": []
+    }
+   ]
+  }
+ },
+ "/v1/projects/demo-scorer-fault/confirmations": {
+  "status": 200,
+  "body": {
+   "schema": "lab-project-confirmation-list/1",
+   "confirmations": [
+    {
+     "schema": "lab-project-confirmation/1",
+     "id": "c-872872e84f848563",
+     "project": "demo-scorer-fault",
+     "implementation": "demo",
+     "claim": "spec.confirmed",
+     "attests": {
+      "digest": "sha256:1b6f627b57e9f864a6d4450eefcd2fa40b71d39f5de01d8273cc7d5a2be97382",
+      "path": "SPEC.md"
+     },
+     "linked": [
+      {
+       "digest": "8e086dc24dfee94582953a7049e97b3443aafa4d0f141aa5a7aa3ea6b3503bf7",
+       "kind": "catalogue",
+       "ref": "requirements"
+      }
+     ],
+     "channel": "cli",
+     "author": "tester",
+     "note": null,
+     "created_at": "2026-10-17T17:56:07Z",
+     "revoked": null
+    }
+   ]
+  }
+ },
+ "/v1/projects/demo-scorer-fault/operations": {
+  "status": 200,
+  "body": {
+   "schema": "lab-project-operation-list/1",
+   "links": [
+    {
+     "schema": "lab-project-link/1",
+     "kind": "operation",
+     "project": "demo-scorer-fault",
+     "implementation": "demo",
+     "pair": {
+      "lab": "0.0.3.dev52",
+      "core": "2.0.0b6"
+     },
+     "state_root": "/home/user/.codex/worktrees/c9da/evolution_lab/.superpowers/panel-capture/ed4c8de1ab5b4a5c8daa0620b9e96981/state-main",
+     "created_at": "2026-10-17T17:56:16Z",
+     "binding": {
+      "inputs": {
+       "digest": "sha256:438779224d4d682aeb38e26eb2c84517ff91fd1bfc09fac14235c86dc1baece2",
+       "sources": [
+        {
+         "alias": "project",
+         "path": "."
+        },
+        {
+         "path": "lab/manifest.json"
+        },
+        {
+         "path": "launch.json"
+        }
+       ]
+      },
+      "materials_revision": "sha256:178e89375082ee2b08dac8d747ec740205eb9994b145e58fd9fd35309b7fc170",
+      "materials_root": "lab",
+      "place": "agent",
+      "working_copy": "/tmp/lab-fixture-home/clones/demo-scorer-fault"
+     },
+     "bundle_digest": "fd1cec01323dec3b6d6596355338c27526da87a800bca0b29c7ed6aeb6f04fbc",
+     "prepared_digest": "6f4aaf2923c8478fbb8a2c050fe0766017b5f624b2c48c42a17fba610a52774b",
+     "object_id": "aeb59299c98d40878b96911d12424b36",
+     "operation_kind": "campaign",
+     "last_seen": {
+      "at": "2026-10-17T17:56:19Z",
+      "control_state": "finished",
+      "kind": "campaign",
+      "result": {
+       "campaign_execution": null,
+       "core": {
+        "actions": [
+         {
+          "fields": {
+           "measurement_id": "m-r00-champion",
+           "round": 1,
+           "stage": 1
+          },
+          "kind": "MeasureBaselineStage"
+         }
+        ],
+        "alpha": null,
+        "campaign_outcome": null,
+        "caveats": [
+         {
+          "attempt_id": null,
+          "kind": "observe_gate_not_enforced",
+          "round": null
+         },
+         {
+          "attempt_id": null,
+          "kind": "uncalibrated_point_estimates",
+          "round": null
+         },
+         {
+          "attempt_id": null,
+          "kind": "champion_not_contemporaneous",
+          "round": null
+         }
+        ],
+        "claim_scope": "campaign",
+        "complete": false,
+        "condition_changes": [],
+        "connection": {
+         "attempts": 1,
+         "binding_digest": "a30a2ef06311ed238daeb043a11bc4428e54983326c4a603e8afb8a4f02df417",
+         "detail": null,
+         "operation_id": "8d0a7c706f2c43b794ede4e44504ae4d",
+         "outcome": "compatible",
+         "state": "compatible"
+        },
+        "consistency": "durable",
+        "corpus_split": {
+         "mode": "implicit_train",
+         "partition_digest": "7b790d091190b5271f203b39ec9119cbb055f74f372f76ce8f32797d800769d4",
+         "scope": "train",
+         "test_cases": 0,
+         "train_cases": 2
+        },
+        "final_champion": {
+         "baseline_origin": "seed",
+         "digest": "fbd7fa5cd7695fbda3cd44d6052a66419e46395644eabfaf65a0dabc0dabc8c4",
+         "measurement_complete": false,
+         "measurement_id": "m-r00-champion",
+         "version": "v0"
+        },
+        "identity_digest": "de2ab005407622bbc2affa886e7702220a1a690e2fc36d988071f67cbe0c8ae7",
+        "indeterminate": {
+         "counts": {
+          "environment": 0,
+          "rollout": 0,
+          "scorer": 0,
+          "target": 0
+         },
+         "denominator": 2,
+         "lineage": null,
+         "threshold_reached": null,
+         "window": {
+          "counts": {
+           "environment": 0,
+           "rollout": 0,
+           "scorer": 0,
+           "target": 0
+          },
+          "denominator": 0,
+          "start": 9
+         }
+        },
+        "kind": "campaign_status",
+        "lineage": {
+         "candidates": [],
+         "champion": "v0",
+         "champions": [
+          "v0"
+         ],
+         "stopped_code": null,
+         "store_state": "active"
+        },
+        "linked_from": null,
+        "measurements": [
+         {
+          "call_failures_by_code": {},
+          "call_retries": 0,
+          "candidate_digest": "fbd7fa5cd7695fbda3cd44d6052a66419e46395644eabfaf65a0dabc0dabc8c4",
+          "classification": "born",
+          "condition_epoch": 0,
+          "excluded_pairs": null,
+          "imported": 0,
+          "locator": "measurements/m-r00-champion/events.jsonl",
+          "measurement_id": "m-r00-champion",
+          "repair_tries": 0,
+          "repairs_scored": 0,
+          "status": {
+           "candidate_digest": "fbd7fa5cd7695fbda3cd44d6052a66419e46395644eabfaf65a0dabc0dabc8c4",
+           "complete": true,
+           "consistency": "observed",
+           "diagnostics": [],
+           "journal_integrity": "complete",
+           "kind": "status",
+           "last_sequence": 45,
+           "lower_bound": false,
+           "owned_instances": [],
+           "prefix_digest": "0d1bc6b35b36cbef6ae258a6d9f068ef0b1804097b10649effc7d09b957a203a",
+           "recovery_actions": [],
+           "references": [
+            {
+             "content_digest": "0d1bc6b35b36cbef6ae258a6d9f068ef0b1804097b10649effc7d09b957a203a",
+             "kind": "journal_record",
+             "locator": "events.jsonl#bytes=0:22197",
+             "run_id": "m-r00-champion",
+             "version": 1
+            }
+           ],
+           "run_id": "m-r00-champion",
+           "run_identity_digest": "13a1bf0f0b800776d3b660e932821ad4b1ebf659f3bf6a3cd01425f65f6e2dc6",
+           "samples": [
+            {
+             "candidate_digest": "fbd7fa5cd7695fbda3cd44d6052a66419e46395644eabfaf65a0dabc0dabc8c4",
+             "case_id": "q1",
+             "critical_pass": true,
+             "evaluation": {
+              "kind": "score",
+              "outcome": "completed",
+              "owner": null,
+              "reason": null
+             },
+             "execution": {
+              "kind": "score",
+              "outcome": "completed",
+              "owner": null,
+              "reason": null
+             },
+             "execution_state": "finished",
+             "metrics": {
+              "score": 0.0
+             },
+             "sample_id": "01",
+             "scoring_state": "finished",
+             "tries": 1
+            },
+            {
+             "candidate_digest": "fbd7fa5cd7695fbda3cd44d6052a66419e46395644eabfaf65a0dabc0dabc8c4",
+             "case_id": "q2",
+             "critical_pass": true,
+             "evaluation": {
+              "kind": "score",
+              "outcome": "completed",
+              "owner": null,
+              "reason": null
+             },
+             "execution": {
+              "kind": "score",
+              "outcome": "completed",
+              "owner": null,
+              "reason": null
+             },
+             "execution_state": "finished",
+             "metrics": {
+              "fixture_auxiliary": 0.0
+             },
+             "sample_id": "01",
+             "scoring_state": "finished",
+             "tries": 1
+            }
+           ],
+           "schema_version": 1,
+           "valid_bytes": 22197
+          },
+          "tries": 2
+         }
+        ],
+        "rebases": [],
+        "resilience": {
+         "attempts_saved": 0,
+         "continuation_turns": 0,
+         "rounds_skipped": 0
+        },
+        "roles": {
+         "editor": {
+          "kind": "subprocess"
+         },
+         "grouper": {
+          "kind": "fields"
+         },
+         "reflector": {
+          "kind": "subprocess"
+         }
+        },
+        "rounds": [
+         {
+          "attempts": [],
+          "baseline_complete": false,
+          "baseline_measurement_id": "m-r00-champion",
+          "champion_complete": false,
+          "final": [],
+          "gate_scope": null,
+          "outcome": null,
+          "reason": null,
+          "round": 1,
+          "visitation": null
+         }
+        ],
+        "run_id": "c-aeb59299c98d40878b96911d12424b36",
+        "schema_version": 1,
+        "settings": {
+         "baseline_refresh": {
+          "count": 0,
+          "every_rounds": 3,
+          "performed": []
+         },
+         "round_stop": "first_accepted",
+         "stability": "stable"
+        },
+        "siblings": {
+         "artifact_store": "born",
+         "m-r00-champion": "born"
+        },
+        "suspended": true,
+        "suspensions": [
+         {
+          "evidence_kind": "fault_rows",
+          "owner": "scorer",
+          "reason": "scorer_metric_missing",
+          "seq": 9
+         }
+        ],
+        "verification": null
+       },
+       "coverage": null,
+       "kind": "campaign",
+       "persistence": {
+        "failure": null,
+        "state": "saved"
+       },
+       "prepared_digest": "6f4aaf2923c8478fbb8a2c050fe0766017b5f624b2c48c42a17fba610a52774b",
+       "process": {
+        "cleanup_complete": true,
+        "exit_code": 1,
+        "forced": false,
+        "launched": true
+       },
+       "schema": "lab-operation-result/1",
+       "stop_reason": null
+      },
+      "results_state": "present",
+      "resume": {
+       "reason": null,
+       "state": "ready"
+      }
+     }
+    }
+   ]
+  }
+ },
+ "/v1/projects/demo-scorer-fault/operations?view=summary": {
+  "status": 200,
+  "body": {
+   "schema": "lab-project-operation-list/2",
+   "project": "demo-scorer-fault",
+   "operations": [
+    {
+     "link": {
+      "schema": "lab-project-link/1",
+      "kind": "operation",
+      "project": "demo-scorer-fault",
+      "implementation": "demo",
+      "pair": {
+       "lab": "0.0.3.dev52",
+       "core": "2.0.0b6"
+      },
+      "state_root": "/home/user/.codex/worktrees/c9da/evolution_lab/.superpowers/panel-capture/ed4c8de1ab5b4a5c8daa0620b9e96981/state-main",
+      "created_at": "2026-10-17T17:56:16Z",
+      "binding": {
+       "inputs": {
+        "digest": "sha256:438779224d4d682aeb38e26eb2c84517ff91fd1bfc09fac14235c86dc1baece2",
+        "sources": [
+         {
+          "alias": "project",
+          "path": "."
+         },
+         {
+          "path": "lab/manifest.json"
+         },
+         {
+          "path": "launch.json"
+         }
+        ]
+       },
+       "materials_revision": "sha256:178e89375082ee2b08dac8d747ec740205eb9994b145e58fd9fd35309b7fc170",
+       "materials_root": "lab",
+       "place": "agent",
+       "working_copy": "/tmp/lab-fixture-home/clones/demo-scorer-fault"
+      },
+      "bundle_digest": "fd1cec01323dec3b6d6596355338c27526da87a800bca0b29c7ed6aeb6f04fbc",
+      "prepared_digest": "6f4aaf2923c8478fbb8a2c050fe0766017b5f624b2c48c42a17fba610a52774b",
+      "object_id": "aeb59299c98d40878b96911d12424b36",
+      "operation_kind": "campaign",
+      "last_seen": {
+       "at": "2026-10-17T17:56:19Z",
+       "control_state": "finished",
+       "kind": "campaign",
+       "result": {
+        "campaign_execution": null,
+        "core": {
+         "actions": [
+          {
+           "fields": {
+            "measurement_id": "m-r00-champion",
+            "round": 1,
+            "stage": 1
+           },
+           "kind": "MeasureBaselineStage"
+          }
+         ],
+         "alpha": null,
+         "campaign_outcome": null,
+         "caveats": [
+          {
+           "attempt_id": null,
+           "kind": "observe_gate_not_enforced",
+           "round": null
+          },
+          {
+           "attempt_id": null,
+           "kind": "uncalibrated_point_estimates",
+           "round": null
+          },
+          {
+           "attempt_id": null,
+           "kind": "champion_not_contemporaneous",
+           "round": null
+          }
+         ],
+         "claim_scope": "campaign",
+         "complete": false,
+         "condition_changes": [],
+         "connection": {
+          "attempts": 1,
+          "binding_digest": "a30a2ef06311ed238daeb043a11bc4428e54983326c4a603e8afb8a4f02df417",
+          "detail": null,
+          "operation_id": "8d0a7c706f2c43b794ede4e44504ae4d",
+          "outcome": "compatible",
+          "state": "compatible"
+         },
+         "consistency": "durable",
+         "corpus_split": {
+          "mode": "implicit_train",
+          "partition_digest": "7b790d091190b5271f203b39ec9119cbb055f74f372f76ce8f32797d800769d4",
+          "scope": "train",
+          "test_cases": 0,
+          "train_cases": 2
+         },
+         "final_champion": {
+          "baseline_origin": "seed",
+          "digest": "fbd7fa5cd7695fbda3cd44d6052a66419e46395644eabfaf65a0dabc0dabc8c4",
+          "measurement_complete": false,
+          "measurement_id": "m-r00-champion",
+          "version": "v0"
+         },
+         "identity_digest": "de2ab005407622bbc2affa886e7702220a1a690e2fc36d988071f67cbe0c8ae7",
+         "indeterminate": {
+          "counts": {
+           "environment": 0,
+           "rollout": 0,
+           "scorer": 0,
+           "target": 0
+          },
+          "denominator": 2,
+          "lineage": null,
+          "threshold_reached": null,
+          "window": {
+           "counts": {
+            "environment": 0,
+            "rollout": 0,
+            "scorer": 0,
+            "target": 0
+           },
+           "denominator": 0,
+           "start": 9
+          }
+         },
+         "kind": "campaign_status",
+         "lineage": {
+          "candidates": [],
+          "champion": "v0",
+          "champions": [
+           "v0"
+          ],
+          "stopped_code": null,
+          "store_state": "active"
+         },
+         "linked_from": null,
+         "measurements": [
+          {
+           "call_failures_by_code": {},
+           "call_retries": 0,
+           "candidate_digest": "fbd7fa5cd7695fbda3cd44d6052a66419e46395644eabfaf65a0dabc0dabc8c4",
+           "classification": "born",
+           "condition_epoch": 0,
+           "excluded_pairs": null,
+           "imported": 0,
+           "locator": "measurements/m-r00-champion/events.jsonl",
+           "measurement_id": "m-r00-champion",
+           "repair_tries": 0,
+           "repairs_scored": 0,
+           "status": {
+            "candidate_digest": "fbd7fa5cd7695fbda3cd44d6052a66419e46395644eabfaf65a0dabc0dabc8c4",
+            "complete": true,
+            "consistency": "observed",
+            "diagnostics": [],
+            "journal_integrity": "complete",
+            "kind": "status",
+            "last_sequence": 45,
+            "lower_bound": false,
+            "owned_instances": [],
+            "prefix_digest": "0d1bc6b35b36cbef6ae258a6d9f068ef0b1804097b10649effc7d09b957a203a",
+            "recovery_actions": [],
+            "references": [
+             {
+              "content_digest": "0d1bc6b35b36cbef6ae258a6d9f068ef0b1804097b10649effc7d09b957a203a",
+              "kind": "journal_record",
+              "locator": "events.jsonl#bytes=0:22197",
+              "run_id": "m-r00-champion",
+              "version": 1
+             }
+            ],
+            "run_id": "m-r00-champion",
+            "run_identity_digest": "13a1bf0f0b800776d3b660e932821ad4b1ebf659f3bf6a3cd01425f65f6e2dc6",
+            "samples": [
+             {
+              "candidate_digest": "fbd7fa5cd7695fbda3cd44d6052a66419e46395644eabfaf65a0dabc0dabc8c4",
+              "case_id": "q1",
+              "critical_pass": true,
+              "evaluation": {
+               "kind": "score",
+               "outcome": "completed",
+               "owner": null,
+               "reason": null
+              },
+              "execution": {
+               "kind": "score",
+               "outcome": "completed",
+               "owner": null,
+               "reason": null
+              },
+              "execution_state": "finished",
+              "metrics": {
+               "score": 0.0
+              },
+              "sample_id": "01",
+              "scoring_state": "finished",
+              "tries": 1
+             },
+             {
+              "candidate_digest": "fbd7fa5cd7695fbda3cd44d6052a66419e46395644eabfaf65a0dabc0dabc8c4",
+              "case_id": "q2",
+              "critical_pass": true,
+              "evaluation": {
+               "kind": "score",
+               "outcome": "completed",
+               "owner": null,
+               "reason": null
+              },
+              "execution": {
+               "kind": "score",
+               "outcome": "completed",
+               "owner": null,
+               "reason": null
+              },
+              "execution_state": "finished",
+              "metrics": {
+               "fixture_auxiliary": 0.0
+              },
+              "sample_id": "01",
+              "scoring_state": "finished",
+              "tries": 1
+             }
+            ],
+            "schema_version": 1,
+            "valid_bytes": 22197
+           },
+           "tries": 2
+          }
+         ],
+         "rebases": [],
+         "resilience": {
+          "attempts_saved": 0,
+          "continuation_turns": 0,
+          "rounds_skipped": 0
+         },
+         "roles": {
+          "editor": {
+           "kind": "subprocess"
+          },
+          "grouper": {
+           "kind": "fields"
+          },
+          "reflector": {
+           "kind": "subprocess"
+          }
+         },
+         "rounds": [
+          {
+           "attempts": [],
+           "baseline_complete": false,
+           "baseline_measurement_id": "m-r00-champion",
+           "champion_complete": false,
+           "final": [],
+           "gate_scope": null,
+           "outcome": null,
+           "reason": null,
+           "round": 1,
+           "visitation": null
+          }
+         ],
+         "run_id": "c-aeb59299c98d40878b96911d12424b36",
+         "schema_version": 1,
+         "settings": {
+          "baseline_refresh": {
+           "count": 0,
+           "every_rounds": 3,
+           "performed": []
+          },
+          "round_stop": "first_accepted",
+          "stability": "stable"
+         },
+         "siblings": {
+          "artifact_store": "born",
+          "m-r00-champion": "born"
+         },
+         "suspended": true,
+         "suspensions": [
+          {
+           "evidence_kind": "fault_rows",
+           "owner": "scorer",
+           "reason": "scorer_metric_missing",
+           "seq": 9
+          }
+         ],
+         "verification": null
+        },
+        "coverage": null,
+        "kind": "campaign",
+        "persistence": {
+         "failure": null,
+         "state": "saved"
+        },
+        "prepared_digest": "6f4aaf2923c8478fbb8a2c050fe0766017b5f624b2c48c42a17fba610a52774b",
+        "process": {
+         "cleanup_complete": true,
+         "exit_code": 1,
+         "forced": false,
+         "launched": true
+        },
+        "schema": "lab-operation-result/1",
+        "stop_reason": null
+       },
+       "results_state": "present",
+       "resume": {
+        "reason": null,
+        "state": "ready"
+       }
+      }
+     },
+     "label": "Demo (demo-scorer-fault) · evolve · цикл 1",
+     "operation_state": "present",
+     "operation": {
+      "id": "aeb59299c98d40878b96911d12424b36",
+      "kind": "campaign",
+      "entrypoint": "inputs/project/lab/manifest.json",
+      "control_state": "finished",
+      "results_state": "present",
+      "resume": {
+       "state": "ready",
+       "reason": null,
+       "target": null
+      },
+      "progress": {
+       "kind": "campaign",
+       "phase": "suspended",
+       "stages": [
+        "baseline"
+       ],
+       "rounds": {
+        "completed": 0,
+        "current": 1,
+        "planned": 2
+       },
+       "attempts": {
+        "current_round": {
+         "closed": 0,
+         "running": 0,
+         "planned": 1
+        },
+        "total": 0
+       },
+       "coverage": null,
+       "policy_state": "present",
+       "observed_at": "2026-10-17T17:56:18.167240Z"
+      },
+      "progress_state": "present",
+      "times": {
+       "first_event_at": "2026-10-17T17:56:17.659848Z",
+       "last_event_at": "2026-10-17T17:56:18.167240Z"
+      },
+      "times_state": "present",
+      "times_source": "core_raw",
+      "times_reason": null,
+      "outcome": null
+     },
+     "outcome": null
+    }
+   ]
+  }
+ },
+ "/v1/operations/aeb59299c98d40878b96911d12424b36": {
+  "status": 200,
+  "body": {
+   "schema": "lab-operation-status/6",
+   "id": "aeb59299c98d40878b96911d12424b36",
+   "owner_generation": "7ca5ca2d4d98409099aca8732ea5d696",
+   "prepared_digest": "6f4aaf2923c8478fbb8a2c050fe0766017b5f624b2c48c42a17fba610a52774b",
+   "kind": "campaign",
+   "target_ref": {
+    "schema": "lab-target-ref/1",
+    "id": "da9b71b762844afda6ec013b66507a9d",
+    "owner_generation": "7ca5ca2d4d98409099aca8732ea5d696"
+   },
+   "control_state": "finished",
+   "process": {
+    "launched": true,
+    "exit_code": 1,
+    "cleanup_complete": true,
+    "forced": false
+   },
+   "target_cleanup": {
+    "state": "confirmed",
+    "complete": true
+   },
+   "result": {
+    "schema": "lab-operation-result/1",
+    "kind": "campaign",
+    "prepared_digest": "6f4aaf2923c8478fbb8a2c050fe0766017b5f624b2c48c42a17fba610a52774b",
+    "process": {
+     "launched": true,
+     "exit_code": 1,
+     "cleanup_complete": true,
+     "forced": false
+    },
+    "core": {
+     "actions": [
+      {
+       "fields": {
+        "measurement_id": "m-r00-champion",
+        "round": 1,
+        "stage": 1
+       },
+       "kind": "MeasureBaselineStage"
+      }
+     ],
+     "alpha": null,
+     "campaign_outcome": null,
+     "caveats": [
+      {
+       "attempt_id": null,
+       "kind": "observe_gate_not_enforced",
+       "round": null
+      },
+      {
+       "attempt_id": null,
+       "kind": "uncalibrated_point_estimates",
+       "round": null
+      },
+      {
+       "attempt_id": null,
+       "kind": "champion_not_contemporaneous",
+       "round": null
+      }
+     ],
+     "claim_scope": "campaign",
+     "complete": false,
+     "condition_changes": [],
+     "connection": {
+      "attempts": 1,
+      "binding_digest": "a30a2ef06311ed238daeb043a11bc4428e54983326c4a603e8afb8a4f02df417",
+      "detail": null,
+      "operation_id": "8d0a7c706f2c43b794ede4e44504ae4d",
+      "outcome": "compatible",
+      "state": "compatible"
+     },
+     "consistency": "durable",
+     "corpus_split": {
+      "mode": "implicit_train",
+      "partition_digest": "7b790d091190b5271f203b39ec9119cbb055f74f372f76ce8f32797d800769d4",
+      "scope": "train",
+      "test_cases": 0,
+      "train_cases": 2
+     },
+     "final_champion": {
+      "baseline_origin": "seed",
+      "digest": "fbd7fa5cd7695fbda3cd44d6052a66419e46395644eabfaf65a0dabc0dabc8c4",
+      "measurement_complete": false,
+      "measurement_id": "m-r00-champion",
+      "version": "v0"
+     },
+     "identity_digest": "de2ab005407622bbc2affa886e7702220a1a690e2fc36d988071f67cbe0c8ae7",
+     "indeterminate": {
+      "counts": {
+       "environment": 0,
+       "rollout": 0,
+       "scorer": 0,
+       "target": 0
+      },
+      "denominator": 2,
+      "lineage": null,
+      "threshold_reached": null,
+      "window": {
+       "counts": {
+        "environment": 0,
+        "rollout": 0,
+        "scorer": 0,
+        "target": 0
+       },
+       "denominator": 0,
+       "start": 9
+      }
+     },
+     "kind": "campaign_status",
+     "lineage": {
+      "candidates": [],
+      "champion": "v0",
+      "champions": [
+       "v0"
+      ],
+      "stopped_code": null,
+      "store_state": "active"
+     },
+     "linked_from": null,
+     "measurements": [
+      {
+       "call_failures_by_code": {},
+       "call_retries": 0,
+       "candidate_digest": "fbd7fa5cd7695fbda3cd44d6052a66419e46395644eabfaf65a0dabc0dabc8c4",
+       "classification": "born",
+       "condition_epoch": 0,
+       "excluded_pairs": null,
+       "imported": 0,
+       "locator": "measurements/m-r00-champion/events.jsonl",
+       "measurement_id": "m-r00-champion",
+       "repair_tries": 0,
+       "repairs_scored": 0,
+       "status": {
+        "candidate_digest": "fbd7fa5cd7695fbda3cd44d6052a66419e46395644eabfaf65a0dabc0dabc8c4",
+        "complete": true,
+        "consistency": "observed",
+        "diagnostics": [],
+        "journal_integrity": "complete",
+        "kind": "status",
+        "last_sequence": 45,
+        "lower_bound": false,
+        "owned_instances": [],
+        "prefix_digest": "0d1bc6b35b36cbef6ae258a6d9f068ef0b1804097b10649effc7d09b957a203a",
+        "recovery_actions": [],
+        "references": [
+         {
+          "content_digest": "0d1bc6b35b36cbef6ae258a6d9f068ef0b1804097b10649effc7d09b957a203a",
+          "kind": "journal_record",
+          "locator": "events.jsonl#bytes=0:22197",
+          "run_id": "m-r00-champion",
+          "version": 1
+         }
+        ],
+        "run_id": "m-r00-champion",
+        "run_identity_digest": "13a1bf0f0b800776d3b660e932821ad4b1ebf659f3bf6a3cd01425f65f6e2dc6",
+        "samples": [
+         {
+          "candidate_digest": "fbd7fa5cd7695fbda3cd44d6052a66419e46395644eabfaf65a0dabc0dabc8c4",
+          "case_id": "q1",
+          "critical_pass": true,
+          "evaluation": {
+           "kind": "score",
+           "outcome": "completed",
+           "owner": null,
+           "reason": null
+          },
+          "execution": {
+           "kind": "score",
+           "outcome": "completed",
+           "owner": null,
+           "reason": null
+          },
+          "execution_state": "finished",
+          "metrics": {
+           "score": 0.0
+          },
+          "sample_id": "01",
+          "scoring_state": "finished",
+          "tries": 1
+         },
+         {
+          "candidate_digest": "fbd7fa5cd7695fbda3cd44d6052a66419e46395644eabfaf65a0dabc0dabc8c4",
+          "case_id": "q2",
+          "critical_pass": true,
+          "evaluation": {
+           "kind": "score",
+           "outcome": "completed",
+           "owner": null,
+           "reason": null
+          },
+          "execution": {
+           "kind": "score",
+           "outcome": "completed",
+           "owner": null,
+           "reason": null
+          },
+          "execution_state": "finished",
+          "metrics": {
+           "fixture_auxiliary": 0.0
+          },
+          "sample_id": "01",
+          "scoring_state": "finished",
+          "tries": 1
+         }
+        ],
+        "schema_version": 1,
+        "valid_bytes": 22197
+       },
+       "tries": 2
+      }
+     ],
+     "rebases": [],
+     "resilience": {
+      "attempts_saved": 0,
+      "continuation_turns": 0,
+      "rounds_skipped": 0
+     },
+     "roles": {
+      "editor": {
+       "kind": "subprocess"
+      },
+      "grouper": {
+       "kind": "fields"
+      },
+      "reflector": {
+       "kind": "subprocess"
+      }
+     },
+     "rounds": [
+      {
+       "attempts": [],
+       "baseline_complete": false,
+       "baseline_measurement_id": "m-r00-champion",
+       "champion_complete": false,
+       "final": [],
+       "gate_scope": null,
+       "outcome": null,
+       "reason": null,
+       "round": 1,
+       "visitation": null
+      }
+     ],
+     "run_id": "c-aeb59299c98d40878b96911d12424b36",
+     "schema_version": 1,
+     "settings": {
+      "baseline_refresh": {
+       "count": 0,
+       "every_rounds": 3,
+       "performed": []
+      },
+      "round_stop": "first_accepted",
+      "stability": "stable"
+     },
+     "siblings": {
+      "artifact_store": "born",
+      "m-r00-champion": "born"
+     },
+     "suspended": true,
+     "suspensions": [
+      {
+       "evidence_kind": "fault_rows",
+       "owner": "scorer",
+       "reason": "scorer_metric_missing",
+       "seq": 9
+      }
+     ],
+     "verification": null
+    },
+    "coverage": null,
+    "stop_reason": null,
+    "campaign_execution": null,
+    "persistence": {
+     "state": "saved",
+     "failure": null
+    }
+   },
+   "failure": null,
+   "refusal": null,
+   "results_state": "present",
+   "executor": {
+    "kind": "lab-campaign-worker/1",
+    "environment_digest": "4aa35475dba482c287132bfa7d467a266745759f3d68d227dd455c6d1e886524",
+    "lab_wheel_sha256": "bb44b44e4593d9d91e274dbaa7849e589a03984840dea8996a70c1d4ea44c89c",
+    "core_wheel_sha256": "acdbc710902ea448fe1f22308250ba35768df5ee1cf4669c5b6751cb46514ec0",
+    "module_hashes": {
+     "evolution_lab.owner._campaign_worker": "8ed9aa3ad2972b8fbee93e46e42de19ba716ebe7aa9c177cca3c9f4a5877a532",
+     "evolution_lab.owner._helper": "e5bf12aaafccefc000b7b57096f6bed956540f75969c5f78be16564e835e34ab",
+     "evolution_lab.owner.settlement": "50761e57a5f99c800cc6470bef219201324b00bef8c5604c3e9258152668c2a1"
+    }
+   },
+   "retained_summary": null,
+   "starts": [
+    {
+     "start": 1,
+     "scope_id": "b04abfb9bd33425b90e6b4ee50cf8ead",
+     "owner_generation": "7ca5ca2d4d98409099aca8732ea5d696",
+     "target_ref": {
+      "schema": "lab-target-ref/1",
+      "id": "da9b71b762844afda6ec013b66507a9d",
+      "owner_generation": "7ca5ca2d4d98409099aca8732ea5d696"
+     },
+     "process": {
+      "launched": true,
+      "exit_code": 1,
+      "cleanup_complete": true,
+      "forced": false
+     },
+     "target_cleanup": {
+      "state": "confirmed",
+      "complete": true
+     },
+     "failure": null,
+     "settlement": "positive",
+     "refusal": null
+    }
+   ],
+   "resume": {
+    "state": "ready",
+    "reason": null,
+    "target": null
+   },
+   "entrypoint": "inputs/project/lab/manifest.json",
+   "progress": {
+    "kind": "campaign",
+    "phase": "suspended",
+    "stages": [
+     "baseline"
+    ],
+    "rounds": {
+     "completed": 0,
+     "current": 1,
+     "planned": 2
+    },
+    "attempts": {
+     "current_round": {
+      "closed": 0,
+      "running": 0,
+      "planned": 1
+     },
+     "total": 0
+    },
+    "coverage": null,
+    "policy_state": "present",
+    "observed_at": "2026-10-17T17:56:18.167240Z"
+   },
+   "progress_state": "present",
+   "times": {
+    "first_event_at": "2026-10-17T17:56:17.659848Z",
+    "last_event_at": "2026-10-17T17:56:18.167240Z"
+   },
+   "times_state": "present",
+   "times_source": "core_raw",
+   "times_reason": null
+  }
+ },
+ "/v1/operations/aeb59299c98d40878b96911d12424b36/report": {
+  "status": 200,
+  "body": {
+   "schema": "lab-owner-report/4",
+   "operation_id": "aeb59299c98d40878b96911d12424b36",
+   "state": "available",
+   "report": {
+    "campaign_journal_integrity": "complete",
+    "comparison_scope": "unspecified",
+    "core": {
+     "alpha": null,
+     "campaign_outcome": null,
+     "caveats": [
+      {
+       "attempt_id": null,
+       "kind": "observe_gate_not_enforced",
+       "round": null
+      },
+      {
+       "attempt_id": null,
+       "kind": "uncalibrated_point_estimates",
+       "round": null
+      },
+      {
+       "attempt_id": null,
+       "kind": "champion_not_contemporaneous",
+       "round": null
+      }
+     ],
+     "claim_scope": "campaign",
+     "complete": false,
+     "condition_changes": [],
+     "connection": {
+      "attempts": 1,
+      "binding_digest": "a30a2ef06311ed238daeb043a11bc4428e54983326c4a603e8afb8a4f02df417",
+      "detail": null,
+      "operation_id": "8d0a7c706f2c43b794ede4e44504ae4d",
+      "outcome": "compatible",
+      "state": "compatible"
+     },
+     "consistency": "durable",
+     "corpus_split": {
+      "mode": "implicit_train",
+      "partition_digest": "7b790d091190b5271f203b39ec9119cbb055f74f372f76ce8f32797d800769d4",
+      "scope": "train",
+      "test_cases": 0,
+      "train_cases": 2
+     },
+     "final_champion": {
+      "baseline_origin": "seed",
+      "digest": "fbd7fa5cd7695fbda3cd44d6052a66419e46395644eabfaf65a0dabc0dabc8c4",
+      "measurement_complete": false,
+      "measurement_id": "m-r00-champion",
+      "version": "v0"
+     },
+     "identity_digest": "de2ab005407622bbc2affa886e7702220a1a690e2fc36d988071f67cbe0c8ae7",
+     "indeterminate": {
+      "counts": {
+       "environment": 0,
+       "rollout": 0,
+       "scorer": 0,
+       "target": 0
+      },
+      "denominator": 2,
+      "lineage": null,
+      "threshold_reached": null,
+      "window": {
+       "counts": {
+        "environment": 0,
+        "rollout": 0,
+        "scorer": 0,
+        "target": 0
+       },
+       "denominator": 0,
+       "start": 9
+      }
+     },
+     "initial_champion": {
+      "digest": "fbd7fa5cd7695fbda3cd44d6052a66419e46395644eabfaf65a0dabc0dabc8c4",
+      "measurement_id": "m-r00-champion",
+      "version": "v0"
+     },
+     "kind": "campaign_result",
+     "linked_from": null,
+     "measurements": [
+      {
+       "call_failures_by_code": {},
+       "call_retries": 0,
+       "candidate_digest": "fbd7fa5cd7695fbda3cd44d6052a66419e46395644eabfaf65a0dabc0dabc8c4",
+       "condition_epoch": 0,
+       "excluded_pairs": null,
+       "imported": 0,
+       "locator": "measurements/m-r00-champion/events.jsonl",
+       "measurement_id": "m-r00-champion",
+       "repair_tries": 0,
+       "repairs_scored": 0,
+       "tries": 2
+      }
+     ],
+     "rebases": [],
+     "resilience": {
+      "attempts_saved": 0,
+      "continuation_turns": 0,
+      "rounds_skipped": 0
+     },
+     "roles": {
+      "editor": {
+       "kind": "subprocess"
+      },
+      "grouper": {
+       "kind": "fields"
+      },
+      "reflector": {
+       "kind": "subprocess"
+      }
+     },
+     "rounds": [
+      {
+       "attempts": [],
+       "baseline_complete": false,
+       "baseline_measurement_id": "m-r00-champion",
+       "champion_complete": false,
+       "final": [],
+       "gate_scope": null,
+       "outcome": null,
+       "reason": null,
+       "round": 1,
+       "visitation": null
+      }
+     ],
+     "run_id": "c-aeb59299c98d40878b96911d12424b36",
+     "schema_version": 1,
+     "selection": [],
+     "settings": {
+      "baseline_refresh": {
+       "count": 0,
+       "every_rounds": 3,
+       "performed": []
+      },
+      "round_stop": "first_accepted",
+      "stability": "stable"
+     },
+     "suspended": true,
+     "suspensions": [
+      {
+       "evidence_kind": "fault_rows",
+       "owner": "scorer",
+       "reason": "scorer_metric_missing",
+       "seq": 9
+      }
+     ]
+    },
+    "cost": null,
+    "distributions": [],
+    "lab_notices": [],
+    "lab_result": null,
+    "lab_rounds": [
+     {
+      "reflection": {
+       "error_class": null,
+       "reason": null,
+       "state": "absent"
+      },
+      "round": 1,
+      "source": "core_raw"
+     }
+    ],
+    "lab_rounds_reason": null,
+    "lab_rounds_state": "present",
+    "lab_starts": [],
+    "legacy_run": false,
+    "measurements": [
+     {
+      "call_failures_by_code": {},
+      "call_retries": 0,
+      "candidate_digest": "fbd7fa5cd7695fbda3cd44d6052a66419e46395644eabfaf65a0dabc0dabc8c4",
+      "coverage": {
+       "expected": 2,
+       "scored": 2,
+       "state": "complete"
+      },
+      "excluded_pairs": null,
+      "journal_integrity": "complete",
+      "metrics": {
+       "fixture_auxiliary": {
+        "count": 1,
+        "mean": 0.0
+       },
+       "score": {
+        "count": 1,
+        "mean": 0.0
+       }
+      },
+      "references": [
+       {
+        "content_digest": "0d1bc6b35b36cbef6ae258a6d9f068ef0b1804097b10649effc7d09b957a203a",
+        "kind": "journal_record",
+        "locator": "events.jsonl#bytes=0:22197",
+        "run_id": "m-r00-champion",
+        "version": 1
+       }
+      ],
+      "run_id": "m-r00-champion",
+      "samples": [
+       {
+        "candidate_digest": "fbd7fa5cd7695fbda3cd44d6052a66419e46395644eabfaf65a0dabc0dabc8c4",
+        "case_id": "q1",
+        "critical_pass": true,
+        "evaluation": {
+         "kind": "score",
+         "outcome": "completed",
+         "owner": null,
+         "reason": null
+        },
+        "execution": {
+         "kind": "score",
+         "outcome": "completed",
+         "owner": null,
+         "reason": null
+        },
+        "execution_state": "finished",
+        "metrics": {
+         "score": 0.0
+        },
+        "sample_id": "01",
+        "scoring_state": "finished",
+        "tries": 1
+       },
+       {
+        "candidate_digest": "fbd7fa5cd7695fbda3cd44d6052a66419e46395644eabfaf65a0dabc0dabc8c4",
+        "case_id": "q2",
+        "critical_pass": true,
+        "evaluation": {
+         "kind": "score",
+         "outcome": "completed",
+         "owner": null,
+         "reason": null
+        },
+        "execution": {
+         "kind": "score",
+         "outcome": "completed",
+         "owner": null,
+         "reason": null
+        },
+        "execution_state": "finished",
+        "metrics": {
+         "fixture_auxiliary": 0.0
+        },
+        "sample_id": "01",
+        "scoring_state": "finished",
+        "tries": 1
+       }
+      ],
+      "tries": 2
+     }
+    ],
+    "operation": "campaign",
+    "owner_run": true,
+    "producing_version": "2.0.0b6",
+    "unavailable_measurements": []
+   },
+   "reason": null,
+   "starts": [
+    {
+     "start": 1,
+     "scope_id": "b04abfb9bd33425b90e6b4ee50cf8ead",
+     "owner_generation": "7ca5ca2d4d98409099aca8732ea5d696",
+     "target_ref": {
+      "schema": "lab-target-ref/1",
+      "id": "da9b71b762844afda6ec013b66507a9d",
+      "owner_generation": "7ca5ca2d4d98409099aca8732ea5d696"
+     },
+     "process": {
+      "launched": true,
+      "exit_code": 1,
+      "cleanup_complete": true,
+      "forced": false
+     },
+     "target_cleanup": {
+      "state": "confirmed",
+      "complete": true
+     },
+     "failure": null,
+     "settlement": "positive",
+     "refusal": null
+    }
+   ],
+   "usage": [
+    {
+     "measurement_id": "m-r00-champion",
+     "usage": {
+      "input_tokens": 24,
+      "output_tokens": 108,
+      "unknown_calls": 0,
+      "coverage": "target_calls_only"
+     },
+     "usage_state": "present"
+    }
+   ]
+  }
+ },
+ "/v1/operations/aeb59299c98d40878b96911d12424b36/campaign": {
+  "status": 200,
+  "body": {
+   "schema": "lab-campaign-view/7",
+   "operation_id": "aeb59299c98d40878b96911d12424b36",
+   "family": 14,
+   "gate_mode": "observe",
+   "caveats": [
+    {
+     "kind": "observe_gate_not_enforced",
+     "round": null,
+     "attempt_id": null
+    },
+    {
+     "kind": "uncalibrated_point_estimates",
+     "round": null,
+     "attempt_id": null
+    },
+    {
+     "kind": "champion_not_contemporaneous",
+     "round": null,
+     "attempt_id": null
+    }
+   ],
+   "roles": {
+    "editor": {
+     "kind": "subprocess"
+    },
+    "reflector": {
+     "kind": "subprocess"
+    },
+    "grouper": {
+     "kind": "fields"
+    }
+   },
+   "settings": {
+    "stability": "stable",
+    "round_stop": "first_accepted",
+    "baseline_refresh": {
+     "count": 0,
+     "every_rounds": 3,
+     "performed": []
+    }
+   },
+   "connection": {
+    "state": "compatible",
+    "outcome": "compatible",
+    "attempts": 1,
+    "binding_digest": "a30a2ef06311ed238daeb043a11bc4428e54983326c4a603e8afb8a4f02df417",
+    "operation_id": "8d0a7c706f2c43b794ede4e44504ae4d",
+    "detail": null
+   },
+   "policy": {
+    "rounds": 2,
+    "attempts_per_round": 1,
+    "metric_primary": "score"
+   },
+   "progress": {
+    "kind": "campaign",
+    "phase": "suspended",
+    "stages": [
+     "baseline"
+    ],
+    "rounds": {
+     "completed": 0,
+     "current": 1,
+     "planned": 2
+    },
+    "attempts": {
+     "current_round": {
+      "closed": 0,
+      "running": 0,
+      "planned": 1
+     },
+     "total": 0
+    },
+    "coverage": null,
+    "policy_state": "present",
+    "observed_at": "2026-10-17T17:56:18.167240Z"
+   },
+   "outcome": null,
+   "champions": [
+    {
+     "version": "v0",
+     "digest": "fbd7fa5cd7695fbda3cd44d6052a66419e46395644eabfaf65a0dabc0dabc8c4",
+     "origin": "initial",
+     "attempt_id": null,
+     "measurement_id": "m-r00-champion"
+    }
+   ],
+   "champions_state": "present",
+   "rounds": [
+    {
+     "round": 1,
+     "outcome": null,
+     "baseline_measurement_id": "m-r00-champion",
+     "baseline_version": "v0",
+     "reflection": {
+      "state": "absent",
+      "reflection_id": null,
+      "error_class": null,
+      "reason": null,
+      "hypotheses": []
+     },
+     "attempts": [],
+     "final": []
+    }
+   ],
+   "measurements": [
+    {
+     "measurement_id": "m-r00-champion",
+     "role": "baseline",
+     "round": 1,
+     "attempt_id": null,
+     "candidate_digest": "fbd7fa5cd7695fbda3cd44d6052a66419e46395644eabfaf65a0dabc0dabc8c4",
+     "coverage": {
+      "expected": 2,
+      "scored": 2,
+      "excluded_pairs": 0
+     },
+     "metrics": {
+      "fixture_auxiliary": {
+       "mean": 0.0,
+       "count": 1
+      },
+      "score": {
+       "mean": 0.0,
+       "count": 1
+      }
+     },
+     "baseline": null,
+     "times": {
+      "started_at": "2026-10-17T17:56:17.693871Z",
+      "last_event_at": "2026-10-17T17:56:18.158894Z"
+     },
+     "usage": {
+      "input_tokens": 24,
+      "output_tokens": 108,
+      "unknown_calls": 0,
+      "coverage": "target_calls_only"
+     },
+     "usage_state": "present",
+     "retries": 0,
+     "call_failures_by_code": {},
+     "classification": "born",
+     "repairs": {
+      "tries": 0,
+      "pairs_scored": 0
+     }
+    }
+   ],
+   "suspensions": [
+    {
+     "evidence_kind": "fault_rows",
+     "owner": "scorer",
+     "reason": "scorer_metric_missing",
+     "seq": 9
+    }
+   ],
+   "details_state": "present",
+   "details_reason": null,
+   "details_source": "core_raw",
+   "lab_notices": []
+  }
+ },
+ "/v1/operations/aeb59299c98d40878b96911d12424b36/suspensions": {
+  "status": 200,
+  "body": {
+   "schema": "lab-suspension-evidence/1",
+   "operation_id": "aeb59299c98d40878b96911d12424b36",
+   "state": "available",
+   "source": "core_raw",
+   "reason": null,
+   "suspensions": [
+    {
+     "seq": 9,
+     "reason": "scorer_metric_missing",
+     "owner": "scorer",
+     "evidence_kind": "fault_rows",
+     "evidence": {
+      "count": 1,
+      "rows_digest": "0d73e73dddc86353e5f5b4447d3138a653c0402e114bccb358bc1123f65aa144",
+      "truncated": false
+     },
+     "rows": [
+      {
+       "case_id": "q2",
+       "code": null,
+       "measurement_id": "m-r00-champion",
+       "reason": "scorer_metric_missing",
+       "retry_ordinal": 0,
+       "sample_id": "01"
+      }
+     ]
+    }
+   ]
+  }
+ },
+ "/v1/operations/aeb59299c98d40878b96911d12424b36/measurements": {
+  "status": 200,
+  "body": {
+   "schema": "lab-measurement-list/2",
+   "operation_id": "aeb59299c98d40878b96911d12424b36",
+   "measurements": [
+    {
+     "measurement_id": "m-r00-champion",
+     "role": "baseline",
+     "round": 1,
+     "attempt_id": null,
+     "candidate_digest": "fbd7fa5cd7695fbda3cd44d6052a66419e46395644eabfaf65a0dabc0dabc8c4",
+     "coverage": {
+      "expected": 2,
+      "scored": 2,
+      "excluded_pairs": 0
+     },
+     "metrics": {
+      "fixture_auxiliary": {
+       "mean": 0.0,
+       "count": 1
+      },
+      "score": {
+       "mean": 0.0,
+       "count": 1
+      }
+     },
+     "baseline": null,
+     "times": {
+      "started_at": "2026-10-17T17:56:17.693871Z",
+      "last_event_at": "2026-10-17T17:56:18.158894Z"
+     },
+     "usage": {
+      "input_tokens": 24,
+      "output_tokens": 108,
+      "unknown_calls": 0,
+      "coverage": "target_calls_only"
+     },
+     "usage_state": "present",
+     "retries": 0,
+     "call_failures_by_code": {},
+     "classification": "born",
+     "repairs": {
+      "tries": 0,
+      "pairs_scored": 0
+     }
+    }
+   ]
+  }
+ },
+ "/v1/operations/aeb59299c98d40878b96911d12424b36/measurements/m-r00-champion": {
+  "status": 200,
+  "body": {
+   "schema": "lab-measurement/2",
+   "operation_id": "aeb59299c98d40878b96911d12424b36",
+   "measurement": {
+    "measurement_id": "m-r00-champion",
+    "role": "baseline",
+    "round": 1,
+    "attempt_id": null,
+    "candidate_digest": "fbd7fa5cd7695fbda3cd44d6052a66419e46395644eabfaf65a0dabc0dabc8c4",
+    "coverage": {
+     "expected": 2,
+     "scored": 2,
+     "excluded_pairs": 0
+    },
+    "metrics": {
+     "fixture_auxiliary": {
+      "mean": 0.0,
+      "count": 1
+     },
+     "score": {
+      "mean": 0.0,
+      "count": 1
+     }
+    },
+    "baseline": null,
+    "times": {
+     "started_at": "2026-10-17T17:56:17.693871Z",
+     "last_event_at": "2026-10-17T17:56:18.158894Z"
+    },
+    "usage": {
+     "input_tokens": 24,
+     "output_tokens": 108,
+     "unknown_calls": 0,
+     "coverage": "target_calls_only"
+    },
+    "usage_state": "present",
+    "retries": 0,
+    "call_failures_by_code": {},
+    "classification": "born",
+    "repairs": {
+     "tries": 0,
+     "pairs_scored": 0
+    },
+    "samples": [
+     {
+      "case_id": "q1",
+      "sample_id": "01",
+      "execution_state": "finished",
+      "scoring_state": "finished",
+      "metrics": {
+       "score": 0.0
+      },
+      "critical_pass": true,
+      "tries": 1,
+      "baseline": null,
+      "comparison": "unknown"
+     },
+     {
+      "case_id": "q2",
+      "sample_id": "01",
+      "execution_state": "finished",
+      "scoring_state": "finished",
+      "metrics": {
+       "fixture_auxiliary": 0.0
+      },
+      "critical_pass": true,
+      "tries": 1,
+      "baseline": null,
+      "comparison": "unknown"
+     }
+    ]
+   }
+  }
+ },
+ "/v1/operations/aeb59299c98d40878b96911d12424b36/diff": {
+  "status": 200,
+  "body": {
+   "schema": "lab-operation-diff/2",
+   "operation_id": "aeb59299c98d40878b96911d12424b36",
+   "from": "initial",
+   "to": "champion:v0",
+   "source_digest": "fbd7fa5cd7695fbda3cd44d6052a66419e46395644eabfaf65a0dabc0dabc8c4",
+   "selected_digest": "fbd7fa5cd7695fbda3cd44d6052a66419e46395644eabfaf65a0dabc0dabc8c4",
+   "state": "no_change",
+   "text": "",
+   "nontext_changes": []
+  }
+ }
+}

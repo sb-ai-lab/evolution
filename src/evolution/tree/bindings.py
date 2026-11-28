@@ -18,11 +18,11 @@ from evolution.prompts import (
     TREE_AGENT_REFLECTOR_SYSTEM_V3,
     TREE_AGENT_REFLECTOR_SYSTEM_V4,
     TREE_EDITOR_SYSTEM,
-    TREE_EDITOR_SYSTEM_V3,
+    TREE_EDITOR_SYSTEM_V4,
     TREE_REFLECTOR_SYSTEM,
     TREE_REFLECTOR_SYSTEM_V3,
     TREE_REFLECTOR_SYSTEM_V4,
-    TREE_REFLECTOR_SYSTEM_V6,
+    TREE_REFLECTOR_SYSTEM_V8,
 )
 from evolution.tree.execution.command_binding import CommandBinding
 from evolution.tree.execution.config import CommandSection, EnvironmentSection
@@ -510,7 +510,7 @@ def build_editor(
             section=section,
             credentials=ChatCredentials(api_key=api_key, proxy_url=proxy_url),
             prompt=_sealed_prompt(
-                section.system_prompt, TREE_EDITOR_SYSTEM_V3 if family15 else TREE_EDITOR_SYSTEM
+                section.system_prompt, TREE_EDITOR_SYSTEM_V4 if family15 else TREE_EDITOR_SYSTEM
             ),
             log_root=log_root,
             secrets=tuple(secrets),
@@ -846,12 +846,12 @@ def build_reflector(
 
     `result_repair` (`/16`, #318, ADR-0048) builds a `chat` Reflector that
     checks each `finish_reflection` in its own conversation and selects the
-    `_V4` packaged prompt that states that contract; the other kinds ignore it.
+    packaged prompt that states that contract; the other kinds ignore it.
     """
 
     role = section.role
     chat_prompt = (
-        TREE_REFLECTOR_SYSTEM_V6
+        TREE_REFLECTOR_SYSTEM_V8
         if family15 and result_repair
         else TREE_REFLECTOR_SYSTEM_V4
         if result_repair

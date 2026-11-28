@@ -1,0 +1,305 @@
+{
+ "actions": [],
+ "alpha": null,
+ "campaign_outcome": {
+  "champion_path": "artifacts/champions/v0",
+  "continuation": {
+   "kind": "linked_run",
+   "reason": "rounds_exhausted"
+  },
+  "outcome": "completed",
+  "reason": "rounds_exhausted"
+ },
+ "caveats": [
+  {
+   "attempt_id": null,
+   "kind": "champion_not_contemporaneous",
+   "round": null
+  }
+ ],
+ "claim_scope": "campaign",
+ "complete": true,
+ "condition_changes": [],
+ "connection": {
+  "attempts": 1,
+  "binding_digest": "4493cda679860f83008e0ccc3aed098a1575316275a7b935beaa1d3c6d477b16",
+  "detail": null,
+  "operation_id": "014e7397f77f40a49dd45dd62b907146",
+  "outcome": "compatible",
+  "state": "compatible"
+ },
+ "consistency": "durable",
+ "corpus_split": {
+  "mode": "implicit_train",
+  "partition_digest": "5ee837c26a0470d6db285ccdc0ce2876a9a02d5ec0e20055dd4f4597c6c039db",
+  "scope": "train",
+  "test_cases": 0,
+  "train_cases": 2
+ },
+ "family_version": 15,
+ "final_champion": {
+  "baseline_origin": "seed",
+  "digest": "fbd7fa5cd7695fbda3cd44d6052a66419e46395644eabfaf65a0dabc0dabc8c4",
+  "measurement_complete": true,
+  "measurement_id": "m-r00-champion",
+  "version": "v0"
+ },
+ "identity_digest": "1b6566b0f4d929cc88676128d436f81a220f181d69d44746af763d94a744000c",
+ "independent": {
+  "attempts": [],
+  "committed_work": {
+   "connection_preflight": {
+    "imported_slots": 0,
+    "scenario_slots": 1,
+    "scorer_executions": 1,
+    "target_turns": 1,
+    "transport_retries": 0
+   },
+   "interpretation": "journaled_work_not_tokens_currency_or_provider_call_estimates",
+   "measurement": {
+    "imported_slots": 0,
+    "scenario_slots": 2,
+    "scorer_executions": 2,
+    "target_turns": 2,
+    "transport_retries": 0
+   },
+   "reflector_probe_requests": 0,
+   "role_requests": 2
+  },
+  "diagnostics": [],
+  "evidence": "authenticated_publications",
+  "local_guidance": null,
+  "next_action": "finished",
+  "planned_work": {
+   "admitted_baseline_imports": 0,
+   "affected_cases": null,
+   "baseline_slots": 2,
+   "basis": "full_initial_baseline_and_conditional_future_stage_scenarios",
+   "candidate_final_slots_if_gate_passes": null,
+   "champion_scope": "reached_finalist",
+   "champion_slots_per_scope": 0,
+   "connection_preflight": "separate_no_measurement_credit",
+   "noise_diagnostic_slots": 0,
+   "parent_gate_slots": 0,
+   "probes_and_retries": "separate",
+   "slots_per_refresh": 2
+  },
+  "preflight": [],
+  "probe_availability": [
+   {
+    "health": "unavailable",
+    "mediator": "failed",
+    "round": 1,
+    "transport_failures": 0,
+    "unreachable": 0
+   }
+  ],
+  "remaining_work": {
+   "baseline_slots": 0,
+   "basis": "conditional_same_bound_conditions_complete_scoring_without_retries",
+   "candidate_final_slots_if_gates_pass": 0,
+   "candidate_gate_slots": 0,
+   "champion_slots_for_reached_finalists": 0,
+   "noise_diagnostic_slots": 0,
+   "parent_gate_slots": 0,
+   "probes_and_retries": "separate",
+   "refresh_scenario_slots": 0,
+   "remaining_refreshes": 0,
+   "scope": "current_baseline_and_opened_attempts_only"
+  },
+  "settings": {
+   "allowance": {
+    "denominator": "1",
+    "format": "rational-hex/1",
+    "numerator": "0"
+   },
+   "allowance_source": null,
+   "allowance_source_kind": "assumed_negligible",
+   "execution_noise": "negligible",
+   "fresh_parent": false,
+   "global_rule": "point",
+   "method": null,
+   "mode": "point",
+   "repeats": 1,
+   "stability": "stable",
+   "train_cases": 2,
+   "train_slots": 2,
+   "unit": null,
+   "verification": "reuse"
+  }
+ },
+ "indeterminate": {
+  "counts": {
+   "environment": 0,
+   "rollout": 0,
+   "scorer": 0,
+   "target": 0
+  },
+  "denominator": 2,
+  "lineage": null,
+  "threshold_reached": null,
+  "window": {
+   "counts": {
+    "environment": 0,
+    "rollout": 0,
+    "scorer": 0,
+    "target": 0
+   },
+   "denominator": 2,
+   "start": null
+  }
+ },
+ "kind": "campaign_status",
+ "lineage": {
+  "candidates": [],
+  "champion": "v0",
+  "champions": [
+   "v0"
+  ],
+  "stopped_code": null,
+  "store_state": "active"
+ },
+ "linked_from": null,
+ "measurements": [
+  {
+   "call_failures_by_code": {},
+   "call_retries": 0,
+   "candidate_digest": "fbd7fa5cd7695fbda3cd44d6052a66419e46395644eabfaf65a0dabc0dabc8c4",
+   "classification": "born",
+   "condition_epoch": 0,
+   "excluded_pairs": null,
+   "imported": 0,
+   "locator": "measurements/m-r00-champion/events.jsonl",
+   "measurement_id": "m-r00-champion",
+   "repair_tries": 0,
+   "repairs_scored": 0,
+   "status": {
+    "candidate_digest": "fbd7fa5cd7695fbda3cd44d6052a66419e46395644eabfaf65a0dabc0dabc8c4",
+    "complete": true,
+    "consistency": "observed",
+    "diagnostics": [],
+    "journal_integrity": "complete",
+    "kind": "status",
+    "last_sequence": 41,
+    "lower_bound": false,
+    "owned_instances": [],
+    "prefix_digest": "86d2d369a9817a745c5caf322faaa3b7462dd10dd5641b612d209ea68c098634",
+    "recovery_actions": [],
+    "references": [
+     {
+      "content_digest": "86d2d369a9817a745c5caf322faaa3b7462dd10dd5641b612d209ea68c098634",
+      "kind": "journal_record",
+      "locator": "events.jsonl#bytes=0:19370",
+      "run_id": "m-r00-champion",
+      "version": 1
+     }
+    ],
+    "run_id": "m-r00-champion",
+    "run_identity_digest": "2c32d475b891a82d3b2fcf390b0b9abb25ec2a612b4364183b53b607567c0cf1",
+    "samples": [
+     {
+      "candidate_digest": "fbd7fa5cd7695fbda3cd44d6052a66419e46395644eabfaf65a0dabc0dabc8c4",
+      "case_id": "c1",
+      "critical_pass": true,
+      "evaluation": {
+       "kind": "score",
+       "outcome": "completed",
+       "owner": null,
+       "reason": null
+      },
+      "execution": {
+       "kind": "score",
+       "outcome": "completed",
+       "owner": null,
+       "reason": null
+      },
+      "execution_state": "finished",
+      "metrics": {
+       "score": 0.0
+      },
+      "sample_id": "01",
+      "scoring_state": "finished",
+      "tries": 1
+     },
+     {
+      "candidate_digest": "fbd7fa5cd7695fbda3cd44d6052a66419e46395644eabfaf65a0dabc0dabc8c4",
+      "case_id": "c2",
+      "critical_pass": true,
+      "evaluation": {
+       "kind": "score",
+       "outcome": "completed",
+       "owner": null,
+       "reason": null
+      },
+      "execution": {
+       "kind": "score",
+       "outcome": "completed",
+       "owner": null,
+       "reason": null
+      },
+      "execution_state": "finished",
+      "metrics": {
+       "score": 1.0
+      },
+      "sample_id": "01",
+      "scoring_state": "finished",
+      "tries": 1
+     }
+    ],
+    "schema_version": 1,
+    "valid_bytes": 19370
+   },
+   "tries": 2
+  }
+ ],
+ "rebases": [],
+ "resilience": {
+  "attempts_saved": 0,
+  "continuation_turns": 0,
+  "rounds_skipped": 0
+ },
+ "roles": {
+  "editor": {
+   "kind": "subprocess"
+  },
+  "grouper": {
+   "kind": "fields"
+  },
+  "reflector": {
+   "kind": "subprocess"
+  }
+ },
+ "rounds": [
+  {
+   "attempts": [],
+   "baseline_complete": true,
+   "baseline_measurement_id": "m-r00-champion",
+   "champion_complete": false,
+   "final": [],
+   "gate_scope": null,
+   "outcome": "unplanned",
+   "reason": "reflection_declined",
+   "round": 1,
+   "visitation": null
+  }
+ ],
+ "run_id": "c-run",
+ "schema_version": 1,
+ "settings": {
+  "baseline_refresh": "off",
+  "round_stop": "first_accepted",
+  "stability": "stable"
+ },
+ "siblings": {
+  "artifact_store": "born",
+  "m-r00-champion": "born"
+ },
+ "suspended": false,
+ "suspensions": [],
+ "verification": {
+  "checked": 6,
+  "corpus": "journaled",
+  "mismatches": [],
+  "preconditions_checked": 6
+ }
+}

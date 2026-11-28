@@ -1,0 +1,19 @@
+independent · point · 2 train cases × 1 repeats · reuse verification
+noise · assumed_negligible · allowance 0 (approx) · None / None
+initial baseline scenario: 2 scenario slots · 0 admitted imports · preflight/probes/retries separate
+conditional Champion: 0 slots per reached_finalist · noise extra measurements: 0
+committed measurement · 8 scenario slots · 8 Target turns · 0 transport retries · 8 Scorer executions · 4 role requests · 2 imports
+separate committed preflight · 1 scenario slots · 1 Target turns · 1 Scorer executions
+conditional remaining · baseline 0 · Candidate gate 0 · Parent gate 0 · Candidate final if gates pass 0 · Champion 0 scenario slots
+r01-a01 · causal not_measured · 2 slots not owed after focus rejection
+r01-a01 · comparison_not_passed · deciding focus · fresh
+focus · point 0.25 (approx) · threshold 0.5 (approx) · 1 cases / 1 units
+causal · point unavailable · threshold 0 (approx) · 1 cases / 1 units
+noise · assumed_negligible · allowance 0 (approx) · Candidate repeat variance not_requested (score squared)
+coverage · 1/1 Candidate slots · 0 reference exclusions · None / None · None
+selection_bias_possible · focus_selection
+r01-a02 · passed · deciding global · stored_non_contemporaneous
+global · point 0.5 (approx) · threshold 0 (approx) · 2 cases / 2 units
+noise · assumed_negligible · allowance 0 (approx) · Candidate repeat variance not_requested (score squared)
+coverage · 2/2 Candidate slots · 0 reference exclusions · None / None · reused_evidence
+selection_bias_possible · stored_reference, reuse, candidate_selection

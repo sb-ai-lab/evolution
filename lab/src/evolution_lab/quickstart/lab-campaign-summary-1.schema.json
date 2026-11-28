@@ -1,0 +1,473 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "lab-campaign-summary/1",
+  "title": "Project campaign readout",
+  "description": "Only campaign summary data; existing service and evaluation schemas are unchanged.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "exit_code",
+    "reason",
+    "run",
+    "pair",
+    "lab_version",
+    "core_version",
+    "state",
+    "environment",
+    "resolved",
+    "cleaned_leftovers",
+    "prepared",
+    "conformance",
+    "conformance_declared",
+    "campaign",
+    "final_target",
+    "blocker_count",
+    "error",
+    "next_command"
+  ],
+  "properties": {
+    "schema": {
+      "const": "lab-campaign-summary/1"
+    },
+    "baseline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "run", "operation_id", "reason", "imported", "to_measure", "not_imported",
+                   "fields", "authorization_id", "held_out_authorization_id"],
+      "properties": {
+        "source": {"enum": ["evaluation", "fresh", "linked"]},
+        "run": {"type": ["string", "null"], "pattern": "^[0-9]+$"},
+        "operation_id": {"type": ["string", "null"]},
+        "reason": {"enum": [null, "requested", "manifest_15", "no_scorer_traces", "no_evaluation"]},
+        "imported": {"type": ["integer", "null"], "minimum": 0},
+        "to_measure": {"type": ["integer", "null"], "minimum": 0},
+        "not_imported": {
+          "type": ["object", "null"],
+          "additionalProperties": false,
+          "required": ["not_scheduled", "seed_differs", "not_scored", "primary_missing", "out_of_range", "dependency_differs"],
+          "properties": {
+            "not_scheduled": {"type": "integer", "minimum": 0},
+            "seed_differs": {"type": "integer", "minimum": 0},
+            "not_scored": {"type": "integer", "minimum": 0},
+            "primary_missing": {"type": "integer", "minimum": 0},
+            "out_of_range": {"type": "integer", "minimum": 0},
+            "dependency_differs": {"type": "integer", "minimum": 0}
+          }
+        },
+        "fields": {"type": "array", "items": {"type": "string"}},
+        "authorization_id": {"type": ["string", "null"]},
+        "held_out_authorization_id": {"type": ["string", "null"]},
+        "used_saved_summary": {"type": "boolean"},
+        "abandoned": {"type": "boolean"}
+      }
+    },
+    "exit_code": {
+      "enum": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5
+      ]
+    },
+    "reason": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "run": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "pair": {
+      "type": "string"
+    },
+    "lab_version": {
+      "type": "string"
+    },
+    "core_version": {
+      "type": "string"
+    },
+    "state": {
+      "type": "string"
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "python",
+        "target_environment"
+      ],
+      "properties": {
+        "python": {
+          "type": "string"
+        },
+        "target_environment": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "resolved": {
+      "type": "object",
+      "required": [
+        "schema",
+        "pair",
+        "python",
+        "wheels",
+        "substituted",
+        "sources",
+        "explicit",
+        "lab_version",
+        "core_version"
+      ],
+      "properties": {
+        "schema": {
+          "const": "lab-campaign-resolved/1"
+        },
+        "pair": {
+          "description": "Optional. The version pair, as in state-<pair>.",
+          "$ref": "#/$defs/nullable_string"
+        },
+        "python": {
+          "description": "Optional. The interpreter the target and the scorer ran in.",
+          "$ref": "#/$defs/nullable_string"
+        },
+        "wheels": {
+          "description": "Optional. The wheels the environments were described from.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "sha256"
+            ],
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            }
+          }
+        },
+        "substituted": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "sources": {
+          "description": "Optional. For each substituted field, where its value came from: computed by Lab, or paired:<file>:<field> when Lab copied the explicit value of the paired field.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^(computed|paired:.+)$"
+          }
+        },
+        "explicit": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "lab_version": {
+          "type": "string"
+        },
+        "core_version": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "cleaned_leftovers": {
+      "type": "array",
+      "items": {
+        "type": "integer",
+        "minimum": 1
+      }
+    },
+    "prepared": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "digest",
+        "bundle"
+      ],
+      "properties": {
+        "kind": {
+          "const": "campaign"
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "bundle": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "conformance": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "failure",
+        "core_ok",
+        "failed_checks",
+        "target_state",
+        "cleanup_complete",
+        "target_cleanup_complete",
+        "persistence_state"
+      ],
+      "properties": {
+        "state": {
+          "type": "string"
+        },
+        "failure": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "core_ok": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "failed_checks": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "target_state": {
+          "type": "string"
+        },
+        "cleanup_complete": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "target_cleanup_complete": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "persistence_state": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "conformance_declared": {
+      "type": "boolean"
+    },
+    "campaign": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "required": [
+        "operation_id",
+        "control_state",
+        "outcome",
+        "reason",
+        "final_champion",
+        "promoted",
+        "refusal",
+        "failure",
+        "process_exit",
+        "cleanup_complete",
+        "persistence_state",
+        "report_state",
+        "diff_state",
+        "suspended",
+        "suspension_reason"
+      ],
+      "properties": {
+        "operation_id": {
+          "type": "string"
+        },
+        "control_state": {
+          "type": "string"
+        },
+        "outcome": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "final_champion": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "promoted": {
+          "type": "boolean"
+        },
+        "refusal": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "required": [
+            "code",
+            "path",
+            "class",
+            "instance_digest"
+          ],
+          "properties": {
+            "code": {
+              "type": "string"
+            },
+            "path": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "class": {
+              "enum": [
+                "hard",
+                "authorizable"
+              ]
+            },
+            "instance_digest": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        },
+        "failure": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "process_exit": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "cleanup_complete": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "persistence_state": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "report_state": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "diff_state": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "suspended": {
+          "type": "boolean"
+        },
+        "suspension_reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "final_target": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "complete"
+      ],
+      "properties": {
+        "state": {
+          "type": "string"
+        },
+        "complete": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
+    "blocker_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "error": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "message"
+      ],
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        }
+      }
+    },
+    "next_command": {
+      "type": "string"
+    }
+  },
+  "$defs": {
+    "nullable_string": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  }
+}

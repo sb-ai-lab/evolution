@@ -1,0 +1,60 @@
+{"format":"scorer_trace_pack/1","hsha":"f52a666626cd7018336eab11c4faf072667f1a5bdf083ce1da56d1b76ea9f17f","kind":"pack","pack_id":"m-r01-a01-parent","segment":0}
+
+{"format":"scorer_trace_pack/1","hsha":"f88642f82b85efaad5d0359681c53d4d6c07be7a860531cb0763f37ab14c065a","kind":"request","score_request_id":"33194a642aef43939872a117127e6b4d","sections":[["request",1407,"4f078a6abde51b08ab3da1169b9ae14c8ed4eb1b70baea37893ef09dbd254d08"]]}
+{
+  "scorer": "1dde3d7ae0c595355b215455d57b37bdf16aff5250aaf8651fc96fb5810c5ec1",
+  "trace_id": "33194a642aef43939872a117127e6b4d",
+  "input": {
+    "case_id": "c1",
+    "public": {
+      "text": "c1"
+    },
+    "oracle": {
+      "critical": true
+    },
+    "view": {
+      "history": {
+        "turns": [
+          {
+            "index": 0,
+            "message": {
+              "content": "c1",
+              "fields": {
+                "text": "c1"
+              }
+            },
+            "events": [
+              {
+                "content": "Reference skill: answer with this line. | c1",
+                "type": "assistant_message"
+              }
+            ],
+            "usage": {
+              "prompt": 2,
+              "completion": 44,
+              "cached": 0,
+              "total": 46
+            },
+            "latency_ms": 0,
+            "outcome": "ok",
+            "reason": null
+          }
+        ]
+      },
+      "terminal": "completed",
+      "target": {
+        "contract_digest": "reference-contract-1",
+        "dependency_digest": "a9a8c97dbddc86ed4c2848eabe833785d3002e1eea4d3d419374f91daecb9fce",
+        "settings_hash": "reference-settings-1",
+        "seed_mode": "exact",
+        "protocol_version": "2",
+        "runtime_ref_digest": "reference-runtime-1"
+      }
+    }
+  },
+  "input_sha256": "6b538d3820230d362f0a886a06ba467df3381657257f8ef7f59a42a615b9885a"
+}
+
+{"format":"scorer_trace_pack/1","hsha":"e3537e4de308acc551f75c7a57759d9379ab16c902e6670a1361c2f133b91a6c","kind":"output","returncode":0,"score_request_id":"33194a642aef43939872a117127e6b4d","sections":[["stdout",109,"dc6d5129eea9be21af82365814b3628e7ff6d0cb408048257010d99d2f2f35b8"],["stderr",0,"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"]],"status":"completed"}
+{"metrics": {"score": 0.0}, "critical_pass": true, "verdicts": [{"criterion": "answered", "passed": false}]}
+

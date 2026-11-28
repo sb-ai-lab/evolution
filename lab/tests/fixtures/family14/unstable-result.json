@@ -1,0 +1,415 @@
+{
+ "alpha": null,
+ "campaign_outcome": {
+  "champion_path": "artifacts/champions/v1",
+  "continuation": {
+   "kind": "linked_run",
+   "reason": "rounds_exhausted"
+  },
+  "outcome": "completed",
+  "reason": "rounds_exhausted"
+ },
+ "caveats": [
+  {
+   "attempt_id": null,
+   "kind": "observe_gate_not_enforced",
+   "round": null
+  },
+  {
+   "attempt_id": null,
+   "kind": "uncalibrated_point_estimates",
+   "round": null
+  },
+  {
+   "attempt_id": "r01-a01",
+   "kind": "observe_gate_not_enforced",
+   "round": 1
+  },
+  {
+   "attempt_id": "r01-a01",
+   "kind": "uncalibrated_point_estimates",
+   "round": 1
+  }
+ ],
+ "claim_scope": "campaign",
+ "complete": true,
+ "condition_changes": [],
+ "connection": {
+  "attempts": 1,
+  "binding_digest": "ffa9861f0fad4fcae68d812d7f22640eec702b1589288eb043a7d2be0b6e28cc",
+  "detail": null,
+  "operation_id": "403be72488334647beed47e9e61935d0",
+  "outcome": "compatible",
+  "state": "compatible"
+ },
+ "consistency": "durable",
+ "corpus_split": {
+  "mode": "implicit_train",
+  "partition_digest": "7b790d091190b5271f203b39ec9119cbb055f74f372f76ce8f32797d800769d4",
+  "scope": "train",
+  "test_cases": 0,
+  "train_cases": 2
+ },
+ "final_champion": {
+  "baseline_origin": "promoted_attempt",
+  "digest": "03d1b9c4095e94609c8613313abb6695448d1e36767280f0a7e1362d520cd2dc",
+  "measurement_complete": true,
+  "measurement_id": "m-r03-refresh",
+  "version": "v1"
+ },
+ "identity_digest": "4b8586e13f58822e2d273fceca54578e521f4c706db75ea6892e119560015a81",
+ "indeterminate": {
+  "counts": {
+   "environment": 0,
+   "rollout": 0,
+   "scorer": 0,
+   "target": 0
+  },
+  "denominator": 12,
+  "lineage": null,
+  "threshold_reached": null,
+  "window": {
+   "counts": {
+    "environment": 0,
+    "rollout": 0,
+    "scorer": 0,
+    "target": 0
+   },
+   "denominator": 12,
+   "start": null
+  }
+ },
+ "initial_champion": {
+  "digest": "fbd7fa5cd7695fbda3cd44d6052a66419e46395644eabfaf65a0dabc0dabc8c4",
+  "measurement_id": "m-r00-champion",
+  "version": "v0"
+ },
+ "kind": "campaign_result",
+ "linked_from": null,
+ "measurements": [
+  {
+   "call_failures_by_code": {},
+   "call_retries": 0,
+   "candidate_digest": "fbd7fa5cd7695fbda3cd44d6052a66419e46395644eabfaf65a0dabc0dabc8c4",
+   "condition_epoch": 0,
+   "excluded_pairs": null,
+   "imported": 0,
+   "locator": "measurements/m-r00-champion/events.jsonl",
+   "measurement_id": "m-r00-champion",
+   "repair_tries": 0,
+   "repairs_scored": 0,
+   "tries": 2
+  },
+  {
+   "call_failures_by_code": {},
+   "call_retries": 0,
+   "candidate_digest": "03d1b9c4095e94609c8613313abb6695448d1e36767280f0a7e1362d520cd2dc",
+   "condition_epoch": 0,
+   "excluded_pairs": null,
+   "imported": 0,
+   "locator": "measurements/m-r01-a01/events.jsonl",
+   "measurement_id": "m-r01-a01",
+   "repair_tries": 0,
+   "repairs_scored": 0,
+   "tries": 2
+  },
+  {
+   "call_failures_by_code": {},
+   "call_retries": 0,
+   "candidate_digest": "fbd7fa5cd7695fbda3cd44d6052a66419e46395644eabfaf65a0dabc0dabc8c4",
+   "condition_epoch": 0,
+   "excluded_pairs": null,
+   "imported": 0,
+   "locator": "measurements/m-r01-a01-parent/events.jsonl",
+   "measurement_id": "m-r01-a01-parent",
+   "repair_tries": 0,
+   "repairs_scored": 0,
+   "tries": 2
+  },
+  {
+   "call_failures_by_code": {},
+   "call_retries": 0,
+   "candidate_digest": "03d1b9c4095e94609c8613313abb6695448d1e36767280f0a7e1362d520cd2dc",
+   "condition_epoch": 0,
+   "excluded_pairs": null,
+   "imported": 0,
+   "locator": "measurements/m-r01-final-01-a01/events.jsonl",
+   "measurement_id": "m-r01-final-01-a01",
+   "repair_tries": 0,
+   "repairs_scored": 0,
+   "tries": 2
+  },
+  {
+   "call_failures_by_code": {},
+   "call_retries": 0,
+   "candidate_digest": "fbd7fa5cd7695fbda3cd44d6052a66419e46395644eabfaf65a0dabc0dabc8c4",
+   "condition_epoch": 0,
+   "excluded_pairs": null,
+   "imported": 0,
+   "locator": "measurements/m-r01-final-01-champion/events.jsonl",
+   "measurement_id": "m-r01-final-01-champion",
+   "repair_tries": 0,
+   "repairs_scored": 0,
+   "tries": 2
+  },
+  {
+   "call_failures_by_code": {},
+   "call_retries": 0,
+   "candidate_digest": "03d1b9c4095e94609c8613313abb6695448d1e36767280f0a7e1362d520cd2dc",
+   "condition_epoch": 0,
+   "excluded_pairs": null,
+   "imported": 0,
+   "locator": "measurements/m-r03-refresh/events.jsonl",
+   "measurement_id": "m-r03-refresh",
+   "repair_tries": 0,
+   "repairs_scored": 0,
+   "tries": 2
+  }
+ ],
+ "rebases": [],
+ "resilience": {
+  "attempts_saved": 0,
+  "continuation_turns": 0,
+  "rounds_skipped": 0
+ },
+ "roles": {
+  "editor": {
+   "kind": "subprocess"
+  },
+  "grouper": {
+   "kind": "fields"
+  },
+  "reflector": {
+   "kind": "subprocess"
+  }
+ },
+ "rounds": [
+  {
+   "attempts": [
+    {
+     "affected": {
+      "alpha_statement": null,
+      "fallback_reason": null,
+      "fresh_parent": true,
+      "layer_one": 2,
+      "layer_two": 0,
+      "mode": "path",
+      "source": "reported"
+     },
+     "alpha_total": null,
+     "artifact_locator": "artifacts/candidates/r01-a01",
+     "attempt_id": "r01-a01",
+     "confidence": {
+      "calibration": null,
+      "causal_cases": 0,
+      "confidence": null,
+      "evaluated": [
+       {
+        "causal": null,
+        "caveats": [
+         "observe_gate_not_enforced",
+         "uncalibrated_point_estimates"
+        ],
+        "comparison": 23,
+        "decision": "finalist",
+        "final": true,
+        "focus": {
+         "exact": null,
+         "level": null,
+         "lower": null,
+         "point": 1.0,
+         "unavailable": "not_requested_in_observe_mode",
+         "upper": null
+        },
+        "look": 1,
+        "overall": {
+         "level": null,
+         "lower": null,
+         "point": 1.0,
+         "unavailable": "not_requested_in_observe_mode",
+         "upper": null
+        },
+        "reason": "observe_finalist",
+        "tolerance": {
+         "source": "measured_noise",
+         "value": null
+        },
+        "would_pass_point": true
+       }
+      ],
+      "focus_cases": 2,
+      "looks": [
+       1
+      ],
+      "margin": 0.0,
+      "method": {
+       "draws": 20000,
+       "noise_level": 0.995,
+       "quantile": "linear",
+       "version": "f13-bootstrap/1"
+      },
+      "mode": "observe",
+      "parent_measurement_id": "m-r01-a01-parent",
+      "parent_source": "fresh_parent",
+      "repeats": 1,
+      "retained": {
+       "causal": 0,
+       "focus": 2
+      },
+      "tolerance": {
+       "kind": "measured_noise"
+      }
+     },
+     "continued": false,
+     "index": 1,
+     "look": 1,
+     "looks": [
+      {
+       "baseline_excluded": 0,
+       "look": 1
+      }
+     ],
+     "measurement_id": "m-r01-a01",
+     "outcome": "finalist",
+     "reason": "observe_finalist"
+    }
+   ],
+   "baseline_complete": true,
+   "baseline_measurement_id": "m-r00-champion",
+   "champion_complete": false,
+   "final": [
+    {
+     "champion_side": "fresh",
+     "condition_changed_in_place": false,
+     "contrasts": [
+      {
+       "accepted": true,
+       "attempt_id": "r01-a01",
+       "condition_changed_in_place": false,
+       "exact": null,
+       "level": null,
+       "lower": null,
+       "pairing": "exact",
+       "point": 1.0,
+       "reason": "global_off",
+       "removed_cases": 0,
+       "removed_pairs": 0,
+       "unavailable": "bound_not_requested_in_observe_mode"
+      }
+     ],
+     "global": "off",
+     "listed": [],
+     "members": [
+      {
+       "attempt_id": null,
+       "complete": true,
+       "critical": false,
+       "measurement_id": "m-r01-final-01-champion",
+       "missing": 0,
+       "point": 0.0,
+       "role": "champion"
+      },
+      {
+       "attempt_id": "r01-a01",
+       "complete": true,
+       "critical": false,
+       "measurement_id": "m-r01-final-01-a01",
+       "missing": 0,
+       "point": 1.0,
+       "role": "finalist"
+      }
+     ],
+     "mode": "observe",
+     "next_baseline_measurement_id": "m-r01-final-01-a01",
+     "ordinal": 1,
+     "selection": {
+      "attempt_id": "r01-a01",
+      "measurement_id": "m-r01-final-01-a01",
+      "reason": "finalist_selected"
+     },
+     "stability": "unstable",
+     "stored_measurement_id": null
+    }
+   ],
+   "gate_scope": {
+    "cases": [
+     "q1",
+     "q2"
+    ],
+    "claimed_cases": [
+     "q1",
+     "q2"
+    ],
+    "selected_cases": [
+     "q1",
+     "q2"
+    ],
+    "source": "claim",
+    "unevaluable_cases": []
+   },
+   "outcome": "promoted",
+   "reason": null,
+   "round": 1,
+   "visitation": null
+  },
+  {
+   "attempts": [],
+   "baseline_complete": true,
+   "baseline_measurement_id": "m-r01-final-01-a01",
+   "champion_complete": false,
+   "final": [],
+   "gate_scope": null,
+   "outcome": "clean",
+   "reason": null,
+   "round": 2,
+   "visitation": null
+  },
+  {
+   "attempts": [],
+   "baseline_complete": true,
+   "baseline_measurement_id": "m-r03-refresh",
+   "champion_complete": false,
+   "final": [],
+   "gate_scope": null,
+   "outcome": "clean",
+   "reason": null,
+   "round": 3,
+   "visitation": null
+  }
+ ],
+ "run_id": "c-run-1",
+ "schema_version": 1,
+ "selection": [
+  {
+   "attempt_id": "r01-a01",
+   "outcome": "promoted",
+   "ranking": [
+    {
+     "accepted": true,
+     "attempt_id": "r01-a01",
+     "reason": "global_off",
+     "score": 1.0
+    }
+   ],
+   "round": 1
+  }
+ ],
+ "settings": {
+  "baseline_refresh": {
+   "count": 1,
+   "every_rounds": 1,
+   "performed": [
+    {
+     "completed": true,
+     "measurement_id": "m-r03-refresh",
+     "replaced_measurement_id": "m-r01-final-01-a01",
+     "round": 3
+    }
+   ]
+  },
+  "round_stop": "first_accepted",
+  "stability": "unstable"
+ },
+ "suspended": false,
+ "suspensions": []
+}

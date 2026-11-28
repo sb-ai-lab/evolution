@@ -1156,7 +1156,7 @@ def test_process_logs_root_rejects_unsafe_types(tmp_path: Path, kind: str) -> No
 
 @pytest.mark.parametrize("family15", [False, True])
 @pytest.mark.parametrize("declared", [False, True])
-def test_b17_chat_prompt_selection_keeps_declared_and_v15_bytes(tmp_path, family15, declared):
+def test_chat_prompt_selection_keeps_declared_and_v15_bytes(tmp_path, family15, declared):
     from evolution import prompts
 
     prompt = tmp_path / "custom.md"
@@ -1178,14 +1178,13 @@ def test_b17_chat_prompt_selection_keeps_declared_and_v15_bytes(tmp_path, family
     assert editor.prompt.text() == (
         "custom prompt\n"
         if declared
-        # b18: tree_editor_v3.md (ADR-0061)
-        else getattr(prompts, "TREE_EDITOR_SYSTEM_V3" if family15 else "TREE_EDITOR_SYSTEM")
+        else getattr(prompts, "TREE_EDITOR_SYSTEM_V4" if family15 else "TREE_EDITOR_SYSTEM")
     )
     assert reflector.prompt.text() == (
         "custom prompt\n"
         if declared
         else getattr(
-            prompts, "TREE_REFLECTOR_SYSTEM_V6" if family15 else "TREE_REFLECTOR_SYSTEM_V3"
+            prompts, "TREE_REFLECTOR_SYSTEM_V8" if family15 else "TREE_REFLECTOR_SYSTEM_V3"
         )
     )
 
@@ -1224,12 +1223,12 @@ def _b18_chat_editor(tmp_path: Path, *, family15: bool, system_prompt: Path | No
     )
 
 
-def test_v16_chat_editor_default_prompt_is_v3(tmp_path):
+def test_v16_chat_editor_default_prompt_is_v4(tmp_path):
     from evolution import prompts
 
     editor = _b18_chat_editor(tmp_path, family15=True)
-    assert editor.prompt.text() == prompts.TREE_EDITOR_SYSTEM_V3
-    assert editor.prompt.text() != prompts.TREE_EDITOR_SYSTEM_V2
+    assert editor.prompt.text() == prompts.TREE_EDITOR_SYSTEM_V4
+    assert editor.prompt.text() != prompts.TREE_EDITOR_SYSTEM_V3
 
 
 def test_v15_chat_editor_default_prompt_unchanged(tmp_path):

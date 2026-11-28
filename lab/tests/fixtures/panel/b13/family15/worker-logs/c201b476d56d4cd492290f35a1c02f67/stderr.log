@@ -1,0 +1,40 @@
+evo tree evolve: note: Corpus split: train (2 cases); held-out test (0 cases); mode implicit_train.
+evo tree evolve: note: Corpus partition_mode: implicit_train.
+evo tree evolve: note: Corpus split train: 2 cases, 1 groups.
+evo tree evolve: note: Corpus split train, stratum "s": 2 cases, 1 groups.
+evo tree evolve: note: Corpus split test: 0 cases, 0 groups.
+evo tree evolve: note: Corpus split test, stratum "s": 0 cases, 0 groups.
+evo tree evolve: note: Corpus split coverage: stratum "s" is absent from test.
+evo tree evolve: note: independent · confidence · 2 train cases × 1 repeats · reuse verification
+evo tree evolve: note: noise · assumed_negligible · allowance 0 (approx) · bounded-weighted-mean/1 / case
+evo tree evolve: note: initial baseline scenario: 2 scenario slots · 0 admitted imports · preflight/probes/retries separate
+evo tree evolve: note: conditional Champion: 0 slots per reached_finalist · noise extra measurements: 0
+evo tree evolve: note: conditional equal-weight local guidance: 1 units · not an admission or power claim
+evo tree evolve: note: independent · confidence · 2 train cases × 1 repeats · reuse verification
+evo tree evolve: note: noise · assumed_negligible · allowance 0 (approx) · bounded-weighted-mean/1 / case
+evo tree evolve: note: initial baseline scenario: 2 scenario slots · 0 admitted imports · preflight/probes/retries separate
+evo tree evolve: note: conditional Champion: 0 slots per reached_finalist · noise extra measurements: 0
+evo tree evolve: note: conditional equal-weight local guidance: 1 units · not an admission or power claim
+evo tree evolve: note: global preflight · not_ruled_out · stored_reference · score-range ceiling, not a power prediction
+evo tree evolve: note: global · threshold 0 (approx) · maximal point 1 (approx) · 2 units
+evo tree evolve: note: conditional remaining refreshes: 0 · 0 scenario slots
+evo tree evolve: note: independent · confidence · 2 train cases × 1 repeats · reuse verification
+evo tree evolve: note: noise · assumed_negligible · allowance 0 (approx) · bounded-weighted-mean/1 / case
+evo tree evolve: note: initial baseline scenario: 2 scenario slots · 0 admitted imports · preflight/probes/retries separate
+evo tree evolve: note: conditional Champion: 0 slots per reached_finalist · noise extra measurements: 0
+evo tree evolve: note: conditional equal-weight local guidance: 1 units · not an admission or power claim
+evo tree evolve: note: independent · confidence · 2 train cases × 1 repeats · reuse verification
+evo tree evolve: note: noise · assumed_negligible · allowance 0 (approx) · bounded-weighted-mean/1 / case
+evo tree evolve: note: initial baseline scenario: 2 scenario slots · 0 admitted imports · preflight/probes/retries separate
+evo tree evolve: note: conditional Champion: 0 slots per reached_finalist · noise extra measurements: 0
+evo tree evolve: note: conditional equal-weight local guidance: 1 units · not an admission or power claim
+evo tree evolve: note: local preflight · not_ruled_out · stored_reference · score-range ceiling, not a power prediction
+evo tree evolve: note: focus · delta threshold -0.9 (approx) · maximal confidence 0.995296 (approx) · requested confidence 0.1 (approx) · 2 units
+evo tree evolve: note: independent · confidence · 2 train cases × 1 repeats · reuse verification
+evo tree evolve: note: noise · assumed_negligible · allowance 0 (approx) · bounded-weighted-mean/1 / case
+evo tree evolve: note: initial baseline scenario: 2 scenario slots · 0 admitted imports · preflight/probes/retries separate
+evo tree evolve: note: conditional Champion: 0 slots per reached_finalist · noise extra measurements: 0
+evo tree evolve: note: conditional equal-weight local guidance: 1 units · not an admission or power claim
+evo tree evolve: note: global preflight · impossible · stored_reference · score-range ceiling, not a power prediction
+evo tree evolve: note: global · threshold 0 (approx) · maximal point 0 (approx) · 2 units
+evo tree evolve: note: conditional remaining refreshes: 0 · 0 scenario slots

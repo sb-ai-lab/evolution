@@ -1,0 +1,42 @@
+{
+  "schema": "lab-owner-target/1",
+  "id": "target-reference",
+  "owner_generation": "owner-reference",
+  "launch_digest": "2d4622eed3f135ddf2712d78199b19092569a56e17bcef9dfb86cd5080affd9e",
+  "bundle_digest": "6aa6e0add3fcda30411670c3aabf95109f4a9394ae5c4ca244ac0f63dcc44491",
+  "state": "ready",
+  "base_url": "http://127.0.0.1:12345",
+  "boot_id": "boot-reference",
+  "health": {
+    "allowed_artifact_root": "<scratch>/state/artifacts",
+    "boot_id": "boot-reference",
+    "capabilities": {
+      "attests": [
+        "loaded_candidate_digest",
+        "dependency_digest"
+      ],
+      "instantiable": true,
+      "materialization": [
+        "artifact_root_injection"
+      ],
+      "max_concurrent_sessions": 1,
+      "max_input_bytes": 2000000,
+      "max_instances": 4,
+      "max_output_bytes": 4096
+    },
+    "contract_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "instances": [],
+    "policy_digest": "384604dcc63fb6815da879606f2a66f7d310a285cafcb79e6e68feb711985937",
+    "protocol_version": "2",
+    "ready": true,
+    "runtime_ref_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "seed_mode": "exact",
+    "settings_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "target_id": "neutral-target"
+  },
+  "cleanup": {
+    "state": "pending",
+    "complete": null
+  },
+  "failure": null
+}

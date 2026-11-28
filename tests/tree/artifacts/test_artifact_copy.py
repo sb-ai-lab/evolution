@@ -517,3 +517,6 @@ def test_copy_file_range_short_result_continues_at_the_right_offset(tmp_path, mo
     assert [offset for _, offset in calls][:3] == [0, 1000, 2000]
     assert len(calls) == 6
     assert target.read_bytes() == source.read_bytes()
+
+
+pytestmark = pytest.mark.usefixtures("strict_durability")

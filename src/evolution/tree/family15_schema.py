@@ -153,10 +153,20 @@ def _campaign_ref(value: Any) -> AuxiliarySourceReference:
     return ref
 
 
-def _prefix(value: Any, measurement_id: str) -> _durable_reference.DurableReference:
+def _prefix(
+    value: Any, measurement_id: str, *, standalone: bool = False
+) -> _durable_reference.DurableReference:
     ref = _durable_reference.DurableReference.from_payload(value)
     _need(
-        ref.kind == "journal_prefix" and journal_prefix_measurement(ref.locator) == measurement_id,
+        ref.kind == "journal_prefix"
+        and (
+            journal_prefix_measurement(ref.locator) == measurement_id
+            or (
+                standalone
+                and ref.run_id == measurement_id
+                and ref.locator.split("#bytes=", 1)[0] == "events.jsonl"
+            )
+        ),
         "prefix must name this measurement",
     )
     # The older reference parser tolerates decimal leading zeros; the new wire does not.
@@ -165,12 +175,12 @@ def _prefix(value: Any, measurement_id: str) -> _durable_reference.DurableRefere
     return ref
 
 
-def _source(value: Any) -> dict[str, Any]:
+def _source(value: Any, *, standalone: bool = False) -> dict[str, Any]:
     p = _object(value, "measurement_id identity_digest candidate_digest prefix")
     _identifier(p["measurement_id"])
     _sha(p["identity_digest"])
     _sha(p["candidate_digest"])
-    _prefix(p["prefix"], p["measurement_id"])
+    _prefix(p["prefix"], p["measurement_id"], standalone=standalone)
     return p
 
 
@@ -1139,7 +1149,7 @@ def _diagnostic_import(p: dict[str, Any]) -> None:
     prefixes = _list(p["source_prefixes"])
     seen: set[tuple[str, str]] = set()
     for source in prefixes:
-        _source(source)
+        _source(source, standalone=True)
         key = (source["prefix"]["run_id"], source["measurement_id"])
         _need(key not in seen)
         seen.add(key)
@@ -1274,6 +1284,7 @@ def _validate_shadow_entry(value: Any) -> None:
     _need(isinstance(entry["code"], str) and entry["code"] in CODES[entry["check"]])
     _integer(entry["count"], 1)
     if "leak" in entry:
+        _need(entry["check"] != "repeated_read_without_progress")
         _validate_leak(entry["leak"])
 
 
@@ -1680,6 +1691,7 @@ FAMILY15_CONTRACT: Final = EnvelopeFamily(
     validate_family15_payload,
     SUSPENDABLE_NO_OPERATION_EVENTS | frozenset({"campaign_created", *_EVENT_FIELDS}),
     FINAL_CAMPAIGN_FAMILY.is_start,
+    pure=True,
 )
 
 
@@ -1696,7 +1708,9 @@ class Family15Record:
 
     def __post_init__(self) -> None:
         raw = self.envelope.to_payload()
-        Envelope.from_payload(raw, family=FAMILY15_CONTRACT)
+        # The same admission again would decide the same bytes the same way.
+        if not self.envelope.validated_under(FAMILY15_CONTRACT):
+            Envelope.from_payload(raw, family=FAMILY15_CONTRACT)
         _need(self.reference.kind == "journal_record")
         _need(raw["run_id"] == self.reference.run_id)
         encoded = self.envelope.encode()

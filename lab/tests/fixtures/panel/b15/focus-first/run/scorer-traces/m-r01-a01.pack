@@ -1,0 +1,60 @@
+{"format":"scorer_trace_pack/1","hsha":"23381d90bcf08509748239d06d024248741583e30610081c566bef01f9879c30","kind":"pack","pack_id":"m-r01-a01","segment":0}
+
+{"format":"scorer_trace_pack/1","hsha":"d9c96f01491973b9c16015c892124d323db81ecaac78b914dadca160a311dff8","kind":"request","score_request_id":"67fc2bd36b4c4aa2b3189d3c2c7d16a2","sections":[["request",1382,"e503a6c94795b79fb3f0d69c0cddd73c6e1f97beba63acc41f98e33055415b0c"]]}
+{
+  "scorer": "433e885d0703731e7bc09470cc5d2237dd810ba485c3b3d0f97c26e33d94e64e",
+  "trace_id": "67fc2bd36b4c4aa2b3189d3c2c7d16a2",
+  "input": {
+    "case_id": "c1",
+    "public": {
+      "text": "c1"
+    },
+    "oracle": {
+      "critical": true
+    },
+    "view": {
+      "history": {
+        "turns": [
+          {
+            "index": 0,
+            "message": {
+              "content": "c1",
+              "fields": {
+                "text": "c1"
+              }
+            },
+            "events": [
+              {
+                "content": "edited r01-a01 | c1",
+                "type": "assistant_message"
+              }
+            ],
+            "usage": {
+              "prompt": 2,
+              "completion": 19,
+              "cached": 0,
+              "total": 21
+            },
+            "latency_ms": 0,
+            "outcome": "ok",
+            "reason": null
+          }
+        ]
+      },
+      "terminal": "completed",
+      "target": {
+        "contract_digest": "reference-contract-1",
+        "dependency_digest": "a9a8c97dbddc86ed4c2848eabe833785d3002e1eea4d3d419374f91daecb9fce",
+        "settings_hash": "reference-settings-1",
+        "seed_mode": "exact",
+        "protocol_version": "2",
+        "runtime_ref_digest": "reference-runtime-1"
+      }
+    }
+  },
+  "input_sha256": "5af46ba8f5fcd12cebf7576b5432f4c9739862e885acc708a46286dbc12b98f1"
+}
+
+{"format":"scorer_trace_pack/1","hsha":"5435a18479f3c2985309d283f037edad7b4e2a7d4aa72103bb66689c0cc19c96","kind":"output","returncode":0,"score_request_id":"67fc2bd36b4c4aa2b3189d3c2c7d16a2","sections":[["stdout",110,"1b1a36251cdbfbd52abfab0bc8d59ad02cf9abdc64d76bef455a3b8f35546614"],["stderr",0,"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"]],"status":"completed"}
+{"metrics": {"score": 0.25}, "critical_pass": true, "verdicts": [{"criterion": "answered", "passed": false}]}
+

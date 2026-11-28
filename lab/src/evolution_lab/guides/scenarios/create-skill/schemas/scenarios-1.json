@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "scenarios"
+  ],
+  "properties": {
+    "schema": {
+      "const": "create-skill-scenarios/1"
+    },
+    "scenarios": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "title",
+          "summary",
+          "decision",
+          "examples",
+          "tools"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/$defs/id"
+          },
+          "title": {
+            "$ref": "#/$defs/text"
+          },
+          "summary": {
+            "$ref": "#/$defs/text"
+          },
+          "decision": {
+            "enum": [
+              "include",
+              "exclude",
+              "undecided"
+            ]
+          },
+          "examples": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "id",
+                "question",
+                "expected"
+              ],
+              "properties": {
+                "id": {
+                  "$ref": "#/$defs/id"
+                },
+                "question": {
+                  "$ref": "#/$defs/text"
+                },
+                "expected": {
+                  "$ref": "#/$defs/text"
+                }
+              }
+            },
+            "minItems": 1
+          },
+          "tools": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/id"
+            }
+          }
+        }
+      },
+      "minItems": 1
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+    },
+    "relpath": {
+      "type": "string",
+      "pattern": "^(?!/)(?!\\.$)(?!(?:.*/)?\\.\\.(?:/|$)).+$"
+    },
+    "text": {
+      "type": "string",
+      "minLength": 1
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    }
+  }
+}

@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Final, Literal, TypeAlias, cast
 from urllib.parse import quote, urlsplit
 
-from evolution.lineage.state_io import ensure_private_directory
+from evolution.lineage.state_io import ensure_private_directory, sync_file
 from evolution.tree.execution.private_files import open_private_file
 from evolution.tree.storage.redaction import safe_record
 from evolution.tree.target.config import ProbeSection, _normalized_loopback, _validate_probe_path
@@ -348,7 +348,7 @@ def write_probe_diagnostic(path: Path, document: Mapping[str, object]) -> None:
     with os.fdopen(descriptor, "wb") as stream:
         stream.write(_json_bytes(dict(document)) + b"\n")
         stream.flush()
-        os.fsync(stream.fileno())
+        sync_file(stream.fileno())
 
 
 def _encoded_target(path: str) -> str:

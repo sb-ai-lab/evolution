@@ -377,8 +377,7 @@ def test_v16_chat_identities_carry_role_contracts_marker(role):
         "kind": "chat",
         "section": section_payload(section),
         "system_prompt_sha256": "a" * 64,
-        # b18: role_contracts/2 (ADR-0061)
-        "role_contracts": "role_contracts/2",
+        "role_contracts": "role_contracts/4",
     }
     if role == "editor":
         assert seals.CHAT_TOOL_SCHEMA_V16 == "chat_tools/3"
@@ -420,7 +419,7 @@ def test_v16_agent_editor_identity_keeps_chat_tools_2():
 
 
 @pytest.mark.parametrize("declared", [False, True])
-def test_v16_role_contracts_2_changes_editor_and_reflector_digests(monkeypatch, declared):
+def test_read_progress_changes_both_v16_chat_role_digests(monkeypatch, declared):
     from evolution.tree.roles import seals
 
     section = make_chat_section()
@@ -436,9 +435,9 @@ def test_v16_role_contracts_2_changes_editor_and_reflector_digests(monkeypatch, 
             chat_reflector_identity(section, prompt, family15=True).digest,
         )
 
-    assert seals.ROLE_CONTRACTS_V16 == "role_contracts/2"
+    assert seals.ROLE_CONTRACTS_V16 == "role_contracts/4"
     now = digests()
-    monkeypatch.setattr(seals, "ROLE_CONTRACTS_V16", "role_contracts/1")
+    monkeypatch.setattr(seals, "ROLE_CONTRACTS_V16", "role_contracts/3")
     before = digests()
     assert now[0] != before[0]
     assert now[1] != before[1]
@@ -477,20 +476,18 @@ def _bound_agent(tmp_path: Path, *, family15: bool, system_prompt: Path | None =
     )
 
 
-def test_v16_chat_editor_identity_binds_v3_digest(tmp_path: Path) -> None:
-    # b18: tree_editor_v3.md (ADR-0061)
+def test_v16_chat_editor_identity_binds_v4_digest(tmp_path: Path) -> None:
     editor = _bound_chat(tmp_path, family15=True)
-    sha = _packaged_sha("tree_editor_v3")
+    sha = _packaged_sha("tree_editor_v4")
     assert editor.prompt.sha256 == sha
     assert editor.identity == chat_identity(
         editor.section, FileSeal(None, sha, packaged_text="x"), family15=True
     )
-    # Not the V2 text it replaced as the `/16` default.
     assert (
         editor.identity.digest
         != chat_identity(
             editor.section,
-            FileSeal(None, _packaged_sha("tree_editor_v2"), packaged_text="x"),
+            FileSeal(None, _packaged_sha("tree_editor_v3"), packaged_text="x"),
             family15=True,
         ).digest
     )

@@ -3142,3 +3142,80 @@ def test_family14_recreated_file_is_still_refused(tmp_path: Path) -> None:
     assert stat.S_IMODE(target.stat().st_mode) == 0o644
     with pytest.raises(ActorViolation, match="mode changed"):
         _admit_one(projection)
+
+
+async def test_v16_file_receipt_is_bound_to_the_whole_candidate_file(tmp_path: Path) -> None:
+    from dataclasses import replace
+
+    from tests.test_tree_chat_role_retry import RETRY
+
+    workspace = _ws(tmp_path)
+    file = workspace / "skills/SKILL.md"
+    file.write_text("first\nold\n")
+    args = {"path": "skills/SKILL.md", "start_line": 1, "end_line": 1}
+    client = _CapturingClient(
+        [
+            _response("list_files"),
+            _response("read_file", json.dumps(args)),
+            _response("read_file", json.dumps(args)),
+            _response("read_file", json.dumps({**args, "reread": True})),
+            _plan("skills/SKILL.md"),
+            _response(
+                "write_file", json.dumps({"path": "skills/SKILL.md", "content": "first\nnew\n"})
+            ),
+            _response("read_file", json.dumps(args)),
+            _response("finish_edit", '{"summary":"done"}'),
+        ]
+    )
+    editor, _ = _editor(tmp_path, client=client, retry=RETRY)
+    editor = replace(editor, family15=True, role_resilience=True)
+    result = await editor.edit(_request(workspace))
+
+    assert result.status == "edited", result.note
+    reads = [
+        row["result"]
+        for row in _log_lines(editor)
+        if row.get("tool") == "read_file" and row["phase"] == "tool_call"
+    ]
+    first, receipt, quote, changed = reads
+    assert receipt["status"] == "already_read" and "content" not in receipt
+    assert first["content"] == quote["content"] == changed["content"] == "first\n"
+    assert first["sha256"] != changed["sha256"]
+
+
+async def test_v16_editor_can_quote_a_page_then_continue_at_the_first_unread_offset(tmp_path):
+    from dataclasses import replace
+
+    from tests.test_tree_chat_role_retry import RETRY
+
+    def read(**arguments):
+        return _response("read_evidence", json.dumps({"evidence_id": "summary", **arguments}))
+
+    editor, _ = _editor(
+        tmp_path,
+        [
+            _response("list_files"),
+            read(),
+            read(offset=0),
+            read(offset=0, reread=True),
+            read(reread=True),
+            _plan("skills/SKILL.md"),
+            _response("write_file", '{"path":"skills/SKILL.md","content":"edited"}'),
+            _response("finish_edit", '{"summary":"done"}'),
+        ],
+        retry=RETRY,
+    )
+    editor = replace(editor, family15=True, role_resilience=True)
+    brief = _brief(cases=700)
+    result = await editor.edit(_request(_ws(tmp_path), brief=brief))
+
+    assert result.status == "edited", result.note
+    first, receipt, quote, second = [
+        row["result"]
+        for row in _log_lines(editor)
+        if row["phase"] == "tool_call" and row["tool"] == "read_evidence"
+    ]
+    assert receipt["status"] == "already_read" and "content" not in receipt
+    assert quote["content"] == first["content"]
+    assert second["offset"] == len(first["content"]) and second["next_offset"] is None
+    assert first["content"] + second["content"] == render_catalog(brief)[0].content

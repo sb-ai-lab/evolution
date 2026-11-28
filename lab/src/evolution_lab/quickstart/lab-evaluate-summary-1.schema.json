@@ -1,0 +1,204 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "lab-evaluate-summary/1",
+  "title": "lab evaluate: the facts one first measurement was checked against",
+  "description": "Written as runs/<NNN>/summary.json and printed by lab evaluate --json. Holds no secret value.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "exit_code", "reason", "run", "pair", "lab_version", "core_version", "state",
+               "environment", "resolved", "cleaned_leftovers", "prepared", "conformance", "evaluation",
+               "final_target", "samples", "blocker_count", "error"],
+  "$defs": {
+    "nullable_string": {"type": ["string", "null"]},
+    "cleanup": {
+      "type": ["object", "null"],
+      "required": ["state", "complete"],
+      "properties": {
+        "state": {"type": "string"},
+        "complete": {"type": ["boolean", "null"]}
+      }
+    },
+    "persistence": {
+      "type": ["object", "null"],
+      "required": ["state", "failure"],
+      "properties": {
+        "state": {"enum": ["not_attempted", "saved", "failed"]},
+        "failure": {"type": ["object", "null"]}
+      }
+    },
+    "process": {"type": ["object", "null"]},
+    "coverage": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["expected", "scored"],
+      "properties": {
+        "expected": {"type": "integer", "minimum": 0},
+        "scored": {"type": "integer", "minimum": 0}
+      }
+    }
+  },
+  "properties": {
+    "schema": {"const": "lab-evaluate-summary/1"},
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["recorded", "reported", "overflow", "not_reported", "notice"],
+      "properties": {
+        "recorded": {"type": "boolean"},
+        "reported": {"type": ["integer", "null"], "minimum": 0},
+        "overflow": {"type": ["integer", "null"], "minimum": 0},
+        "not_reported": {"type": ["integer", "null"], "minimum": 0},
+        "notice": {"enum": [null, "baseline_provenance_unknown", "provenance_not_recorded"]}
+      }
+    },
+    "exit_code": {"enum": [0, 1, 2, 3]},
+    "reason": {"$ref": "#/$defs/nullable_string"},
+    "run": {"type": "integer", "minimum": 1},
+    "pair": {"type": "string"},
+    "lab_version": {"type": "string"},
+    "core_version": {"type": "string"},
+    "state": {"type": "string"},
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["python", "target_environment"],
+      "properties": {
+        "python": {"type": "string"},
+        "target_environment": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "resolved": {
+      "type": ["object", "null"],
+      "required": ["schema", "substituted", "explicit"],
+      "properties": {
+        "schema": {"const": "lab-evaluate-resolved/1"},
+        "pair": {"description": "Optional. The version pair, as in state-<pair>.", "$ref": "#/$defs/nullable_string"},
+        "python": {"description": "Optional. The interpreter the target and the scorer ran in.", "$ref": "#/$defs/nullable_string"},
+        "wheels": {
+          "description": "Optional. The wheels the environments were described from.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "sha256"],
+            "properties": {
+              "path": {"type": "string"},
+              "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+            }
+          }
+        },
+        "substituted": {"type": "object", "additionalProperties": {"type": "string"}},
+        "sources": {
+          "description": "Optional. For each substituted field, where its value came from: computed by Lab, or paired:<file>:<field> when Lab copied the explicit value of the paired field.",
+          "type": "object",
+          "additionalProperties": {"type": "string", "pattern": "^(computed|paired:.+)$"}
+        },
+        "explicit": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "cleaned_leftovers": {"type": "array", "items": {"type": "integer", "minimum": 1}},
+    "conformance_declared": {
+      "description": "Optional. Whether launch.json declares conformance; null or absent when unknown.",
+      "type": ["boolean", "null"]
+    },
+    "prepared": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["kind", "case_count", "repeat_count", "min_coverage"],
+      "properties": {
+        "kind": {"const": "evaluation"},
+        "case_count": {"type": "integer", "minimum": 1},
+        "repeat_count": {"type": "integer", "minimum": 1},
+        "min_coverage": {"type": "number", "exclusiveMinimum": 0, "maximum": 1}
+      }
+    },
+    "conformance": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["state", "failure", "core_ok", "failed_checks", "process", "cleanup", "target_cleanup",
+                   "persistence", "target_state"],
+      "properties": {
+        "state": {"type": "string"},
+        "failure": {"$ref": "#/$defs/nullable_string"},
+        "core_ok": {"type": ["boolean", "null"]},
+        "failed_checks": {"type": "array", "items": {"type": "string"}},
+        "process": {"$ref": "#/$defs/process"},
+        "cleanup": {"$ref": "#/$defs/cleanup"},
+        "target_cleanup": {"$ref": "#/$defs/cleanup"},
+        "persistence": {"$ref": "#/$defs/persistence"},
+        "target_state": {"type": "string"}
+      }
+    },
+    "evaluation": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["operation_id", "control_state", "failure", "process", "coverage", "min_coverage",
+                   "stopped_reason", "target_cleanup", "persistence", "results_state", "report_state"],
+      "properties": {
+        "operation_id": {"type": "string"},
+        "control_state": {"type": "string"},
+        "failure": {"$ref": "#/$defs/nullable_string"},
+        "process": {"$ref": "#/$defs/process"},
+        "coverage": {"$ref": "#/$defs/coverage"},
+        "min_coverage": {"type": ["number", "null"]},
+        "stopped_reason": {"$ref": "#/$defs/nullable_string"},
+        "target_cleanup": {"$ref": "#/$defs/cleanup"},
+        "persistence": {"$ref": "#/$defs/persistence"},
+        "results_state": {"type": "string"},
+        "report_state": {"type": "string"}
+      }
+    },
+    "final_target": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["state", "cleanup"],
+      "properties": {
+        "state": {"type": "string"},
+        "cleanup": {"$ref": "#/$defs/cleanup"}
+      }
+    },
+    "samples": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["case_id", "sample_id", "score", "execution_state", "scoring_state"],
+        "properties": {
+          "case_id": {"type": "string"},
+          "sample_id": {"type": "string"},
+          "score": {"type": ["number", "null"]},
+          "execution_state": {"$ref": "#/$defs/nullable_string"},
+          "scoring_state": {"$ref": "#/$defs/nullable_string"},
+          "outcome": {
+            "description": "Optional. Why the sample was not scored, as the core says (scorer_failed, target_failed, ...); null when it was scored.",
+            "$ref": "#/$defs/nullable_string"
+          }
+        }
+      }
+    },
+    "quality": {
+      "description": "Optional. The primary metric over the scored samples; absent when no evaluation result was read.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["metric", "mean", "scored", "full_score_count"],
+      "properties": {
+        "metric": {"$ref": "#/$defs/nullable_string"},
+        "mean": {"type": ["number", "null"]},
+        "scored": {"type": "integer", "minimum": 0},
+        "full_score_count": {"type": ["integer", "null"], "minimum": 0}
+      }
+    },
+    "blocker_count": {"type": "integer", "minimum": 0},
+    "error": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["code", "message"],
+      "properties": {
+        "code": {"type": "string"},
+        "message": {"type": "string"},
+        "file": {"description": "Optional. The project file the error is about, when Lab can tell.", "$ref": "#/$defs/nullable_string"},
+        "field": {"description": "Optional. The field or line in that file.", "$ref": "#/$defs/nullable_string"}
+      }
+    }
+  }
+}

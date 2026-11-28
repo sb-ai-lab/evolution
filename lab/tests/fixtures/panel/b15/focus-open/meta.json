@@ -1,0 +1,65 @@
+{
+  "schema": "lab-offline-core-capture/1",
+  "scenario": "focus-open",
+  "captured_at": "2026-10-30T12:34:26.674865+00:00",
+  "core_version": "2.0.0b15",
+  "lab_version": "0.0.3.dev64",
+  "core_commit": "30ae438c7ca899f694c8dddb5e09f301e98cffc9",
+  "preliminary": false,
+  "producing_wheels": {
+    "lab": {
+      "file": "evolution_lab-0.0.3.dev64-py3-none-any.whl",
+      "sha256": "515ab10cf7cd845f6fa30f92ebaa282608f287b96d30d679d6ffc47b82aceb92"
+    },
+    "core": {
+      "file": "evo_skills-2.0.0b15-py3-none-any.whl",
+      "sha256": "56855139bdac1750c28d7ec837e28d5b0c005ad2745b856de9d93c4934ef5352"
+    }
+  },
+  "generators": [
+    {
+      "path": "tests/fixtures/panel/capture_b15.py",
+      "sha256": "a391d9d21fb96173950125d377f78d319df1f6a84511ee749ebfc70abd220b2a"
+    },
+    {
+      "path": "tests/scaffold_16.py",
+      "sha256": "8db8637c0645e11b79c107864be9892f1dfad2d290dba9db9db53697fb856246"
+    },
+    {
+      "path": "tests/dev62_default_outputs.py",
+      "sha256": "687ca0af536753ed72131ddbf3a244007102deba3f233247b4e9efdf85c9466f"
+    }
+  ],
+  "core_functions": [
+    "evolution.tree.evolve.evolve",
+    "evolution.tree.campaign.inspect_campaign"
+  ],
+  "fault_injections": [
+    "_Campaign._append_stage_opened (after original; scope=focus) raises GatePowerCut(BaseException)"
+  ],
+  "interruption": {
+    "hook": "_Campaign._append_stage_opened (after original; scope=focus)",
+    "reason": "Preserve the open focus stage before dispatch or focus_decided"
+  },
+  "executor": "Core ReferenceTarget over loopback HTTP; neutral subprocess roles",
+  "files_sha256": {
+    "campaign.json": "0d44dbc5d0ce395bec884f94c25b92e563814476df05e5434fde44bcc6522695",
+    "core-projection.json": "3eae0713b88335f66c61a808208d181a5088695cf7384e49521af1dd3beba630",
+    "core-report.txt": "5b9f1214bceb92f96bcad17884f14120cedd9ebbfc05008c5788413171234670",
+    "owner-report.json": "c3e6aba2118ee3ad1300379f91a96a178e858e33dde52d12234ef19320fe8d06",
+    "report.md": "35f1025c47b5008178556cb042dd9600e692b5f33e3f163a6b929529038cc3f2",
+    "result.json": "14e57702e8ee11e1d9a51f3bdf1f3e43f61aae47dd9acef8f4cdd90cd18243fb",
+    "run/artifacts/auxiliary/36d2c34c5dd450a44cdd43889d253b385fa6f16bf82ca3fb0d7c3b3164c3ffdd/payload.json": "36d2c34c5dd450a44cdd43889d253b385fa6f16bf82ca3fb0d7c3b3164c3ffdd",
+    "run/artifacts/candidates/r01-a01/skills/SKILL.md": "264d7fb8d11aab664e3ae36cdfa89cf8f4b3bd999d1888114f772d530067a132",
+    "run/artifacts/candidates/r01-a01/uv.lock": "fdae21c35ba8ab73bee88a075fdae386e692049307adaf0af670c8bced90d349",
+    "run/artifacts/champions/v0/skills/SKILL.md": "e4d9d46200d838b940d7bb19157a1253bd7fcdfbae54a9c134cc8f2e8c972f3b",
+    "run/artifacts/champions/v0/uv.lock": "fdae21c35ba8ab73bee88a075fdae386e692049307adaf0af670c8bced90d349",
+    "run/artifacts.jsonl": "8c930f328592e02020804ef39627c0e5029244f973a419537a7e9b1c27e82ec3",
+    "run/campaign.jsonl": "eeb56e557ed4a4539c5598d48ad26696e3920af37e95d1df3423a476db8e0084",
+    "run/connection/957f5abe8a51495d853d50c1b379c072/events.jsonl": "e024172ebcf304d9e8092d8078f23150e0a6488e0377cfc5345edaec9d9650bc",
+    "run/measurements/m-r00-champion/events.jsonl": "44311820dde4d9d67b5ad804ed3dcc5431ff37f285e9e6a0267608dcb667071b",
+    "run/measurements/m-r01-a01/events.jsonl": "1258d35a3d3238121d329cf330abb9053fc2db28407455f4696eb0e65ad17e4e",
+    "run/measurements/m-r01-a01-parent/events.jsonl": "0872b31828d994bb1aea795edbf706b212517cfd7556f782bb8ce647a426f51c",
+    "run/scorer-traces/m-r00-champion.pack": "3b1ee59881b5a870aaf18206c276fcc3c5663dbeba76a4164d6a09c1dc988223"
+  }
+}

@@ -5,6 +5,7 @@ from __future__ import annotations
 import contextlib
 import json
 import socket
+import sys
 import threading
 import time
 from dataclasses import dataclass
@@ -164,15 +165,23 @@ class ProbeHTTPServer(ThreadingHTTPServer):
 
 
 class RefusingOrigin:
-    """Reserve a loopback port without listening, so connect fails deterministically."""
+    """Reserve a loopback port without listening, so connect fails deterministically.
+
+    Linux refuses a connect to a bound port that is not listening. macOS drops
+    the SYN instead, so the connect waits for its timeout; there the port is
+    released after binding, and a closed loopback port is refused at once.
+    """
 
     def __init__(self) -> None:
         self.socket = socket.socket()
         self.socket.bind(("127.0.0.1", 0))
+        self.port = self.socket.getsockname()[1]
+        if sys.platform == "darwin":
+            self.socket.close()
 
     @property
     def base_url(self) -> str:
-        return f"http://127.0.0.1:{self.socket.getsockname()[1]}"
+        return f"http://127.0.0.1:{self.port}"
 
     def close(self) -> None:
         self.socket.close()

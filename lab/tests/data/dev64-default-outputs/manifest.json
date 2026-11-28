@@ -1,0 +1,74 @@
+{
+  "producing_release_commit": "256917dc9dd80e5b04db104e1a1eb2c83eacd405",
+  "producing_release_tag": "v0.0.3.dev64",
+  "lab_version": "0.0.3.dev64",
+  "core_version": "2.0.0b15",
+  "lab_wheel_sha256": "0fee7e52988d89dc8ae881923c6014f3440851954fa364345fd46957d1afcd9e",
+  "core_wheel_sha256": "56855139bdac1750c28d7ec837e28d5b0c005ad2745b856de9d93c4934ef5352",
+  "generator": {
+    "task0_algorithm_commit": "fc4b351bba6f160f3968d32471b503f9db90765c",
+    "original_task0_helper_sha256": "15bf799549e91e7565bbfd9da23be0912db35d595dab416c6336090716b64780",
+    "adaptation": "Task0 tests-root binding passed explicitly; every imported helper and runtime is released dev64."
+  },
+  "released_helpers_sha256": {
+    "dev62_default_outputs.py": "687ca0af536753ed72131ddbf3a244007102deba3f233247b4e9efdf85c9466f",
+    "dev63_default_outputs.py": "899e29f40a09eb2b2f2d243f24cb6276825e66f5119b57f90649d3906e4904da",
+    "dev63_default_panel.mjs": "57df1b89fbc1c091787b1bdc5fbd4444e4c2e1148c2dcec5af4b466f3b29ca79",
+    "test_owner_target.py": "9cece5b1ceb309dfd50c2f35bfd55f34daf581bb4258abcc040c5da2e0da6fc9",
+    "test_owner_cleanup.py": "bda31b484e439ec2c588ec24e0857af57f56dc49d846a210f910db9fba57699d",
+    "test_owner_binding.py": "e8926637118baf6af9d109ce5e026bb3a87327470f023371aa3f15d013ea3a0e",
+    "scaffold_16.py": "8db8637c0645e11b79c107864be9892f1dfad2d290dba9db9db53697fb856246",
+    "scaffold_15.py": "fc418331f727224339860436b0c9fcac28876eac409fedf04f0a1b55ebcbf7df"
+  },
+  "reader_runs": {
+    "task0": "tests/fixtures/panel/b14/agent-finished/run",
+    "focus-first": "tests/fixtures/panel/b15/focus-first/run"
+  },
+  "independent_verification": {
+    "byte_equal_reread_files": [
+      "task0/campaign.json",
+      "task0/owner-report.json",
+      "task0/report.md",
+      "task0/cli-campaign.txt",
+      "task0/panel-independent.json",
+      "task0/campaign.txt",
+      "task0/owner-report.txt",
+      "focus-first/campaign.json",
+      "focus-first/owner-report.json",
+      "focus-first/report.md",
+      "focus-first/cli-campaign.txt",
+      "focus-first/panel-independent.json",
+      "focus-first/campaign.txt",
+      "focus-first/owner-report.txt",
+      "task0/target.txt",
+      "task0/operation.txt",
+      "task0/live-owner-report.txt"
+    ],
+    "private_fixture_value_absent": true,
+    "installed_lab_members_match_wheel_and_release_source": 245,
+    "installed_core_members_match_wheel": 301
+  },
+  "files_sha256": {
+    "capture.py": "eaaffb793bec121581c664cd6cc7e570728a10f81fdf21d41b962eb0875c2611",
+    "focus-first/campaign.json": "9894c38f7c8e0667a88e85adbf49309c4c52d7a9c2fb212c1d09ad0208e3e992",
+    "focus-first/campaign.txt": "53e0a0031ab69ce9b85c12b8726b04c2222c810ae150f3101279fd71a6f1a8d6",
+    "focus-first/cli-campaign.txt": "53e0a0031ab69ce9b85c12b8726b04c2222c810ae150f3101279fd71a6f1a8d6",
+    "focus-first/owner-report.json": "aa1de9c3c051b67f93d2d82e5287f3c965e3663dee84cab0af1aa6803c0d988a",
+    "focus-first/owner-report.txt": "4195fa5cc55f2cfc0658b57d86d9de298fb9abf143dcac37f1e6ddde91bc922c",
+    "focus-first/panel-independent.json": "8ff579fd4fdf0ce16eba9b9f5b2e1235e0b693665717a188fcc8e271c59a879e",
+    "focus-first/report.md": "d251e2e40780311b4d3e4ebbeff8426a4d0117f22a31ecd0280abcc2ffc7d2d6",
+    "task0/campaign.json": "7dc6727c917af20a6bec8fca15f8f65ab9189846e58f66a70dff71e70d2c6f4e",
+    "task0/campaign.txt": "2306948ff4b8f8f307756492317bc33999c35e4294dc4e54ce83b71414eb74d3",
+    "task0/cli-campaign.txt": "2306948ff4b8f8f307756492317bc33999c35e4294dc4e54ce83b71414eb74d3",
+    "task0/live-owner-report.json": "1c73a8d5aafe686fcabfef1a9b66fe2f4f45f5a63898f6043509754e614dc1c6",
+    "task0/live-owner-report.txt": "2e641a93fa5199a396667437f79336ca0f745630e188cb39610d1cd1b8ca779d",
+    "task0/operation.json": "22827610ce1cba2ea4ed77a15aeee129561818ac4d0c9f88f81b56eb03d9608b",
+    "task0/operation.txt": "eac0b6692156e00ecc5ce6e873e18fe1e44f0458d78e6a51b1b117e7be92fce3",
+    "task0/owner-report.json": "6abf1cfaf095e51a97ffdefed4012fbd5eeb662c56c2125fb7cd1b2e65a91c65",
+    "task0/owner-report.txt": "78136079c3260d303fe0e1b7a19745b351b3972fdc190ea00bf371df54411177",
+    "task0/panel-independent.json": "6d280c49147939cadfbe54790de17af4d69aa97181d07d73dfc5c4d50009625e",
+    "task0/report.md": "148dc888f3661eb3c98c1b1fa63feb0fdaa4984c46c33072257d607ccf9d29c6",
+    "task0/target.json": "6c8d06e7bd927c43145ad64a27bdce7639a982800908530f321b801e74db1a89",
+    "task0/target.txt": "d0dd2e0e1ce29ed90aca7df74f17e42eda469c4a7c4b35e0e6477278e549ff10"
+  }
+}

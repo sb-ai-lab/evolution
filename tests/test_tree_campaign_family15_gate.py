@@ -751,6 +751,165 @@ async def test_completed_candidate_survives_real_parent_only_continue(tmp_path, 
     assert not verify_evidence(run)["mismatches"]
 
 
+async def test_fresh_pair_resumes_only_owed_slots_after_target_transport_cut(tmp_path, monkeypatch):
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+    from threading import Thread
+
+    from evolution.tree.campaign import inspect_campaign
+    from evolution.tree.campaign_projections import inspect_view
+    from evolution.tree.target.config import TargetBinding
+    from evolution.tree.target.http_adapter import HttpTransport
+    from tests.campaign_drivers import STRICT_TARGET
+    from tests.campaign_fakes import FakeAdapter
+
+    class BackingAgent(BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(204)
+            self.end_headers()
+
+        def log_message(self, *_):
+            pass
+
+    def start_agent():
+        server = ThreadingHTTPServer(("127.0.0.1", 0), BackingAgent)
+        thread = Thread(target=server.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True)
+        thread.start()
+        return server, thread
+
+    def stop_agent(server, thread):
+        server.shutdown()
+        thread.join()
+        server.server_close()
+
+    run = tmp_path / "run"
+    journal = run / "campaign.jsonl"
+
+    def sides():
+        binding = next(r["payload"] for r in _records(journal) if r["event"] == "comparison_bound")
+        return tuple(
+            run / "measurements" / binding[side]["measurement_id"] / "events.jsonl"
+            for side in ("candidate", "reference")
+        )
+
+    def slots(records, event):
+        return [
+            (r["payload"]["case_id"], r["payload"]["sample_id"], r["payload"]["retry_ordinal"])
+            for r in records
+            if r["event"] == event
+        ]
+
+    class UpstreamDependentTarget(FakeAdapter):
+        cut = False
+
+        def instance_for(self, candidate, instance_id, boot_id):
+            instance = super().instance_for(candidate, instance_id, boot_id)
+            send = instance.send
+
+            async def send_with_upstream(session, message, request_id):
+                if (
+                    session.case_id == "c2"
+                    and not self.cut
+                    and any(r["event"] == "focus_decided" for r in _records(journal))
+                ):
+                    for path in sides():
+                        assert slots(_records(path), "scoring_finished") == [("c1", "01", 0)]
+                    self.cut = True
+                    stop_agent(server, thread)
+                status, _, _ = await transport.request("GET", "/health")
+                assert status == 204
+                return await send(session, message, request_id)
+
+            instance.send = send_with_upstream
+            return instance
+
+    adapter = UpstreamDependentTarget()
+    options = dict(
+        adapter=adapter,
+        fresh=True,
+        gate_options={"stages": "focus_first"},
+        campaign_options={**STRICT_TARGET, "sample_retries": 0, "max_concurrency": 1},
+    )
+    server, thread = start_agent()
+    transport = HttpTransport(
+        TargetBinding(f"http://127.0.0.1:{server.server_port}", "exact", None, None)
+    )
+    try:
+        await gate_run(tmp_path, monkeypatch, stop="result", **options)
+    finally:
+        if not adapter.cut:
+            stop_agent(server, thread)
+    assert adapter.cut
+    campaign_prefix = journal.read_bytes()
+    records = _records(journal)
+    assert records[-1]["event"] == "campaign_suspended"
+    suspension = records[-1]["payload"]
+    assert (suspension["reason"], suspension["owner"]) == ("target_unstable", "target")
+    assert suspension["evidence"]["evidence_kind"] == "threshold"
+    assert not any(r["event"] in {"attempt_closed", "comparison_completed"} for r in records)
+    paused = inspect_campaign(run, verify=True).to_payload()
+    assert paused["suspended"] and not paused["complete"]
+    assert paused["actions"] == [
+        {"kind": "RunAttemptStage", "fields": {"attempt_id": "r01-a01", "stage": 2}}
+    ]
+    assert not paused["verification"]["mismatches"], paused["verification"]
+    report = paused["independent"]
+    assert report["suspension"] == {"reason": "target_unstable", "owner": "target"}
+    summary = report["round_progress"][0]
+    assert (
+        summary["attempts_opened"],
+        summary["candidates_sealed"],
+        summary["attempts_measured"],
+    ) == (1, 1, 1)
+    attempt = report["attempts"][0]
+    assert attempt["progress"]["measurement"] == "scored"
+    assert attempt["progress"]["parent_measurement"] == "scored"
+    assert attempt["outcome"] is None and attempt["comparison"] is None
+
+    prefixes = {path: path.read_bytes() for path in sides()}
+    assert inspect_view(run).repairs == {
+        path.parent.name: frozenset({("c2", "01")}) for path in prefixes
+    }
+    assert [
+        (
+            r["payload"]["measurement_id"],
+            r["payload"]["case_id"],
+            r["payload"]["sample_id"],
+            r["payload"]["owner"],
+        )
+        for r in records
+        if r["event"] == "indeterminate_observed"
+    ] == [(path.parent.name, "c2", "01", "target") for path in prefixes]
+    for path in prefixes:
+        events = _records(path)
+        assert slots(events, "scoring_finished") == [("c1", "01", 0)]
+        assert slots(events, "rollout_started") == [("c1", "01", 0), ("c2", "01", 0)]
+        assert [
+            r["payload"]["error_code"] for r in events if r["event"] == "target_send_failed"
+        ] == ["transport_error"]
+
+    server, thread = start_agent()
+    transport = HttpTransport(
+        TargetBinding(f"http://127.0.0.1:{server.server_port}", "exact", None, None)
+    )
+    try:
+        await gate_run(tmp_path, monkeypatch, **options)
+    finally:
+        stop_agent(server, thread)
+    assert journal.read_bytes().startswith(campaign_prefix)
+    for path, prefix in prefixes.items():
+        assert path.read_bytes().startswith(prefix)
+        events = _records(path)
+        suffix = events[len(prefix.splitlines()) :]
+        assert slots(suffix, "rollout_started") == [("c2", "01", 1)]
+        assert slots(suffix, "scoring_finished") == [("c2", "01", 1)]
+    after = _records(journal)
+    assert sum(r["event"] == "comparison_bound" for r in after) == 1
+    assert sum(r["event"] == "comparison_completed" for r in after) == 1
+    assert after[-1]["payload"]["outcome"] == "finalist"
+    verified = inspect_campaign(run, verify=True).to_payload()["verification"]
+    assert not verified["mismatches"], verified
+
+
 @pytest.mark.parametrize("tamper", ["threshold", "point", "variance"])
 async def test_audit_rederives_authenticated_gate_numbers(tmp_path, monkeypatch, tamper):
     import copy
@@ -1737,6 +1896,9 @@ async def test_rejected_focus_closes_before_authorized_change(
 async def test_rejected_focus_continue_preserves_other_parallel_attempt(
     tmp_path, monkeypatch, fresh
 ):
+    import asyncio
+
+    from evolution.tree.campaign import _Campaign
     from evolution.tree.campaign_projections import inspect_view, verify_evidence
     from evolution.tree.evolve import EvolveRefused
     from tests.campaign_drivers import TWO_CASE_SCORER, _continue, _Resettable
@@ -1752,13 +1914,32 @@ async def test_rejected_focus_continue_preserves_other_parallel_attempt(
             '"score": 1.0 if passed else 0.0', '"score": 0.25 if passed else 0.0'
         ),
     )
-    run = await gate_run(tmp_path, monkeypatch, stop="after_focus_decided", hard=True, **options)
-    attempts = inspect_view(run).snapshot.rounds[1].attempts
+    sibling_at_stage = asyncio.Event()
+    original_stage = _Campaign.attempt_stage
+
+    async def stage(self, attempt_id, number):
+        if attempt_id == "r01-a01":
+            await asyncio.wait_for(sibling_at_stage.wait(), 15)
+        else:
+            # The sibling's binds and journals exist at stage entry. Leave
+            # them pending until the first Attempt reaches its hard cut.
+            sibling_at_stage.set()
+            await asyncio.shield(self.tasks["r01-a01"])
+        await original_stage(self, attempt_id, number)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(_Campaign, "attempt_stage", stage)
+        run = await gate_run(tmp_path, patch, stop="after_focus_decided", hard=True, **options)
+    view = inspect_view(run)
+    attempts = view.snapshot.rounds[1].attempts
     assert len(attempts) == 2
-    assert any(
-        a.measurement_id is not None and a.family15.focus_decision is None
-        for a in attempts.values()
-    )
+    first, sibling = (attempts[attempt_id] for attempt_id in ("r01-a01", "r01-a02"))
+    assert first.family15.focus_decision.payload["outcome"] == "comparison_not_passed"
+    assert first.family15.comparison is None
+    assert sibling.measurement_id is not None and sibling.family15.focus_decision is None
+    assert view.siblings[sibling.measurement_id] == "born"
+    if fresh:
+        assert view.siblings[sibling.parent_measurement_id] == "born"
     adapter.settings = "settings-v2"
     with pytest.raises(EvolveRefused) as refused:
         await gate_run(tmp_path, monkeypatch, **options)

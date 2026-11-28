@@ -1,0 +1,50 @@
+{
+ "schema": "lab-offline-core-capture/1",
+ "scenario": "agent-unreachable",
+ "capture_id": "probe-fba58b42a9714777a57f23e0cd7b3a6f",
+ "captured_at": "2026-10-27T18:12:31.241726+00:00",
+ "core_version": "2.0.0b14",
+ "lab_version": "0.0.3.dev62",
+ "producing_wheels": {
+  "lab": {
+   "file": "evolution_lab-0.0.3.dev62-py3-none-any.whl",
+   "sha256": "bb7162194c3bf5167fefd7a83fc3a19220e5c14cd6e4b7f5fad3ef085dd4c4a5"
+  },
+  "core": {
+   "file": "evo_skills-2.0.0b14-py3-none-any.whl",
+   "sha256": "7a506e3460fa3b1a697e6e23798032cb2f7768c4adbb822e8cf42829e902e243"
+  }
+ },
+ "generators": [
+  {
+   "path": "tests/fixtures/panel/capture_b14.py",
+   "sha256": "435ef7523d243dd35f7c754cda13f28b4209c493d1a8dc89e046cdaea7e39c5c"
+  },
+  {
+   "path": "tests/b10_campaigns.py",
+   "sha256": "3de9ef45d11c66d4f0978883d18ac4aad30734d5a31c3ae14eeb75e5502725da"
+  },
+  {
+   "path": "tests/scaffold_16.py",
+   "sha256": "8db8637c0645e11b79c107864be9892f1dfad2d290dba9db9db53697fb856246"
+  }
+ ],
+ "core_functions": [
+  "evolution.tree.evolve.evolve",
+  "evolution.tree.campaign.inspect_campaign"
+ ],
+ "fault_injections": [],
+ "executor": "neutral _call replacement using real sealed helper",
+ "files_sha256": {
+  "core-projection.json": "8c1d0463508e0c559df9e6ac75c5a5ec928957a58a316d3dfca8e43a38f9c577",
+  "core-report.txt": "cd1db96cdc3ab8e34e9cde39d8043451cad4c360998b6331c781366e3879de1e",
+  "helper-answers.json": "06a7d51312be65fc9cd3dddb98c07d381f3fa69e9d16ffa8e25500d8ac696f84",
+  "lab-report.md": "2ed0491de6e0d6a971651469022238113555f5cecf8c8eefa09c9c57660381ba",
+  "result.json": "912e65478e480601edc04f22aa092f0e7d897ef2bce1351a1d1a633b2a18675c",
+  "run/campaign.jsonl": "bdbb6bf90cacb343b50ca7cfbc4a31831690d49629904e473434d40392bfed69",
+  "run/measurements/m-r00-champion/events.jsonl": "e0d5fb34fa4db387553d71a32b97357c614a4df9cd31fd015539500bc60394e2",
+  "run/reflector-logs/r01-x01.jsonl": "70365555423bfdd64e31dd29c20f71ed603c194efd23fa63bd2874d3c4b3257b",
+  "run/scorer-traces/m-r00-champion.pack": "6f3ce6e65812c5f6c728d6e232caa5b056b07641061f1c02d504f18b39244604",
+  "worker-notes.txt": "429458ee6dd2dfd90d91625f5d6285207de6c4e2a81d96b2a780bb76f3edeed6"
+ }
+}

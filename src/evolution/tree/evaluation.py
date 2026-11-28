@@ -10,6 +10,8 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any, cast
 
+from evolution.lineage.state_io import check_durability
+from evolution.tree.affected_cases import MeasurementProvenance, measurement_provenance
 from evolution.tree.artifacts.artifact_ledger import inspect_ledger
 from evolution.tree.artifacts.artifact_policy import TreeScan, scan_tree, tree_inodes
 from evolution.tree.artifacts.artifacts import ArtifactStore, CapacityEstimate
@@ -293,6 +295,7 @@ async def evaluate(
     The callback receives the run root and an empty hygiene set, and its
     errors are ignored. Without it no process log is created.
     """
+    check_durability()
     manifest = load_evaluation_manifest(Path(manifest_path))
     root = Path(run_dir).absolute()
     source, origin = _source(manifest)
@@ -402,6 +405,7 @@ async def evaluate(
         identity = RunIdentityV1(
             {
                 "profile": "rollout_evaluation/1",
+                "row_provenance": 1,
                 "candidate_digest": candidate.digest,
                 "target": asdict(preflight.semantic),
                 "environment": asdict(environment.identity),
@@ -510,6 +514,13 @@ def inspect_evaluation(run_dir: Path, *, verify: bool = True) -> dict[str, Any]:
         "requested_samples": len(configuration["case_groups"]) * configuration["repeats"],
         "completed_samples": 0,
         "metrics": None,
+        "provenance": MeasurementProvenance(
+            bound is not None and bound.payload["identity"].get("row_provenance") == 1,
+            None,
+            None,
+            None,
+            None,
+        ).to_payload(),
         "weighting": "equal groups; equal cases within group; mean repeats within case",
     }
     if verify and (completed or (root / "artifacts" / "artifacts.jsonl").exists()):
@@ -541,6 +552,9 @@ def inspect_evaluation(run_dir: Path, *, verify: bool = True) -> dict[str, Any]:
     result["unscored_by_outcome"] = dict(
         Counter(row.outcome or row.disposition for row in rows if row.disposition != "score")
     )
+    result["provenance"] = measurement_provenance(
+        Measurement.directory_for(root, MEASUREMENT_ID)
+    ).to_payload()
     if completed:
         if (
             snapshot.records[-1].payload["measurement_prefix"] != evidence.prefix_digest

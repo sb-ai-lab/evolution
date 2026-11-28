@@ -1,0 +1,125 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "restructure-behavior-map/2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "source", "problem", "architecture", "routing", "scenarios", "tools", "knowledge", "outcomes",
+               "assumptions", "questions"],
+  "properties": {
+    "schema": {"const": "restructure-behavior-map/2"},
+    "source": {"$ref": "#/$defs/text"},
+    "problem": {
+      "type": "object", "additionalProperties": false, "required": ["id", "text", "channels", "agent_ru"],
+      "properties": {"id": {"$ref": "#/$defs/id"}, "text": {"$ref": "#/$defs/text"},
+                     "channels": {"type": "array", "items": {"$ref": "#/$defs/text"}},
+                     "agent_ru": {"$ref": "#/$defs/text"}}
+    },
+    "architecture": {
+      "type": "object", "additionalProperties": false, "required": ["summary", "numbers", "chain", "notes"],
+      "properties": {
+        "summary": {"$ref": "#/$defs/text"},
+        "numbers": {"type": "array", "items": {
+          "type": "object", "additionalProperties": false, "required": ["id", "label", "value"],
+          "properties": {"id": {"$ref": "#/$defs/id"}, "label": {"$ref": "#/$defs/text"},
+                         "value": {"$ref": "#/$defs/text"}, "sources": {"$ref": "#/$defs/sources"}}}},
+        "chain": {"type": "array", "items": {
+          "type": "object", "additionalProperties": false, "required": ["id", "label", "note"],
+          "properties": {"id": {"$ref": "#/$defs/id"}, "label": {"$ref": "#/$defs/text"},
+                         "note": {"type": ["string", "null"]}, "sources": {"$ref": "#/$defs/sources"}}}},
+        "notes": {"type": "array", "maxItems": 3, "items": {"$ref": "#/$defs/item"}}
+      }
+    },
+    "routing": {
+      "type": "object", "additionalProperties": false, "required": ["rules", "risk"],
+      "properties": {
+        "rules": {"type": "array", "items": {
+          "type": "object", "additionalProperties": false, "required": ["id", "input", "target", "note"],
+          "properties": {"id": {"$ref": "#/$defs/id"}, "input": {"$ref": "#/$defs/text"},
+                         "target": {"$ref": "#/$defs/text"}, "note": {"type": ["string", "null"]},
+                         "sources": {"$ref": "#/$defs/sources"}}}},
+        "risk": {"type": ["string", "null"]}
+      }
+    },
+    "scenarios": {"type": "array", "items": {"$ref": "#/$defs/scenario"}},
+    "tools": {"type": "array", "items": {"$ref": "#/$defs/tool"}},
+    "knowledge": {"type": "array", "items": {"$ref": "#/$defs/knowledge"}},
+    "outcomes": {"type": "array", "items": {"$ref": "#/$defs/outcome"}},
+    "assumptions": {"type": "array", "items": {"$ref": "#/$defs/assumption"}},
+    "questions": {"$ref": "#/$defs/questions"}
+  },
+  "$defs": {
+    "id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}(?![\\s\\S])"},
+    "text": {"type": "string", "minLength": 1},
+    "sources": {"type": "array", "minItems": 1,
+                "items": {"type": "string", "pattern": "^(?!/)(?!#)(?!(?:[^#]*/)?\\.\\.(?:[/#]|$))[^#\\n]+(?:#.+)?(?![\\s\\S])"}},
+    "digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}(?![\\s\\S])"},
+    "item": {"type": "object", "additionalProperties": false, "required": ["id", "text"],
+             "properties": {"id": {"$ref": "#/$defs/id"}, "text": {"$ref": "#/$defs/text"}}},
+    "question": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "text", "options", "recommended", "answer"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"}, "text": {"$ref": "#/$defs/text"}, "why": {"type": ["string", "null"]},
+        "options": {"type": "array", "maxItems": 6, "items": {
+          "type": "object", "additionalProperties": false, "required": ["id", "text"],
+          "properties": {"id": {"$ref": "#/$defs/id"}, "text": {"$ref": "#/$defs/text"},
+                         "consequence": {"type": ["string", "null"]}}}},
+        "recommended": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/id"}]},
+        "answer": {"oneOf": [
+          {"type": "null"},
+          {"type": "object", "additionalProperties": false, "required": ["option", "for"],
+           "properties": {"option": {"$ref": "#/$defs/id"}, "for": {"$ref": "#/$defs/digest"}}},
+          {"type": "object", "additionalProperties": false, "required": ["text", "for"],
+           "properties": {"text": {"type": "string", "minLength": 1, "maxLength": 2000},
+                          "for": {"$ref": "#/$defs/digest"}}}]}
+      }
+    },
+    "questions": {"type": "array", "maxItems": 5, "items": {"$ref": "#/$defs/question"}},
+    "scenario": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "name", "summary", "share", "outcomes", "uses", "port", "sources"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"}, "name": {"$ref": "#/$defs/text"}, "summary": {"$ref": "#/$defs/text"},
+        "share": {"oneOf": [
+          {"type": "null"},
+          {"type": "object", "additionalProperties": false, "required": ["value", "basis"],
+           "properties": {"value": {"type": "number", "minimum": 0, "maximum": 1}, "basis": {"$ref": "#/$defs/text"}}}]},
+        "outcomes": {"type": "array", "minItems": 1, "items": {
+          "type": "object", "additionalProperties": false, "required": ["kind", "text"],
+          "properties": {"kind": {"enum": ["answered", "off_topic", "handoff", "gave_up", "error"]},
+                         "text": {"$ref": "#/$defs/text"}}}},
+        "uses": {"type": "array", "items": {"$ref": "#/$defs/id"}},
+        "port": {"type": "object", "additionalProperties": false, "required": ["decision", "note"],
+                 "properties": {"decision": {"enum": ["carry", "drop", "undecided"]},
+                                "note": {"type": ["string", "null"]}}},
+        "sources": {"$ref": "#/$defs/sources"}
+      }
+    },
+    "tool": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "name", "side_effect", "description", "sources"],
+      "properties": {"id": {"$ref": "#/$defs/id"}, "name": {"$ref": "#/$defs/text"},
+                     "side_effect": {"type": "boolean"}, "description": {"$ref": "#/$defs/text"},
+                     "sources": {"$ref": "#/$defs/sources"}}
+    },
+    "knowledge": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "name", "kind", "purpose", "location", "sources"],
+      "properties": {"id": {"$ref": "#/$defs/id"}, "name": {"$ref": "#/$defs/text"},
+                     "kind": {"enum": ["prompt", "skill", "document", "rule", "data"]},
+                     "purpose": {"$ref": "#/$defs/text"}, "location": {"$ref": "#/$defs/text"},
+                     "sources": {"$ref": "#/$defs/sources"}}
+    },
+    "outcome": {
+      "type": "object", "additionalProperties": false, "required": ["id", "code", "meaning", "answer_code"],
+      "properties": {"id": {"$ref": "#/$defs/id"}, "code": {"$ref": "#/$defs/text"},
+                     "meaning": {"$ref": "#/$defs/text"}, "answer_code": {"type": ["string", "null"]},
+                     "sources": {"$ref": "#/$defs/sources"}}
+    },
+    "assumption": {
+      "type": "object", "additionalProperties": false, "required": ["id", "n", "text"],
+      "properties": {"id": {"$ref": "#/$defs/id"}, "n": {"type": "integer", "minimum": 1},
+                     "text": {"$ref": "#/$defs/text"}, "sources": {"$ref": "#/$defs/sources"}}
+    }
+  }
+}

@@ -1,0 +1,212 @@
+{
+  "schema": "lab-suspension-fixture/1",
+  "capture_id": "f3a230d3574840f580c4bbd4b4f0aecf",
+  "argv": [
+    "tests/fixtures/suspension_evidence/capture.py",
+    "--core-wheel",
+    "/home/user/work/evolution-wheels/2.0.0b6/evo_skills-2.0.0b6-py3-none-any.whl",
+    "--output",
+    "tests/fixtures/suspension_evidence"
+  ],
+  "started_at": "2026-10-17T17:57:15.049403+00:00",
+  "completed": true,
+  "core_version": "2.0.0b6",
+  "producer": "installed evolution.tree.campaign writer",
+  "core_wheel": {
+    "source": "/home/user/work/evolution-wheels/2.0.0b6/evo_skills-2.0.0b6-py3-none-any.whl",
+    "file": "evo_skills-2.0.0b6-py3-none-any.whl",
+    "sha256": "acdbc710902ea448fe1f22308250ba35768df5ee1cf4669c5b6751cb46514ec0"
+  },
+  "installed_direct_url": {
+    "url": "file:///home/user/work/evolution-wheels/2.0.0b6/evo_skills-2.0.0b6-py3-none-any.whl",
+    "archive_info": {}
+  },
+  "helper": {
+    "path": "tests/fixtures/suspension_evidence/capture.py",
+    "sha256": "37194d2cbc721006da4a6b68e85cacc479a48c7979b10d16584a03d9f4bba734",
+    "source_revision": "86311bb91247208d5d0878592232679c58657b55"
+  },
+  "source_provenance": {
+    "repository_revision": "34c1699a34b13c3b399245673ae1d5a495cde36b",
+    "source_tree": "user-owned dirty checkout; source-file hashes identify the inspected bytes",
+    "files": {
+      "test_tree_campaign_family14_recovery.py": "6469230b9b62d2d98e5b10db4c01ec95929f5014e950d05327448e0b197c5ad4",
+      "test_tree_campaign_family14_champion_gap.py": "fe97e2f02508e30863d72a5153da59b7a07e11ef75e5aa302ec8585f7d46d19e",
+      "test_tree_campaign_family14_run.py": "9a4b03af921ba71a016a13b65dd0f769056480d5c08e7a15c5ed271491cdf8cf",
+      "test_tree_campaign_family13_cohort_run.py": "521884cdb6391031d24a627bc348aa4958a01766edecf9f689234cb5f03ef157",
+      "test_tree_campaign_family13_gate.py": "5e78bfc27a933e8d1d8a69035626ec679a8a5a6ab0734ae04041eea6b61d2261",
+      "test_tree_campaign_family13_recovery_run.py": "6726e95bd4da4432bc75ebc075ba309c1ee6b06af0100f214d1ebe2ccb6c7cda",
+      "test_tree_campaign_family12.py": "e0d952bae02f3ce51f3d363c8a75fd82d9db62fd73564291d874fd568d080462",
+      "campaign_fakes.py": "782089aa04e7ad4ed4879f64e0ebb50dda1be4a0e7696c38ba063b822b51e926",
+      "scaffold_v13.py": "d68d854eae3a01c0db498bf3297833070509ee8d8d9e6772ff881334bcd66ac7"
+    }
+  },
+  "scenarios": {
+    "final-fault": {
+      "completed": true,
+      "manifest_sha256": "0639e7224416d410fc8517e73989e08f0fd88a829bf3493fc76894906130e637",
+      "calls": [
+        {
+          "call": "final-fault",
+          "completed": true
+        }
+      ],
+      "actual_evidence": [
+        {
+          "reason": "final_incomplete",
+          "kind": "final_rows",
+          "prefix": false
+        }
+      ],
+      "files": [
+        {
+          "path": "campaign.jsonl",
+          "source": "/home/user/work/evolution_lab/.superpowers/suspension-evidence/f3a230d3574840f580c4bbd4b4f0aecf/final-fault/run/campaign.jsonl",
+          "sha256": "9bec29aa4d033ba1e79312d4afb977c3204f8661063d5fc5ac6aa5dd2299bbf7",
+          "bytes": 27832
+        },
+        {
+          "path": "measurements/m-r00-champion/events.jsonl",
+          "source": "/home/user/work/evolution_lab/.superpowers/suspension-evidence/f3a230d3574840f580c4bbd4b4f0aecf/final-fault/run/measurements/m-r00-champion/events.jsonl",
+          "sha256": "69637aa6ac4448a45afb39ac6cc5074aecd7a011ee2f6d72f73ecc6223506b38",
+          "bytes": 19359
+        },
+        {
+          "path": "measurements/m-r01-a01/events.jsonl",
+          "source": "/home/user/work/evolution_lab/.superpowers/suspension-evidence/f3a230d3574840f580c4bbd4b4f0aecf/final-fault/run/measurements/m-r01-a01/events.jsonl",
+          "sha256": "1faf6669002fc4527a23c543ff10559598df2b98a2f4a56132246f20ef73482c",
+          "bytes": 19045
+        },
+        {
+          "path": "measurements/m-r01-a01-parent/events.jsonl",
+          "source": "/home/user/work/evolution_lab/.superpowers/suspension-evidence/f3a230d3574840f580c4bbd4b4f0aecf/final-fault/run/measurements/m-r01-a01-parent/events.jsonl",
+          "sha256": "6b26573e6762862de27a4b1188b1ab613b2c798cd2c49adcd794d789ad86c88b",
+          "bytes": 27538
+        },
+        {
+          "path": "measurements/m-r01-final-01-a01/events.jsonl",
+          "source": "/home/user/work/evolution_lab/.superpowers/suspension-evidence/f3a230d3574840f580c4bbd4b4f0aecf/final-fault/run/measurements/m-r01-final-01-a01/events.jsonl",
+          "sha256": "5886fe3414c9af26bbd19da5d784e74e2be06ea1a48b1d02d8c407a3a6f1d199",
+          "bytes": 17537
+        },
+        {
+          "path": "measurements/m-r01-final-01-champion/events.jsonl",
+          "source": "/home/user/work/evolution_lab/.superpowers/suspension-evidence/f3a230d3574840f580c4bbd4b4f0aecf/final-fault/run/measurements/m-r01-final-01-champion/events.jsonl",
+          "sha256": "d2fceb2c94e5d18126127bcab033ed239e791475901371236c1a9a96789ffb30",
+          "bytes": 19619
+        }
+      ]
+    },
+    "champion-gap": {
+      "completed": true,
+      "manifest_sha256": "db184469e30d137e7e6381172f4d79dd2846f0a12fe7c57f83696298c3c1a1a9",
+      "calls": [
+        {
+          "call": "cut-seed-baseline",
+          "completed": true,
+          "expected_cut": true
+        },
+        {
+          "call": "list-champion-gaps",
+          "completed": true
+        },
+        {
+          "call": "complete-champion-gaps",
+          "completed": true
+        }
+      ],
+      "listed_prefix": {
+        "bytes": 10776,
+        "sha256": "63a0bbcf38c4db2c321d4cbcb207679a5a5820bd20ac48ab91650431d44bd0ff"
+      },
+      "actual_evidence": [
+        {
+          "reason": "champion_incomplete",
+          "kind": "champion_rows",
+          "prefix": false
+        }
+      ],
+      "files": [
+        {
+          "path": "campaign.jsonl",
+          "source": "/home/user/work/evolution_lab/.superpowers/suspension-evidence/f3a230d3574840f580c4bbd4b4f0aecf/champion-gap/run/campaign.jsonl",
+          "sha256": "0f922558b9fb80a9c07226987ebc65b43e28d7b7972148ae57ea549255490bc7",
+          "bytes": 27168
+        },
+        {
+          "path": "measurements/m-r00-champion/events.jsonl",
+          "source": "/home/user/work/evolution_lab/.superpowers/suspension-evidence/f3a230d3574840f580c4bbd4b4f0aecf/champion-gap/run/measurements/m-r00-champion/events.jsonl",
+          "sha256": "4c128ad39635cbc9644de4edc59e79ccaa9740e1dfae955badb4b310f45f46bd",
+          "bytes": 86321
+        },
+        {
+          "path": "measurements/m-r01-a01/events.jsonl",
+          "source": "/home/user/work/evolution_lab/.superpowers/suspension-evidence/f3a230d3574840f580c4bbd4b4f0aecf/champion-gap/run/measurements/m-r01-a01/events.jsonl",
+          "sha256": "eb046131b834492fa5b307ac0c2d0329373dd7b836a21314c3f1d6906dcfa413",
+          "bytes": 51341
+        },
+        {
+          "path": "measurements/m-r01-a01-parent/events.jsonl",
+          "source": "/home/user/work/evolution_lab/.superpowers/suspension-evidence/f3a230d3574840f580c4bbd4b4f0aecf/champion-gap/run/measurements/m-r01-a01-parent/events.jsonl",
+          "sha256": "ee44bfd15a332e130d40874539b855cc3e2f66164e1937ac5dbf73924bc32597",
+          "bytes": 52153
+        }
+      ]
+    },
+    "component-drift": {
+      "completed": true,
+      "manifest_sha256": "a1460dec7f47e459a5b1163de9ce1bdce384adeba97c17b0704e7b3935244576",
+      "calls": [
+        {
+          "call": "component-drift",
+          "completed": true
+        }
+      ],
+      "actual_evidence": [
+        {
+          "reason": "target_components_changed",
+          "kind": "stage_record",
+          "prefix": true
+        }
+      ],
+      "files": [
+        {
+          "path": "campaign.jsonl",
+          "source": "/home/user/work/evolution_lab/.superpowers/suspension-evidence/f3a230d3574840f580c4bbd4b4f0aecf/component-drift/run/campaign.jsonl",
+          "sha256": "0979d5c61c98548489eab585a9d5b973802ddb40a1c6aa91f00af301c4990d16",
+          "bytes": 26220
+        },
+        {
+          "path": "measurements/m-r00-champion/events.jsonl",
+          "source": "/home/user/work/evolution_lab/.superpowers/suspension-evidence/f3a230d3574840f580c4bbd4b4f0aecf/component-drift/run/measurements/m-r00-champion/events.jsonl",
+          "sha256": "dbee82282606c446131661f35b2edd800f1ca405f15298ab5a7c7a39bc29f812",
+          "bytes": 19926
+        },
+        {
+          "path": "measurements/m-r01-a01/events.jsonl",
+          "source": "/home/user/work/evolution_lab/.superpowers/suspension-evidence/f3a230d3574840f580c4bbd4b4f0aecf/component-drift/run/measurements/m-r01-a01/events.jsonl",
+          "sha256": "982d9abc05c37f96389873c76db584b5ede412831a55937cbf9437cc8ad5039d",
+          "bytes": 19607
+        },
+        {
+          "path": "measurements/m-r01-a01-parent/events.jsonl",
+          "source": "/home/user/work/evolution_lab/.superpowers/suspension-evidence/f3a230d3574840f580c4bbd4b4f0aecf/component-drift/run/measurements/m-r01-a01-parent/events.jsonl",
+          "sha256": "47e84d56be678a1abbc0cc7ddffcdb2fb46807e39c21a2d4407d04d942204a20",
+          "bytes": 28194
+        },
+        {
+          "path": "measurements/m-r01-final-01-a01/events.jsonl",
+          "source": "/home/user/work/evolution_lab/.superpowers/suspension-evidence/f3a230d3574840f580c4bbd4b4f0aecf/component-drift/run/measurements/m-r01-final-01-a01/events.jsonl",
+          "sha256": "22814b1e2b78a39b4813e798733c7ffd53f0eb8fc1512186a36d112b4e017cff",
+          "bytes": 3544
+        },
+        {
+          "path": "measurements/m-r01-final-01-champion/events.jsonl",
+          "source": "/home/user/work/evolution_lab/.superpowers/suspension-evidence/f3a230d3574840f580c4bbd4b4f0aecf/component-drift/run/measurements/m-r01-final-01-champion/events.jsonl",
+          "sha256": "c54f50558f93ac8ecd0732408edf1c4e74f4448e82166291a1911ba456c76273",
+          "bytes": 3574
+        }
+      ]
+    }
+  }
+}

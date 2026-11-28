@@ -175,10 +175,12 @@ ACTIONS = {
     "deep_visible": [
         'folder = root / "skills"',
         "os.chmod(folder, 0o700)",
-        "deep = folder",
+        "here = os.getcwd()",
+        "os.chdir(folder)",  # by name: the full path passes macOS PATH_MAX (1,024)
         "for _ in range(1400):",
-        '    deep = deep / "d"',
-        "    deep.mkdir()",
+        '    os.mkdir("d")',
+        '    os.chdir("d")',
+        "os.chdir(here)",
         "os.chmod(folder, 0o500)",
     ],
     # (f) the projection untouched, the Reflector's own control subtree written
@@ -192,10 +194,12 @@ ACTIONS = {
     # no-follow walk the Editor's admission makes too: a symlink there is
     # refused, and a tree too deep to walk is a change, not a crash.
     "control_deep": [
-        'deep = root / ".evolution"',
+        "here = os.getcwd()",
+        'os.chdir(root / ".evolution")',
         "for _ in range(1400):",
-        '    deep = deep / "d"',
-        "    deep.mkdir()",
+        '    os.mkdir("d")',
+        '    os.chdir("d")',
+        "os.chdir(here)",
     ],
     "control_symlink": [
         'os.symlink("../skills/SKILL.md", root / ".evolution" / "link")',

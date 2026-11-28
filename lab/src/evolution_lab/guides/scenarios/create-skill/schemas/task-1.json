@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "implementation",
+    "request",
+    "inputs"
+  ],
+  "properties": {
+    "schema": {
+      "const": "create-skill-task/1"
+    },
+    "implementation": {
+      "$ref": "#/$defs/id"
+    },
+    "request": {
+      "$ref": "#/$defs/text"
+    },
+    "inputs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "read",
+          "kind",
+          "note"
+        ],
+        "properties": {
+          "path": {
+            "$ref": "#/$defs/text"
+          },
+          "read": {
+            "type": "boolean"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/text"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "note": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/text"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "read": {
+                  "const": false
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "note": {
+                  "$ref": "#/$defs/text"
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+    },
+    "relpath": {
+      "type": "string",
+      "pattern": "^(?!/)(?!\\.$)(?!(?:.*/)?\\.\\.(?:/|$)).+$"
+    },
+    "text": {
+      "type": "string",
+      "minLength": 1
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    }
+  }
+}

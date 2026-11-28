@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any, cast
 from uuid import uuid4
 
+from evolution.lineage.state_io import sync_file
 from evolution.tree.artifacts.artifact_errors import ArtifactCorruptionError, ArtifactStoreStopped
 from evolution.tree.artifacts.artifact_policy import ArtifactPolicyV1
 from evolution.tree.artifacts.artifact_schema import (
@@ -125,7 +126,7 @@ class ArtifactLedger:
         ledger._run_id = run_id
         try:
             ledger.append("store_created", payload)
-            os.fsync(ledger._log.directory_fd)
+            sync_file(ledger._log.directory_fd)
             return ledger
         except OSError as exc:
             ledger.close()

@@ -1,0 +1,144 @@
+{
+  "tag": "div",
+  "attrs": {
+    "class": "panel"
+  },
+  "children": [
+    {
+      "tag": "div",
+      "attrs": {
+        "class": "pad small"
+      },
+      "children": [
+        {
+          "tag": "span",
+          "attrs": {
+            "class": "setup-field"
+          },
+          "children": [
+            {
+              "tag": "span",
+              "attrs": {
+                "class": "k"
+              },
+              "children": "R (repeats)"
+            },
+            " ",
+            {
+              "tag": "span",
+              "attrs": {
+                "class": "mono"
+              },
+              "children": "1"
+            },
+            " "
+          ]
+        },
+        {
+          "tag": "span",
+          "attrs": {
+            "class": "setup-field"
+          },
+          "children": [
+            {
+              "tag": "span",
+              "attrs": {
+                "class": "k"
+              },
+              "children": "Mode"
+            },
+            " ",
+            {
+              "tag": "span",
+              "attrs": {
+                "class": "mono"
+              },
+              "children": "Point"
+            },
+            " "
+          ]
+        },
+        {
+          "tag": "span",
+          "attrs": {
+            "class": "setup-field"
+          },
+          "children": [
+            {
+              "tag": "span",
+              "attrs": {
+                "class": "k"
+              },
+              "children": "Execution noise"
+            },
+            " ",
+            {
+              "tag": "span",
+              "attrs": {
+                "class": "mono"
+              },
+              "children": "negligible · allowance 0.00 · assumed_negligible"
+            },
+            " "
+          ]
+        },
+        {
+          "tag": "span",
+          "attrs": {
+            "class": "setup-field"
+          },
+          "children": [
+            {
+              "tag": "span",
+              "attrs": {
+                "class": "k"
+              },
+              "children": "Verification"
+            },
+            " ",
+            {
+              "tag": "span",
+              "attrs": {
+                "class": "mono"
+              },
+              "children": "reuse"
+            },
+            " "
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "div",
+      "attrs": {
+        "class": "pad small"
+      },
+      "children": [
+        {
+          "tag": "span",
+          "attrs": {
+            "class": "pill tone-amber"
+          },
+          "children": [
+            {
+              "tag": "i",
+              "attrs": {
+                "class": "dot"
+              },
+              "children": null
+            },
+            "Unavailable"
+          ]
+        },
+        " ",
+        {
+          "tag": "span",
+          "attrs": {
+            "class": "mono"
+          },
+          "children": "comparisons unavailable (unavailable)"
+        }
+      ]
+    }
+  ]
+}

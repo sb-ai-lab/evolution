@@ -107,6 +107,8 @@ CAVEAT_KINDS14 = (
     "condition_changed",
     "predecessor_unfinished",
     "baseline_inherited",
+    "baseline_imported",
+    "imported_provenance_unknown",
     "condition_changed_in_place",
     "grouping_fallback",
     *AFFECTED_CAVEAT_KINDS14,
@@ -119,8 +121,8 @@ GROUPING_FALLBACK_KIND = "grouping_fallback"
 #: grouping fallback is local to its run (spec §10).
 LINEAGE_CAVEAT_KINDS = tuple(
     kind
-    for kind in CAVEAT_KINDS
-    if kind != GROUPING_FALLBACK_KIND and kind not in AFFECTED_CAVEAT_KINDS
+    for kind in CAVEAT_KINDS14
+    if kind != GROUPING_FALLBACK_KIND and kind not in AFFECTED_CAVEAT_KINDS14
 )
 
 
@@ -150,11 +152,22 @@ class LineageCaveat:
 
 
 def own_caveats(
-    linked: Mapping[str, Any] | None, *, baseline_abandoned: bool = False
+    linked: Mapping[str, Any] | None,
+    *,
+    baseline_abandoned: bool = False,
+    baseline_import: Mapping[str, Any] | None = None,
+    provenance_reported: bool = True,
 ) -> list[dict[str, Any]]:
-    if linked is None:
-        return []
+    linked = linked or {}
     caveats: list[dict[str, Any]] = []
+    if baseline_import is not None and not baseline_abandoned and baseline_import["fields"]:
+        caveats.append(
+            dict(
+                kind="condition_changed",
+                from_run=baseline_import["source"]["run_id"],
+                fields=list(baseline_import["fields"]),
+            )
+        )
     if linked.get("condition_changed"):
         caveats.append(
             {
@@ -171,8 +184,15 @@ def own_caveats(
                 "authorization_id": linked["authorization"]["id"],
             }
         )
-    baseline = linked.get("baseline")
-    if baseline and baseline.get("imported", 0) > 0 and not baseline_abandoned:
+    from evolution.tree.campaign_identity import declared_baseline
+
+    baseline = declared_baseline({"linked_from": linked, "baseline_import": baseline_import})
+    if (
+        baseline
+        and baseline.get("imported", 0) > 0
+        and not baseline_abandoned
+        and baseline_import is None
+    ):
         caveats.append(
             {
                 "kind": "baseline_inherited",
@@ -184,6 +204,35 @@ def own_caveats(
                 "origin_runs": baseline["origin_runs"],
             }
         )
+    if baseline and baseline.get("imported", 0) > 0 and not baseline_abandoned:
+        source_run = (
+            baseline_import["source"]["run_id"] if baseline_import is not None else linked["run_id"]
+        )
+        if baseline_import is not None:
+            decision = baseline_import["authorization"]
+            caveats.append(
+                dict(
+                    kind="baseline_imported",
+                    from_run=source_run,
+                    source_kind=baseline_import["source"]["kind"],
+                    source_measurement_id=baseline["source_measurement_id"],
+                    imported=baseline["imported"],
+                    scheduled=baseline["scheduled"],
+                    fields=list(baseline["fields"]),
+                    authorization_id=None if decision is None else decision["id"],
+                )
+            )
+        provenance = baseline.get("provenance")
+        if provenance_reported and provenance is not None and provenance["unknown"] > 0:
+            caveats.append(
+                dict(
+                    kind="imported_provenance_unknown",
+                    from_run=source_run,
+                    imported=baseline["imported"],
+                    unknown=provenance["unknown"],
+                    source_recorded=provenance["source_recorded"],
+                )
+            )
     return caveats
 
 
@@ -250,6 +299,8 @@ def aggregate_lineage(
     predecessor_run_id: str,
     *,
     predecessor_baseline_abandoned: bool = False,
+    predecessor_baseline_import: Mapping[str, Any] | None = None,
+    provenance_reported: bool = True,
     predecessor_changes: Sequence[Mapping[str, Any]] = (),
     in_place: bool = True,
 ) -> tuple[LineageCaveat, ...]:
@@ -274,7 +325,10 @@ def aggregate_lineage(
     own = {
         item["kind"]: item
         for item in own_caveats(
-            predecessor_linked, baseline_abandoned=predecessor_baseline_abandoned
+            predecessor_linked,
+            baseline_abandoned=predecessor_baseline_abandoned,
+            baseline_import=predecessor_baseline_import,
+            provenance_reported=provenance_reported,
         )
     }
     if not in_place:

@@ -1,0 +1,25 @@
+lab-campaign-view/14 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+outcome: completed/rounds_exhausted
+reflector probe: unavailable (unreadable)
+settings: stability=stable round_stop=first_accepted refresh=off
+connection: compatible compatible attempts=1
+round 1 promoted baseline=v0 hyp=1
+  r01-a01 agent_worse threshold_not_passed
+  r01-a02 accepted passed
+independent: mode=point R=1 verification=reuse noise=negligible allowance=0.00 (assumed_negligible) stability=stable fresh_parent=yes global=point
+r01-a01 agent_worse rejected/threshold_not_passed
+  stages: focus rejected · causal not_run
+  gate binding (core_raw): focus=point, causal=point
+  gate comparison_not_passed/threshold_not_passed (focus) · vs round champion · fresh measurement · ref m-r01-a01-pa
+  focus: result rule=point · gain 0.25; threshold > 0.50 → comparison_not_passed
+  causal: result rule=point · not_measured
+r01-a02 accepted finalist/passed
+  stages: focus passed · causal passed
+  gate binding (core_raw): focus=point, causal=point
+  global binding (core_raw): global=point
+  gate passed/passed (focus) · vs round champion · fresh measurement · ref m-r01-a02-pa
+  focus: result rule=point · gain 1.00; threshold > 0.50 → passed
+  causal: result rule=point · gain 0.00; threshold ≥ 0.00
+  global passed/passed (global) · vs round champion · stored measurement · ref m-r00-champi
+  global: result rule=point · gain 0.50; threshold > 0.00 → passed
+  eligible final score 1.00

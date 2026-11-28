@@ -1,0 +1,95 @@
+{
+  "schema": "lab-scenario/2",
+  "id": "evolve",
+  "version": 2,
+  "title": "Evolve the agent",
+  "skill": "SKILL.md",
+  "subject": "implementation",
+  "requires": [
+    "connected"
+  ],
+  "produces": [
+    "campaigns"
+  ],
+  "repeatable": {
+    "cycle": "operation.campaign"
+  },
+  "schemas": {},
+  "steps": [
+    {
+      "id": "plan",
+      "title": "Plan the campaign",
+      "kind": "decide",
+      "human_only": false,
+      "optional": false,
+      "requires": [],
+      "outputs": [
+        {
+          "artifact": {
+            "path": "@manifest",
+            "check": "manifest"
+          }
+        }
+      ],
+      "skill": "SKILL.md#plan"
+    },
+    {
+      "id": "prepare",
+      "title": "Prepare the campaign",
+      "kind": "operation",
+      "human_only": false,
+      "optional": false,
+      "requires": [
+        "plan"
+      ],
+      "outputs": [
+        {
+          "operation": {
+            "kind": "prepare.campaign",
+            "outcome": "prepared"
+          }
+        }
+      ],
+      "skill": "SKILL.md#prepare"
+    },
+    {
+      "id": "run",
+      "title": "Run the campaign",
+      "kind": "operation",
+      "human_only": true,
+      "optional": false,
+      "requires": [
+        "prepare"
+      ],
+      "outputs": [
+        {
+          "operation": {
+            "kind": "campaign",
+            "outcome": "terminal"
+          }
+        }
+      ],
+      "skill": "SKILL.md#run"
+    },
+    {
+      "id": "result",
+      "title": "Collect the result",
+      "kind": "operation",
+      "human_only": false,
+      "optional": true,
+      "requires": [
+        "run"
+      ],
+      "outputs": [
+        {
+          "operation": {
+            "kind": "export",
+            "outcome": "done"
+          }
+        }
+      ],
+      "skill": "SKILL.md#result"
+    }
+  ],
+  "digest": "5507587c2b30650197698b3a4bee72f612451fa20bc813164ec5598f2e4b7d97"
+}

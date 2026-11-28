@@ -1,0 +1,56 @@
+{
+  "schema": "lab-evaluation-input/3",
+  "seed_root": "seed",
+  "policy": {
+    "version": 1,
+    "dependency_paths": [],
+    "excludes": [],
+    "writable_paths": [
+      "skills/**"
+    ]
+  },
+  "target": {
+    "base_url": "lab:auto",
+    "contract_digest": "lab:auto",
+    "max_response_bytes": 8192,
+    "seed_mode": "none",
+    "settings_hash": "lab:auto"
+  },
+  "corpus": {
+    "path": "corpus.jsonl"
+  },
+  "environment": {
+    "kind": "static",
+    "input_text_key": "text"
+  },
+  "scorer": {
+    "kind": "subprocess",
+    "argv": [
+      "lab:auto",
+      "score.py"
+    ],
+    "cwd": "scorer",
+    "dependency_paths": [],
+    "allowed_env": [],
+    "timeout_seconds": 30
+  },
+  "evaluation_set_id": "my-agent-first-measurement",
+  "metric_plan": {
+    "primary": "score"
+  },
+  "defaults": {
+    "repeat_seeds": [
+      null
+    ],
+    "max_turns": 1,
+    "timeout_seconds": 60,
+    "max_failed_turns": 1,
+    "call_retries": {
+      "max_attempts": 3,
+      "turn_max_attempts": 2
+    },
+    "sample_retries": 3,
+    "min_coverage": 0.95,
+    "max_consecutive_unmeasured": 3
+  }
+}

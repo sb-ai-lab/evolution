@@ -1,0 +1,130 @@
+{"format":"scorer_trace_pack/1","hsha":"bc3bf55da97077daa0b2a60b3a97e20dad16c1d3fac99172ce7347320c8dfd98","kind":"pack","pack_id":"m-r00-champion","segment":0}
+
+{"format":"scorer_trace_pack/1","hsha":"440d18b1894e9526f33f74259cb40cea517cfbf2467611369eb7b608b32d5db0","kind":"request","score_request_id":"fa178cd2dee440d8b69104d8c0017c07","sections":[["request",1775,"db2a1cba132ce738355d0af3062a1a80fd8aba972ab285210a3ca2ace4385d66"]]}
+{
+  "scorer": "47731ade0af56b1ad1c1146684e887417cb952e75ba051b264015a6d728fe2a3",
+  "trace_id": "fa178cd2dee440d8b69104d8c0017c07",
+  "input": {
+    "case_id": "q1",
+    "public": {
+      "text": "question one"
+    },
+    "oracle": {
+      "critical": true
+    },
+    "view": {
+      "history": {
+        "turns": [
+          {
+            "index": 0,
+            "message": {
+              "content": "question one",
+              "fields": {
+                "text": "question one"
+              }
+            },
+            "events": [
+              {
+                "name": "read_skill",
+                "type": "tool_call"
+              },
+              {
+                "content": "Reference skill: answer with this line. | question one",
+                "type": "assistant_message"
+              }
+            ],
+            "usage": {
+              "prompt": 12,
+              "completion": 54,
+              "cached": 0,
+              "total": 66
+            },
+            "latency_ms": 1,
+            "outcome": "ok",
+            "reason": {
+              "category": "agent_outcome",
+              "code": "answered"
+            }
+          }
+        ]
+      },
+      "terminal": "completed",
+      "target": {
+        "contract_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "dependency_digest": "a9a8c97dbddc86ed4c2848eabe833785d3002e1eea4d3d419374f91daecb9fce",
+        "settings_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "seed_mode": "exact",
+        "protocol_version": "2",
+        "runtime_ref_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+      }
+    }
+  },
+  "input_sha256": "96eda6dc586335e33d33a746da7aa7b9e7be08411ef569811fec90a1a15fb512"
+}
+
+{"format":"scorer_trace_pack/1","hsha":"63cf00ae733195d588f7ff41f1e47ddaa7e516211d1901222f6c6e827a66e163","kind":"request","score_request_id":"0606a40fa8304fc9aa168cdd985a98ea","sections":[["request",1775,"331269bf3d3a589c60f8db96fcbd1bda50e5c118db40d9b60922fe0b158b2746"]]}
+{
+  "scorer": "47731ade0af56b1ad1c1146684e887417cb952e75ba051b264015a6d728fe2a3",
+  "trace_id": "0606a40fa8304fc9aa168cdd985a98ea",
+  "input": {
+    "case_id": "q2",
+    "public": {
+      "text": "question two"
+    },
+    "oracle": {
+      "critical": true
+    },
+    "view": {
+      "history": {
+        "turns": [
+          {
+            "index": 0,
+            "message": {
+              "content": "question two",
+              "fields": {
+                "text": "question two"
+              }
+            },
+            "events": [
+              {
+                "name": "read_skill",
+                "type": "tool_call"
+              },
+              {
+                "content": "Reference skill: answer with this line. | question two",
+                "type": "assistant_message"
+              }
+            ],
+            "usage": {
+              "prompt": 12,
+              "completion": 54,
+              "cached": 0,
+              "total": 66
+            },
+            "latency_ms": 1,
+            "outcome": "ok",
+            "reason": {
+              "category": "agent_outcome",
+              "code": "answered"
+            }
+          }
+        ]
+      },
+      "terminal": "completed",
+      "target": {
+        "contract_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "dependency_digest": "a9a8c97dbddc86ed4c2848eabe833785d3002e1eea4d3d419374f91daecb9fce",
+        "settings_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "seed_mode": "exact",
+        "protocol_version": "2",
+        "runtime_ref_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+      }
+    }
+  },
+  "input_sha256": "ce17de8ae936a4a15a28d99b3f0ba48890a627c660be778c8dce930f2749e6b5"
+}
+
+{"format":"scorer_trace_pack/1","hsha":"986008dd211dea8243ea8b75c6a2d0e15feff9d10c05422b9cd1b94ee9ff270c","kind":"output","returncode":0,"score_request_id":"fa178cd2dee440d8b69104d8c0017c07","sections":[["stdout",108,"de1954dc52aee7e4d8e72f729834ed083f2611651a5b010d823475718de8517c"],["stderr",0,"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"]],"status":"completed"}
+{"metrics": {"score": 0.0}, "critical_pass": true, "verdicts": [{"criterion": "improved", "passed": false}]}
+{"format":"scorer_trace_pack/1","hsha":"33b59c6cff0cf5a3e6387ef29837d4f632c8afb9a463734e101e4263daaa52ed","kind":"output","returncode":0,"score_request_id":"0606a40fa8304fc9aa168cdd985a98ea","sections":[["stdout",108,"de1954dc52aee7e4d8e72f729834ed083f2611651a5b010d823475718de8517c"],["stderr",0,"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"]],"status":"completed"}
+{"metrics": {"score": 0.0}, "critical_pass": true, "verdicts": [{"criterion": "improved", "passed": false}]}

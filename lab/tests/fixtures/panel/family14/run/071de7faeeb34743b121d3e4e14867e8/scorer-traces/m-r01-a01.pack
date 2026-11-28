@@ -1,0 +1,130 @@
+{"format":"scorer_trace_pack/1","hsha":"23381d90bcf08509748239d06d024248741583e30610081c566bef01f9879c30","kind":"pack","pack_id":"m-r01-a01","segment":0}
+
+{"format":"scorer_trace_pack/1","hsha":"992f56e0ed00b443b71114fc7019d49591658e5c9a9d9c95d4906bf046d93204","kind":"request","score_request_id":"d4cdd4af2fd9496da2b89156ba0316e0","sections":[["request",1761,"c385d697f019b7f9c20db0ae84b510022179960f077adc1660d5f05e4f000ea0"]]}
+{
+  "scorer": "7d2dead7a815a259194c4c679c67936a9593616844617e5899243dec9bab299e",
+  "trace_id": "d4cdd4af2fd9496da2b89156ba0316e0",
+  "input": {
+    "case_id": "q1",
+    "public": {
+      "text": "question one"
+    },
+    "oracle": {
+      "critical": true
+    },
+    "view": {
+      "history": {
+        "turns": [
+          {
+            "index": 0,
+            "message": {
+              "content": "question one",
+              "fields": {
+                "text": "question one"
+              }
+            },
+            "events": [
+              {
+                "name": "read_skill",
+                "type": "tool_call"
+              },
+              {
+                "content": "IMPROVED: reference skill | question one",
+                "type": "assistant_message"
+              }
+            ],
+            "usage": {
+              "prompt": 12,
+              "completion": 40,
+              "cached": 0,
+              "total": 52
+            },
+            "latency_ms": 0,
+            "outcome": "ok",
+            "reason": {
+              "category": "agent_outcome",
+              "code": "answered"
+            }
+          }
+        ]
+      },
+      "terminal": "completed",
+      "target": {
+        "contract_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "dependency_digest": "a9a8c97dbddc86ed4c2848eabe833785d3002e1eea4d3d419374f91daecb9fce",
+        "settings_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "seed_mode": "exact",
+        "protocol_version": "2",
+        "runtime_ref_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+      }
+    }
+  },
+  "input_sha256": "6dd8a85f8492aae3fca6e573080f55807a0412c1ff86c7054e058b44f5a82a16"
+}
+
+{"format":"scorer_trace_pack/1","hsha":"26d60eb7337b41530adbb0fab01c5cd79bde443c8a827a4a278b69950de85eb9","kind":"output","returncode":0,"score_request_id":"d4cdd4af2fd9496da2b89156ba0316e0","sections":[["stdout",107,"dc9fe4c2359b222f0da98f4a9deda8c0e74abda4f1a9ae818aad6042fbbb1f0b"],["stderr",0,"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"]],"status":"completed"}
+{"metrics": {"score": 1.0}, "critical_pass": true, "verdicts": [{"criterion": "improved", "passed": true}]}
+{"format":"scorer_trace_pack/1","hsha":"b9b8a9a94dcf7292afb925439a6d23fe395d06255528b23513454ea3fbd959d7","kind":"request","score_request_id":"5fe3c27f3afc466c9525083c00e138a3","sections":[["request",1761,"53b77c7d8698977046b1b11a8faf8760cbae5f5c7ec61d994e1b8037002308f2"]]}
+{
+  "scorer": "7d2dead7a815a259194c4c679c67936a9593616844617e5899243dec9bab299e",
+  "trace_id": "5fe3c27f3afc466c9525083c00e138a3",
+  "input": {
+    "case_id": "q2",
+    "public": {
+      "text": "question two"
+    },
+    "oracle": {
+      "critical": true
+    },
+    "view": {
+      "history": {
+        "turns": [
+          {
+            "index": 0,
+            "message": {
+              "content": "question two",
+              "fields": {
+                "text": "question two"
+              }
+            },
+            "events": [
+              {
+                "name": "read_skill",
+                "type": "tool_call"
+              },
+              {
+                "content": "IMPROVED: reference skill | question two",
+                "type": "assistant_message"
+              }
+            ],
+            "usage": {
+              "prompt": 12,
+              "completion": 40,
+              "cached": 0,
+              "total": 52
+            },
+            "latency_ms": 0,
+            "outcome": "ok",
+            "reason": {
+              "category": "agent_outcome",
+              "code": "answered"
+            }
+          }
+        ]
+      },
+      "terminal": "completed",
+      "target": {
+        "contract_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "dependency_digest": "a9a8c97dbddc86ed4c2848eabe833785d3002e1eea4d3d419374f91daecb9fce",
+        "settings_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "seed_mode": "exact",
+        "protocol_version": "2",
+        "runtime_ref_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+      }
+    }
+  },
+  "input_sha256": "4bf6953e47ff190be3d920053b14766fe8b50ab008e951152e331afa21855b48"
+}
+
+{"format":"scorer_trace_pack/1","hsha":"bd162b43017a4400c4c506cafe060cbb41a79bbfaf91154b39c0ecbf9657efa8","kind":"output","returncode":0,"score_request_id":"5fe3c27f3afc466c9525083c00e138a3","sections":[["stdout",107,"dc9fe4c2359b222f0da98f4a9deda8c0e74abda4f1a9ae818aad6042fbbb1f0b"],["stderr",0,"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"]],"status":"completed"}
+{"metrics": {"score": 1.0}, "critical_pass": true, "verdicts": [{"criterion": "improved", "passed": true}]}

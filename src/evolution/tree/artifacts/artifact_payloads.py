@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
+from evolution.lineage.state_io import sync_file
 from evolution.tree.artifacts.artifact_errors import ArtifactCorruptionError, ArtifactUnsafeError
 from evolution.tree.execution.journal_identity import canonical_json
 from evolution.tree.storage.append_log import _directory
@@ -313,13 +314,13 @@ def finish_directory(run_root: Path, declaration: AuxiliaryDeclaration) -> None:
             file_fd = os.open(entry.name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=fd)
             try:
                 os.fchmod(file_fd, 0o400)
-                os.fsync(file_fd)
+                sync_file(file_fd)
             finally:
                 os.close(file_fd)
         os.fchmod(fd, 0o500)
-        os.fsync(fd)
+        sync_file(fd)
     with _open_directory((run_root / declaration.locator).parent) as fd:
-        os.fsync(fd)
+        sync_file(fd)
 
 
 def publish_directory(run_root: Path, source: Path, declaration: AuxiliaryDeclaration) -> None:
@@ -336,7 +337,7 @@ def publish_directory(run_root: Path, source: Path, declaration: AuxiliaryDeclar
             for name in parent_parts:
                 try:
                     os.mkdir(name, mode=0o700, dir_fd=parent_fd)
-                    os.fsync(parent_fd)
+                    sync_file(parent_fd)
                 except FileExistsError:
                     pass
                 try:
@@ -370,11 +371,11 @@ def publish_directory(run_root: Path, source: Path, declaration: AuxiliaryDeclar
                             try:
                                 _file_digest(source_fd, entry.name, expected=entry, output=output)
                                 os.fchmod(output, 0o400)
-                                os.fsync(output)
+                                sync_file(output)
                             finally:
                                 os.close(output)
                         _check_files(source_fd, tuple(f.name for f in declaration.files))
-                    os.fsync(staged_fd)
+                    sync_file(staged_fd)
                     try:
                         os.stat(declaration.content_digest, dir_fd=parent_fd, follow_symlinks=False)
                     except FileNotFoundError:
@@ -388,9 +389,9 @@ def publish_directory(run_root: Path, source: Path, declaration: AuxiliaryDeclar
                         dst_dir_fd=parent_fd,
                     )
                     os.fchmod(staged_fd, 0o500)
-                    os.fsync(staged_fd)
-                    os.fsync(parent_fd)
-                    os.fsync(staging_fd)
+                    sync_file(staged_fd)
+                    sync_file(parent_fd)
+                    sync_file(staging_fd)
                 finally:
                     os.close(staged_fd)
                     # Unpublished temporary files have no authority. Store startup

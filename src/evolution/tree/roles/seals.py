@@ -57,7 +57,7 @@ CHAT_TOOL_SCHEMA_V16 = "chat_tools/3"
 AGENT_TOOL_SCHEMA_V16 = "chat_tools/2"
 """The `/16` agent-CLI Editor's `tool_schema` value. That role has no `read_file`,
 so the `chat_tools/3` result change of b18 does not reach its identity."""
-ROLE_CONTRACTS_V16 = "role_contracts/2"
+ROLE_CONTRACTS_V16 = "role_contracts/4"
 """The `/16` chat Editor and Reflector role-behavior marker (ADR-0061).
 
 Read at call time as a module global; `/15` identities do not carry the key.

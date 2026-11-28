@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "restructure-verify/2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "port", "source", "port_commit", "layers", "failures", "comparison", "template_notes",
+               "accepting", "carry_to_brief"],
+  "properties": {
+    "schema": {"const": "restructure-verify/2"},
+    "port": {"$ref": "#/$defs/text"},
+    "source": {"$ref": "#/$defs/text"},
+    "port_commit": {"type": "string", "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})(?![\\s\\S])"},
+    "layers": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/layer"},
+               "contains": {"type": "object", "required": ["kind"],
+                            "properties": {"kind": {"const": "claims_vs_wiring"}}}},
+    "failures": {"type": "array", "items": {"$ref": "#/$defs/failure"}},
+    "comparison": {"type": "array", "items": {"$ref": "#/$defs/comparison"}},
+    "template_notes": {"type": "array", "items": {"$ref": "#/$defs/note"}},
+    "accepting": {"$ref": "#/$defs/text"},
+    "carry_to_brief": {"type": "array", "items": {
+      "type": "object", "additionalProperties": false, "required": ["id", "text"],
+      "properties": {"id": {"$ref": "#/$defs/id"}, "text": {"$ref": "#/$defs/text"}}}}
+  },
+  "$defs": {
+    "id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}(?![\\s\\S])"},
+    "text": {"type": "string", "minLength": 1},
+    "layer": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "kind", "title", "proves", "status", "by", "counts", "evidence", "decision", "run_at"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"},
+        "kind": {"enum": ["offline_tests", "contract_golden", "lint_types", "live_corpus", "project_evaluation",
+                          "claims_vs_wiring", "other"]},
+        "title": {"$ref": "#/$defs/text"}, "proves": {"$ref": "#/$defs/text"},
+        "status": {"enum": ["passed", "failed", "partial", "not_run", "deferred"]},
+        "by": {"enum": ["builder", "reviewer", "human"]},
+        "counts": {"oneOf": [
+          {"type": "null"},
+          {"type": "object", "additionalProperties": false, "required": ["done", "total", "threshold"],
+           "properties": {"done": {"type": "integer", "minimum": 0}, "total": {"type": "integer", "minimum": 1},
+                          "threshold": {"type": ["integer", "null"], "minimum": 0}}}]},
+        "evidence": {"type": "array", "items": {
+          "type": "object", "additionalProperties": false, "required": ["kind", "ref", "summary"],
+          "properties": {"kind": {"enum": ["command", "file", "log", "note"]}, "ref": {"$ref": "#/$defs/text"},
+                         "summary": {"$ref": "#/$defs/text"}}}},
+        "decision": {"type": ["string", "null"]},
+        "run_at": {"type": ["string", "null"]}
+      },
+      "allOf": [
+        {"if": {"properties": {"status": {"enum": ["passed", "failed", "partial"]}}, "required": ["status"]},
+         "then": {"properties": {"evidence": {"minItems": 1}}}},
+        {"if": {"properties": {"status": {"const": "partial"}}, "required": ["status"]},
+         "then": {"properties": {"counts": {"type": "object"}}}}
+      ]
+    },
+    "failure": {
+      "type": "object", "additionalProperties": false, "required": ["id", "layer", "case", "blame", "note"],
+      "properties": {"id": {"$ref": "#/$defs/id"}, "layer": {"$ref": "#/$defs/id"}, "case": {"$ref": "#/$defs/text"},
+                     "blame": {"enum": ["env", "corpus", "agent"]}, "note": {"type": "string"}}
+    },
+    "comparison": {
+      "type": "object", "additionalProperties": false, "required": ["id", "label", "before", "after"],
+      "properties": {"id": {"$ref": "#/$defs/id"}, "label": {"$ref": "#/$defs/text"},
+                     "before": {"type": ["string", "number"]}, "after": {"type": ["string", "number"]}}
+    },
+    "note": {
+      "type": "object", "additionalProperties": false, "required": ["id", "severity", "text"],
+      "properties": {"id": {"$ref": "#/$defs/id"}, "severity": {"enum": ["blocker", "major", "minor"]},
+                     "text": {"$ref": "#/$defs/text"}}
+    }
+  }
+}

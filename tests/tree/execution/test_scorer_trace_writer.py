@@ -1176,3 +1176,6 @@ def test_pack_write_fault_during_buffered_append_stays_append(
     assert remedy in caught.value.detail
     assert "temporary directory" not in caught.value.detail
     assert "sensitive" not in caught.value.detail
+
+
+pytestmark = pytest.mark.usefixtures("strict_durability")

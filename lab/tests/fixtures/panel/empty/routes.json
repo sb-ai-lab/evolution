@@ -1,0 +1,528 @@
+{
+ "/v1/health": {
+  "status": 200,
+  "body": {
+   "schema": "lab-service-health/2",
+   "lab_version": "0.0.3.dev55",
+   "core_version": "2.0.0b8",
+   "distributions": [],
+   "owner_generation": "2f5a6e4dcdc24f8284c7008c567b298f",
+   "active_operation_id": null,
+   "blockers": [],
+   "service_state": "running",
+   "service_environment": {
+    "schema": "lab-service-environment/2",
+    "digest": "f29ef98df1c12fe041f8708ff7cc3db06a014099c0556e4f593ca313dc370e3c",
+    "executable": "/home/user/work/evolution_lab/.local-tmp/retained/dev55-20261019/venv-py312/bin/python",
+    "python_version": "3.12.13",
+    "executable_sha256": "9544d2a29138833e6177d45dbc57468d37710b5080c901fbb579d53f251cdd6f",
+    "platform": {
+     "system": "Linux",
+     "machine": "x86_64"
+    },
+    "distributions": [
+     {
+      "name": "evo-skills",
+      "version": "2.0.0b8",
+      "wheel_sha256": "bce365df308b54cc73eb2ff724e3d5843263d666f5359da31b1197b419763d44"
+     },
+     {
+      "name": "evolution-lab",
+      "version": "0.0.3.dev55",
+      "wheel_sha256": "196d8c4fc02ee6dce5514159a1add04539a6fa96dc7a0a0251f731f8822e7cb7"
+     }
+    ],
+    "runtime_files": [],
+    "proof_profile": "wheel-members/1"
+   }
+  }
+ },
+ "/v1/projects": {
+  "status": 200,
+  "body": {
+   "schema": "lab-project-list/2",
+   "projects": []
+  }
+ },
+ "/v1/operations": {
+  "status": 200,
+  "body": {
+   "schema": "lab-operation-list/6",
+   "operations": []
+  }
+ },
+ "/v1/operations?view=summary": {
+  "status": 200,
+  "body": {
+   "schema": "lab-operation-summary-list/1",
+   "operations": []
+  }
+ },
+ "/v1/scenarios": {
+  "status": 200,
+  "body": {
+   "schema": "lab-scenario-list/1",
+   "catalogue": {
+    "schema": "lab-scenario-catalogue/1",
+    "catalogue_version": 9,
+    "scenarios": [
+     {
+      "id": "connect",
+      "version": 6,
+      "digest": "62e475b4e1af5ee3a5b1daa8afda952c84e13ef9591293fb692c74e5dfb7bb3e"
+     },
+     {
+      "id": "evolve",
+      "version": 2,
+      "digest": "5507587c2b30650197698b3a4bee72f612451fa20bc813164ec5598f2e4b7d97"
+     },
+     {
+      "id": "restructure",
+      "version": 2,
+      "digest": "333666ed317f1e784bd02ccd8b4a26e82a4137f549ac249f37f530feb260f59d"
+     }
+    ],
+    "digest": "3a94cd0a7c1a5caf28944d99b5075c2a43dbbaa191778e8fe3f3fd011328f316"
+   },
+   "scenarios": [
+    {
+     "descriptor": {
+      "schema": "lab-scenario/2",
+      "id": "connect",
+      "version": 6,
+      "title": "Connect an agent",
+      "skill": "SKILL.md",
+      "subject": "implementation",
+      "requires": [
+       "implementation.available"
+      ],
+      "produces": [
+       "connected"
+      ],
+      "repeatable": null,
+      "schemas": {
+       "spec-answers/1": "schemas/spec-answers-1.json"
+      },
+      "steps": [
+       {
+        "id": "spec",
+        "title": "Write the spec",
+        "kind": "work",
+        "human_only": false,
+        "optional": false,
+        "requires": [],
+        "outputs": [
+         {
+          "artifact": {
+           "path": "SPEC.md",
+           "check": "exists"
+          }
+         },
+         {
+          "artifact": {
+           "path": "spec.answers.json",
+           "check": "schema",
+           "schema": "spec-answers/1"
+          }
+         }
+        ],
+        "skill": "SKILL.md#spec"
+       },
+       {
+        "id": "spec-confirm",
+        "title": "Confirm the spec",
+        "kind": "confirm",
+        "human_only": false,
+        "optional": false,
+        "requires": [
+         "spec"
+        ],
+        "outputs": [
+         {
+          "attestation": {
+           "claim": "spec.confirmed",
+           "path": "SPEC.md"
+          }
+         }
+        ],
+        "skill": "SKILL.md#spec-confirm"
+       },
+       {
+        "id": "package",
+        "title": "Assemble the Lab package",
+        "kind": "work",
+        "human_only": false,
+        "optional": false,
+        "requires": [],
+        "outputs": [
+         {
+          "artifact": {
+           "path": "@package",
+           "check": "package"
+          }
+         }
+        ],
+        "skill": "SKILL.md#package"
+       },
+       {
+        "id": "check",
+        "title": "Check the connection",
+        "kind": "operation",
+        "human_only": false,
+        "optional": false,
+        "requires": [
+         "package"
+        ],
+        "outputs": [
+         {
+          "operation": {
+           "kind": "check",
+           "outcome": "passed"
+          }
+         }
+        ],
+        "skill": "SKILL.md#check"
+       },
+       {
+        "id": "conformance",
+        "title": "Run conformance",
+        "kind": "operation",
+        "human_only": false,
+        "optional": false,
+        "requires": [
+         "package"
+        ],
+        "outputs": [
+         {
+          "operation": {
+           "kind": "conformance",
+           "outcome": "passed"
+          }
+         }
+        ],
+        "skill": "SKILL.md#conformance"
+       },
+       {
+        "id": "baseline",
+        "title": "Measure a short baseline",
+        "kind": "operation",
+        "human_only": true,
+        "optional": false,
+        "requires": [
+         "check",
+         "conformance"
+        ],
+        "outputs": [
+         {
+          "operation": {
+           "kind": "evaluation",
+           "outcome": "measured"
+          }
+         }
+        ],
+        "skill": "SKILL.md#baseline"
+       }
+      ],
+      "digest": "62e475b4e1af5ee3a5b1daa8afda952c84e13ef9591293fb692c74e5dfb7bb3e"
+     },
+     "skill_path": "/home/user/work/evolution_lab/.local-tmp/retained/dev55-20261019/venv-py312/lib/python3.12/site-packages/evolution_lab/guides/scenarios/connect/SKILL.md"
+    },
+    {
+     "descriptor": {
+      "schema": "lab-scenario/2",
+      "id": "evolve",
+      "version": 2,
+      "title": "Evolve the agent",
+      "skill": "SKILL.md",
+      "subject": "implementation",
+      "requires": [
+       "connected"
+      ],
+      "produces": [
+       "campaigns"
+      ],
+      "repeatable": {
+       "cycle": "operation.campaign"
+      },
+      "schemas": {},
+      "steps": [
+       {
+        "id": "plan",
+        "title": "Plan the campaign",
+        "kind": "decide",
+        "human_only": false,
+        "optional": false,
+        "requires": [],
+        "outputs": [
+         {
+          "artifact": {
+           "path": "@manifest",
+           "check": "manifest"
+          }
+         }
+        ],
+        "skill": "SKILL.md#plan"
+       },
+       {
+        "id": "prepare",
+        "title": "Prepare the campaign",
+        "kind": "operation",
+        "human_only": false,
+        "optional": false,
+        "requires": [
+         "plan"
+        ],
+        "outputs": [
+         {
+          "operation": {
+           "kind": "prepare.campaign",
+           "outcome": "prepared"
+          }
+         }
+        ],
+        "skill": "SKILL.md#prepare"
+       },
+       {
+        "id": "run",
+        "title": "Run the campaign",
+        "kind": "operation",
+        "human_only": true,
+        "optional": false,
+        "requires": [
+         "prepare"
+        ],
+        "outputs": [
+         {
+          "operation": {
+           "kind": "campaign",
+           "outcome": "terminal"
+          }
+         }
+        ],
+        "skill": "SKILL.md#run"
+       },
+       {
+        "id": "result",
+        "title": "Collect the result",
+        "kind": "operation",
+        "human_only": false,
+        "optional": true,
+        "requires": [
+         "run"
+        ],
+        "outputs": [
+         {
+          "operation": {
+           "kind": "export",
+           "outcome": "done"
+          }
+         }
+        ],
+        "skill": "SKILL.md#result"
+       }
+      ],
+      "digest": "5507587c2b30650197698b3a4bee72f612451fa20bc813164ec5598f2e4b7d97"
+     },
+     "skill_path": "/home/user/work/evolution_lab/.local-tmp/retained/dev55-20261019/venv-py312/lib/python3.12/site-packages/evolution_lab/guides/scenarios/evolve/SKILL.md"
+    },
+    {
+     "descriptor": {
+      "schema": "lab-scenario/2",
+      "id": "restructure",
+      "version": 2,
+      "title": "Port the agent onto a template",
+      "skill": "SKILL.md",
+      "subject": "implementation",
+      "requires": [
+       "implementation.ported"
+      ],
+      "produces": [
+       "restructure.port_accepted"
+      ],
+      "repeatable": null,
+      "schemas": {
+       "behavior-map/2": "schemas/behavior-map-2.json",
+       "goal/2": "schemas/goal-2.json",
+       "port-spec/2": "schemas/port-spec-2.json",
+       "scope/1": "schemas/scope-1.json",
+       "verify/2": "schemas/verify-2.json"
+      },
+      "steps": [
+       {
+        "id": "analysis",
+        "title": "Map what the agent does",
+        "kind": "decide",
+        "human_only": false,
+        "optional": false,
+        "requires": [],
+        "outputs": [
+         {
+          "artifact": {
+           "path": "restructure/{implementation}/behavior-map.json",
+           "check": "schema",
+           "schema": "behavior-map/2"
+          }
+         }
+        ],
+        "skill": "SKILL.md#analysis"
+       },
+       {
+        "id": "analysis-confirm",
+        "title": "Confirm the behaviour map",
+        "kind": "confirm",
+        "human_only": true,
+        "optional": false,
+        "requires": [
+         "analysis"
+        ],
+        "outputs": [
+         {
+          "attestation": {
+           "claim": "restructure.map_confirmed",
+           "path": "restructure/{implementation}/behavior-map.json"
+          }
+         }
+        ],
+        "skill": "SKILL.md#analysis-confirm"
+       },
+       {
+        "id": "goal",
+        "title": "Agree on the goal",
+        "kind": "decide",
+        "human_only": false,
+        "optional": false,
+        "requires": [
+         "analysis-confirm"
+        ],
+        "outputs": [
+         {
+          "artifact": {
+           "path": "restructure/{implementation}/goal.json",
+           "check": "schema",
+           "schema": "goal/2"
+          }
+         }
+        ],
+        "skill": "SKILL.md#goal"
+       },
+       {
+        "id": "brief",
+        "title": "Write the brief for the builder",
+        "kind": "decide",
+        "human_only": false,
+        "optional": false,
+        "requires": [
+         "goal"
+        ],
+        "outputs": [
+         {
+          "artifact": {
+           "path": "restructure/{implementation}/port-spec.json",
+           "check": "schema",
+           "schema": "port-spec/2"
+          }
+         },
+         {
+          "artifact": {
+           "path": "restructure/{implementation}/scope.json",
+           "check": "schema",
+           "schema": "scope/1"
+          }
+         }
+        ],
+        "skill": "SKILL.md#brief"
+       },
+       {
+        "id": "brief-confirm",
+        "title": "Confirm the brief and start the build",
+        "kind": "confirm",
+        "human_only": true,
+        "optional": false,
+        "requires": [
+         "brief"
+        ],
+        "outputs": [
+         {
+          "attestation": {
+           "claim": "restructure.brief_confirmed",
+           "path": "restructure/{implementation}/scope.json"
+          }
+         }
+        ],
+        "skill": "SKILL.md#brief-confirm"
+       },
+       {
+        "id": "build",
+        "title": "Build the port",
+        "kind": "work",
+        "human_only": false,
+        "optional": false,
+        "requires": [
+         "brief-confirm",
+         "implementation.available"
+        ],
+        "outputs": [
+         {
+          "artifact": {
+           "path": "restructure/{implementation}/BUILD_REPORT.md",
+           "check": "exists"
+          }
+         }
+        ],
+        "skill": "SKILL.md#build"
+       },
+       {
+        "id": "verify",
+        "title": "Verify the behaviour is kept",
+        "kind": "work",
+        "human_only": false,
+        "optional": false,
+        "requires": [
+         "build"
+        ],
+        "outputs": [
+         {
+          "artifact": {
+           "path": "restructure/{implementation}/verify.json",
+           "check": "schema",
+           "schema": "verify/2"
+          }
+         }
+        ],
+        "skill": "SKILL.md#verify"
+       },
+       {
+        "id": "accept",
+        "title": "Accept the port",
+        "kind": "confirm",
+        "human_only": true,
+        "optional": false,
+        "requires": [
+         "verify"
+        ],
+        "outputs": [
+         {
+          "attestation": {
+           "claim": "restructure.port_accepted",
+           "path": "restructure/{implementation}/verify.json"
+          }
+         }
+        ],
+        "skill": "SKILL.md#accept"
+       }
+      ],
+      "digest": "333666ed317f1e784bd02ccd8b4a26e82a4137f549ac249f37f530feb260f59d"
+     },
+     "skill_path": "/home/user/work/evolution_lab/.local-tmp/retained/dev55-20261019/venv-py312/lib/python3.12/site-packages/evolution_lab/guides/scenarios/restructure/SKILL.md"
+    }
+   ]
+  }
+ },
+ "/v1/targets": {
+  "status": 200,
+  "body": {
+   "schema": "lab-owner-target-list/1",
+   "targets": []
+  }
+ }
+}

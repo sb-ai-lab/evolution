@@ -1,0 +1,249 @@
+{
+  "producing_lab_commit": "19c8e89d0c9768eb0d13d083abe608a96bf3282d",
+  "sources": [
+    {
+      "path": "tests/fixtures/panel/b15/focus-first/campaign.json",
+      "sha256": "38de1dabd5d11976705669ecedd978a61156d126cd813419eb1e6ec3ee2ef3ce"
+    },
+    {
+      "path": "tests/fixtures/panel/b15/focus-first/core-projection.json",
+      "sha256": "7c24454826b80fa26583e3a238acc55e5961ae77c8fca89fdb9874786a80e7b1"
+    },
+    {
+      "path": "tests/fixtures/panel/b15/focus-first/core-report.txt",
+      "sha256": "c3b26e129283df12c4221817f9eb40abaaea807c8e4a1f5ebec1cfdd38ee41de"
+    },
+    {
+      "path": "tests/fixtures/panel/b15/focus-first/meta.json",
+      "sha256": "7fafc3be5eb564b9441bf1cede4e3a84f3474fb492b66d24fda610c195f28bf8"
+    },
+    {
+      "path": "tests/fixtures/panel/b15/focus-first/owner-report.json",
+      "sha256": "df4ae055a8c4b11e2e606b2c7f41842bae81d4d2257d42a7ab0a9979a64921ae"
+    },
+    {
+      "path": "tests/fixtures/panel/b15/focus-first/report.md",
+      "sha256": "fbc5a17a36261bc399a269357f4bdf3ecafe8c2b0bdcdece78047090a3772b55"
+    },
+    {
+      "path": "tests/fixtures/panel/b15/focus-first/result.json",
+      "sha256": "56b8ea10b5ec6b6d33328337e9baedf9b333dde8d397b3827cb710d679f9fbcb"
+    },
+    {
+      "path": "tests/fixtures/panel/b15/focus-first/run/artifacts/auxiliary/0df4b3f1a12b48257c55c716625ae099e609392d47b65cb5d891420d8464a33c/payload.json",
+      "sha256": "0df4b3f1a12b48257c55c716625ae099e609392d47b65cb5d891420d8464a33c"
+    },
+    {
+      "path": "tests/fixtures/panel/b15/focus-first/run/artifacts/auxiliary/50690e252890b05f03f29ecb5678a792d576b175c3a0898e40dffc17e7159ee9/payload.json",
+      "sha256": "50690e252890b05f03f29ecb5678a792d576b175c3a0898e40dffc17e7159ee9"
+    },
+    {
+      "path": "tests/fixtures/panel/b15/focus-first/run/artifacts/auxiliary/8a781ed3e2dd210437aca1a59f81139761c8ae4d03620e9d39d9630fbda883cf/payload.json",
+      "sha256": "8a781ed3e2dd210437aca1a59f81139761c8ae4d03620e9d39d9630fbda883cf"
+    },
+    {
+      "path": "tests/fixtures/panel/b15/focus-first/run/artifacts/auxiliary/94e29e3d25b0a74b465175101a3fdef195b992b9724810a3dc774e72179d08fb/payload.json",
+      "sha256": "94e29e3d25b0a74b465175101a3fdef195b992b9724810a3dc774e72179d08fb"
+    },
+    {
+      "path": "tests/fixtures/panel/b15/focus-first/run/artifacts/auxiliary/9938509d4af58833cacea69c42782b2a7602a3d54f0a067dd17386c3b3660bc9/payload.json",
+      "sha256": "9938509d4af58833cacea69c42782b2a7602a3d54f0a067dd17386c3b3660bc9"
+    },
+    {
+      "path": "tests/fixtures/panel/b15/focus-first/run/artifacts/auxiliary/9eefbb87766dde19a3077b26db0e8cc503a8abb0aa5f5554f7e5bf8319f9aebd/payload.json",
+      "sha256": "9eefbb87766dde19a3077b26db0e8cc503a8abb0aa5f5554f7e5bf8319f9aebd"
+    },
+    {
+      "path": "tests/fixtures/panel/b15/focus-first/run/artifacts/auxiliary/bfc6927dbe43f6116e6058d1f503f91e72c0dc114d2d2860f962f30f1b2a1d51/payload.json",
+      "sha256": "bfc6927dbe43f6116e6058d1f503f91e72c0dc114d2d2860f962f30f1b2a1d51"
+    },
+    {
+      "path": "tests/fixtures/panel/b15/focus-first/run/artifacts/auxiliary/c375ebe17810ef3bf7faa24eb224bf798f1b1450258d4e9ccb7c46206004d915/payload.json",
+      "sha256": "c375ebe17810ef3bf7faa24eb224bf798f1b1450258d4e9ccb7c46206004d915"
+    },
+    {
+      "path": "tests/fixtures/panel/b15/focus-first/run/artifacts/auxiliary/c692e1f85638a7bfacd4beb07fc8ba1f08d7dd1f628440a6ea5257274bf067f3/payload.json",
+      "sha256": "c692e1f85638a7bfacd4beb07fc8ba1f08d7dd1f628440a6ea5257274bf067f3"
+    },
+    {
+      "path": "tests/fixtures/panel/b15/focus-first/run/artifacts/auxiliary/d050c43e6869bd9224be6de016d2310566caecaf28bf67f85c767af12ba02b6b/payload.json",
+      "sha256": "d050c43e6869bd9224be6de016d2310566caecaf28bf67f85c767af12ba02b6b"
+    },
+    {
+      "path": "tests/fixtures/panel/b15/focus-first/run/artifacts/auxiliary/dfe76c779a2cfb90e352af3c772623f8b7446fef1173d5314c0b4fdddafa5b3d/payload.json",
+      "sha256": "dfe76c779a2cfb90e352af3c772623f8b7446fef1173d5314c0b4fdddafa5b3d"
+    },
+    {
+      "path": "tests/fixtures/panel/b15/focus-first/run/artifacts/candidates/r01-a01/skills/SKILL.md",
+      "sha256": "264d7fb8d11aab664e3ae36cdfa89cf8f4b3bd999d1888114f772d530067a132"
+    },
+    {
+      "path": "tests/fixtures/panel/b15/focus-first/run/artifacts/candidates/r01-a01/uv.lock",
+      "sha256": "fdae21c35ba8ab73bee88a075fdae386e692049307adaf0af670c8bced90d349"
+    },
+    {
+      "path": "tests/fixtures/panel/b15/focus-first/run/artifacts/candidates/r01-a02/skills/SKILL.md",
+      "sha256": "512a781a4f990d47e0604f6dfb3ce454c0ca2d7489ffa7555bacd75233ad40fd"
+    },
+    {
+      "path": "tests/fixtures/panel/b15/focus-first/run/artifacts/candidates/r01-a02/uv.lock",
+      "sha256": "fdae21c35ba8ab73bee88a075fdae386e692049307adaf0af670c8bced90d349"
+    },
+    {
+      "path": "tests/fixtures/panel/b15/focus-first/run/artifacts/champions/v0/skills/SKILL.md",
+      "sha256": "e4d9d46200d838b940d7bb19157a1253bd7fcdfbae54a9c134cc8f2e8c972f3b"
+    },
+    {
+      "path": "tests/fixtures/panel/b15/focus-first/run/artifacts/champions/v0/uv.lock",
+      "sha256": "fdae21c35ba8ab73bee88a075fdae386e692049307adaf0af670c8bced90d349"
+    },
+    {
+      "path": "tests/fixtures/panel/b15/focus-first/run/artifacts/champions/v1/skills/SKILL.md",
+      "sha256": "512a781a4f990d47e0604f6dfb3ce454c0ca2d7489ffa7555bacd75233ad40fd"
+    },
+    {
+      "path": "tests/fixtures/panel/b15/focus-first/run/artifacts/champions/v1/uv.lock",
+      "sha256": "fdae21c35ba8ab73bee88a075fdae386e692049307adaf0af670c8bced90d349"
+    },
+    {
+      "path": "tests/fixtures/panel/b15/focus-first/run/artifacts.jsonl",
+      "sha256": "2a4dd24631f00c53deb6e180a4ca691cd5d419e3aaf7d1c52114ae85e231ec05"
+    },
+    {
+      "path": "tests/fixtures/panel/b15/focus-first/run/campaign.jsonl",
+      "sha256": "3b3a72cd740a7858ce597b35a1c3273868f45fb59210bcf367490e6aa815e51b"
+    },
+    {
+      "path": "tests/fixtures/panel/b15/focus-first/run/connection/b66ebfb314064120a6b547a520952546/events.jsonl",
+      "sha256": "d1030b472b76201211e15c95ff7630b13328044a230ca320afbd3488ce34a14d"
+    },
+    {
+      "path": "tests/fixtures/panel/b15/focus-first/run/measurements/m-r00-champion/events.jsonl",
+      "sha256": "f8afb43e35152f4a2b6918d4db5e5524fe395e5b72457a423126582d74fbdea8"
+    },
+    {
+      "path": "tests/fixtures/panel/b15/focus-first/run/measurements/m-r01-a01/events.jsonl",
+      "sha256": "e37a95779a43d2765c978320cc1b3897aeb42c4986091acaf3db1e258cf1f11d"
+    },
+    {
+      "path": "tests/fixtures/panel/b15/focus-first/run/measurements/m-r01-a01-parent/events.jsonl",
+      "sha256": "69805036bf76d5a83068132d897ed8b77b91acecf2b9bc47c2c474d49bfe0ce4"
+    },
+    {
+      "path": "tests/fixtures/panel/b15/focus-first/run/measurements/m-r01-a02/events.jsonl",
+      "sha256": "caf87b2a611bd40d64eb20f1686cf4e46edbafb7d848dee7622ca77e0892c0ec"
+    },
+    {
+      "path": "tests/fixtures/panel/b15/focus-first/run/measurements/m-r01-a02-completion/events.jsonl",
+      "sha256": "abe0efc12912796308659b693367cd90947c91e8d650fc178a46b77b703131e6"
+    },
+    {
+      "path": "tests/fixtures/panel/b15/focus-first/run/measurements/m-r01-a02-parent/events.jsonl",
+      "sha256": "7d2439c970eddbe8423e61e59e8da992f82292a8a4462dac379464296736df5a"
+    },
+    {
+      "path": "tests/fixtures/panel/b15/focus-first/run/scorer-traces/m-r00-champion.pack",
+      "sha256": "a25e5c0fcaa9d5717654daf00d35f4d65f1eca640bc91093662e2fcebdbb6b70"
+    },
+    {
+      "path": "tests/fixtures/panel/b15/focus-first/run/scorer-traces/m-r01-a01-parent.pack",
+      "sha256": "4c68bc82a9f50981aefbb7c25a9afe6f781f24665fe0a35750060627fa336133"
+    },
+    {
+      "path": "tests/fixtures/panel/b15/focus-first/run/scorer-traces/m-r01-a01.pack",
+      "sha256": "16fde9740e2b28f737bfa0717925089b711231aa24ec29c1e569f8ee84e0b537"
+    },
+    {
+      "path": "tests/fixtures/panel/b15/focus-first/run/scorer-traces/m-r01-a02-parent.pack",
+      "sha256": "ea4602cf249b267f5f232ead26648cfabe10af2df5f83bf3778e46cc407ab41b"
+    },
+    {
+      "path": "tests/fixtures/panel/b15/focus-first/run/scorer-traces/m-r01-a02.pack",
+      "sha256": "08c8bb0af82ffc20ecfe37eb5c5f03cfc5b0cac4afd6856846d75ebeca4c665c"
+    },
+    {
+      "path": "tests/fixtures/panel/b15/focus-open/campaign.json",
+      "sha256": "0d44dbc5d0ce395bec884f94c25b92e563814476df05e5434fde44bcc6522695"
+    },
+    {
+      "path": "tests/fixtures/panel/b15/focus-open/core-projection.json",
+      "sha256": "3eae0713b88335f66c61a808208d181a5088695cf7384e49521af1dd3beba630"
+    },
+    {
+      "path": "tests/fixtures/panel/b15/focus-open/core-report.txt",
+      "sha256": "5b9f1214bceb92f96bcad17884f14120cedd9ebbfc05008c5788413171234670"
+    },
+    {
+      "path": "tests/fixtures/panel/b15/focus-open/meta.json",
+      "sha256": "bdce55d7c46e8c6b6007278398e95d558e6a5d27c8a87bef84829ba63357f48f"
+    },
+    {
+      "path": "tests/fixtures/panel/b15/focus-open/owner-report.json",
+      "sha256": "c3e6aba2118ee3ad1300379f91a96a178e858e33dde52d12234ef19320fe8d06"
+    },
+    {
+      "path": "tests/fixtures/panel/b15/focus-open/report.md",
+      "sha256": "35f1025c47b5008178556cb042dd9600e692b5f33e3f163a6b929529038cc3f2"
+    },
+    {
+      "path": "tests/fixtures/panel/b15/focus-open/result.json",
+      "sha256": "14e57702e8ee11e1d9a51f3bdf1f3e43f61aae47dd9acef8f4cdd90cd18243fb"
+    },
+    {
+      "path": "tests/fixtures/panel/b15/focus-open/run/artifacts/auxiliary/36d2c34c5dd450a44cdd43889d253b385fa6f16bf82ca3fb0d7c3b3164c3ffdd/payload.json",
+      "sha256": "36d2c34c5dd450a44cdd43889d253b385fa6f16bf82ca3fb0d7c3b3164c3ffdd"
+    },
+    {
+      "path": "tests/fixtures/panel/b15/focus-open/run/artifacts/candidates/r01-a01/skills/SKILL.md",
+      "sha256": "264d7fb8d11aab664e3ae36cdfa89cf8f4b3bd999d1888114f772d530067a132"
+    },
+    {
+      "path": "tests/fixtures/panel/b15/focus-open/run/artifacts/candidates/r01-a01/uv.lock",
+      "sha256": "fdae21c35ba8ab73bee88a075fdae386e692049307adaf0af670c8bced90d349"
+    },
+    {
+      "path": "tests/fixtures/panel/b15/focus-open/run/artifacts/champions/v0/skills/SKILL.md",
+      "sha256": "e4d9d46200d838b940d7bb19157a1253bd7fcdfbae54a9c134cc8f2e8c972f3b"
+    },
+    {
+      "path": "tests/fixtures/panel/b15/focus-open/run/artifacts/champions/v0/uv.lock",
+      "sha256": "fdae21c35ba8ab73bee88a075fdae386e692049307adaf0af670c8bced90d349"
+    },
+    {
+      "path": "tests/fixtures/panel/b15/focus-open/run/artifacts.jsonl",
+      "sha256": "8c930f328592e02020804ef39627c0e5029244f973a419537a7e9b1c27e82ec3"
+    },
+    {
+      "path": "tests/fixtures/panel/b15/focus-open/run/campaign.jsonl",
+      "sha256": "eeb56e557ed4a4539c5598d48ad26696e3920af37e95d1df3423a476db8e0084"
+    },
+    {
+      "path": "tests/fixtures/panel/b15/focus-open/run/connection/957f5abe8a51495d853d50c1b379c072/events.jsonl",
+      "sha256": "e024172ebcf304d9e8092d8078f23150e0a6488e0377cfc5345edaec9d9650bc"
+    },
+    {
+      "path": "tests/fixtures/panel/b15/focus-open/run/measurements/m-r00-champion/events.jsonl",
+      "sha256": "44311820dde4d9d67b5ad804ed3dcc5431ff37f285e9e6a0267608dcb667071b"
+    },
+    {
+      "path": "tests/fixtures/panel/b15/focus-open/run/measurements/m-r01-a01/events.jsonl",
+      "sha256": "1258d35a3d3238121d329cf330abb9053fc2db28407455f4696eb0e65ad17e4e"
+    },
+    {
+      "path": "tests/fixtures/panel/b15/focus-open/run/measurements/m-r01-a01-parent/events.jsonl",
+      "sha256": "0872b31828d994bb1aea795edbf706b212517cfd7556f782bb8ce647a426f51c"
+    },
+    {
+      "path": "tests/fixtures/panel/b15/focus-open/run/scorer-traces/m-r00-champion.pack",
+      "sha256": "3b1ee59881b5a870aaf18206c276fcc3c5663dbeba76a4164d6a09c1dc988223"
+    },
+    {
+      "path": "tests/fixtures/panel/content/run/68207c8e2014428d8fa735d1220f0dae/measurement/events.jsonl",
+      "sha256": "299c092a70cc8a7d368f7766dd1e58f97a96aa53349f43cb5904e804c0914df9"
+    },
+    {
+      "path": "tests/fixtures/panel/content/run/68207c8e2014428d8fa735d1220f0dae/measurement/scorer-traces/c-68207c8e2014428d8fa735d1220f0dae.pack",
+      "sha256": "374bd40691c01a4e56431d7def8cf515025dedcda411a4433864e3ba5a4ac24d"
+    }
+  ]
+}

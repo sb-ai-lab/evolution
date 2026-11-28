@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 from typing import Any
 
+from evolution.tree.execution.interaction import TurnResult
 from tests.tree.manifest.test_manifest_v15 import v15_document
 
 
@@ -1471,3 +1472,133 @@ async def independent_run(tmp_path, monkeypatch, *, campaign_options=None, **opt
             **options,
         )
     return tmp_path / "run", results[-1]
+
+
+class DelegationAgent:
+    tool = "external_lookup"
+    observation = "delegation_route"
+    signal_type = "delegation"
+    signal = "worker-dispatched"
+
+    def behavior(self):
+        return (
+            {"type": "delegation", "status": self.signal},
+            {"type": "tool_call", "name": self.tool, "arguments": {"query": "catalog"}},
+            {"type": "tool_result", "name": self.tool, "status": "ok", "result": ["item"]},
+        )
+
+
+class ResultCheckingAgent:
+    tool = "read_value"
+    observation = "verification_result"
+    signal_type = "result_check"
+    signal = "check-attempted"
+
+    def behavior(self):
+        return (
+            {"type": "tool_call", "name": self.tool, "arguments": {"key": "total"}},
+            {"type": "tool_result", "name": self.tool, "status": "ok", "result": 3},
+            {"type": "result_check", "status": self.signal},
+        )
+
+
+class FeedbackTarget:
+    """Offline backend whose only editable input comes from the loaded snapshot."""
+
+    def __init__(self, agent):
+        self.agent = agent
+
+    def load(self, tree):
+        return _FeedbackInstance(
+            self.agent, (tree.root / "skills/SKILL.md").read_text().strip() == "check results"
+        )
+
+
+class _FeedbackInstance:
+    def __init__(self, agent, repaired):
+        self.agent = agent
+        self.repaired = repaired
+
+    def open(self, public, seed):
+        return _FeedbackSession(self.agent, public["text"], seed, self.repaired)
+
+    def close(self):
+        pass
+
+
+class _FeedbackSession:
+    def __init__(self, agent, scenario, seed, repaired):
+        self.agent = agent
+        self.scenario = scenario
+        self.effective_seed = seed
+        self.repaired = repaired
+
+    def turn(self, message):
+        from evolution.tree.target.target_server import BackendReply
+
+        assert message.content == self.scenario
+        gap = self.scenario in {"diagnostic-gap", "missing-at-target", "missing-at-scorer"}
+        failed = self.scenario == "candidate-defect" and not self.repaired
+        events = (
+            {"type": "trace_availability", "state": "partial" if gap else "complete"},
+            {"type": "trace_step", "step": "started"},
+            *(() if gap else self.agent.behavior()),
+            {"type": "trace_step", "step": "finished"},
+        )
+        if self.scenario not in {"missing-at-target", "missing-at-scorer"}:
+            status = "invalid" if failed else "verified" if self.repaired else "unchecked"
+            events += ({"type": "assistant_message", "content": status},)
+        if self.scenario == "missing-at-target":
+            return BackendReply(TurnResult(events, None, 0, "target_failed"))
+        return BackendReply(
+            TurnResult(
+                events,
+                None,
+                0,
+                "candidate_failed" if failed else "ok",
+                reason={"category": "agent_defect", "code": "invalid_reply"} if failed else None,
+                provenance={"used": ["skills/SKILL.md"]},
+            )
+        )
+
+    def close(self):
+        pass
+
+
+def feedback_scorer(agent):
+    """A sealed Python script, configured by the fixture's agent package."""
+    return (
+        f"OBSERVATION = {agent.observation!r}\nSIGNAL_TYPE = {agent.signal_type!r}\n"
+        + r"""
+import json
+import sys
+
+sample = json.load(sys.stdin)
+view = sample["view"]
+events = [event for turn in view["history"]["turns"] for event in turn["events"]]
+answers = [event["content"] for event in events if event["type"] == "assistant_message"]
+if view["terminal"] == "candidate_failed":
+    score = 0.0
+elif answers:
+    score = 1.0 if answers[-1] == "verified" else sample["oracle"]["partial_credit"]
+else:
+    sys.exit(2)
+availability = next(
+    (event["state"] for event in events if event["type"] == "trace_availability"), "unavailable"
+)
+observed = next((event["status"] for event in events if event["type"] == SIGNAL_TYPE), "unknown")
+if availability != "complete":
+    observed = "unknown"
+json.dump({
+    "metrics": {"task_quality": score, "decoy": 1.0 - score},
+    "verdicts": [{"criterion": "verified", "passed": score == 1.0}],
+    "public_feedback": {OBSERVATION: observed},
+    "diagnostics": {
+        OBSERVATION: observed,
+        "availability": availability,
+        "private_material": "PRIVATE-DIAGNOSTIC-" + sample["case_id"],
+    },
+    "details": {"private_material": "PRIVATE-SCORER-DETAILS"},
+}, sys.stdout)
+"""
+    )

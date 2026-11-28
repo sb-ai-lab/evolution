@@ -1,0 +1,10 @@
+{
+  "terminal": "interrupted",
+  "owner": null,
+  "code": null,
+  "injected_failed_turns": 0,
+  "interruption": {
+    "hook": "_Campaign._append_stage_opened (after original; scope=focus)",
+    "reason": "Preserve the open focus stage before dispatch or focus_decided"
+  }
+}

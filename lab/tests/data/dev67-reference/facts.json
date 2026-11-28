@@ -1,0 +1,237 @@
+{
+  "facts": [
+    {
+      "carried_over": [],
+      "holds": true,
+      "id": "implementation.available",
+      "source": {
+        "kind": "filesystem"
+      },
+      "stale_reason": null,
+      "subject": {
+        "implementation": "port-a"
+      },
+      "value": true
+    },
+    {
+      "carried_over": [],
+      "holds": true,
+      "id": "implementation.ported",
+      "source": {
+        "implementation": "agent",
+        "kind": "origin",
+        "reason": null
+      },
+      "stale_reason": null,
+      "subject": {
+        "implementation": "port-a"
+      },
+      "value": true
+    },
+    {
+      "carried_over": [],
+      "holds": true,
+      "id": "materials.revision",
+      "source": {
+        "kind": "revision"
+      },
+      "stale_reason": null,
+      "subject": null,
+      "value": {
+        "digest": "sha256:f1f08dfcf5ecfc2e43401911cfeee16a0928231a8ff752f7024f6371c505871b",
+        "git": null
+      }
+    },
+    {
+      "carried_over": [],
+      "holds": true,
+      "id": "package.present",
+      "source": {
+        "entry": "bundle-request.json",
+        "kind": "package_entry",
+        "reason": null
+      },
+      "stale_reason": null,
+      "subject": {
+        "implementation": "port-a"
+      },
+      "value": true
+    },
+    {
+      "carried_over": [],
+      "holds": true,
+      "id": "package.valid",
+      "source": {
+        "errors": [],
+        "kind": "package_entry"
+      },
+      "stale_reason": null,
+      "subject": {
+        "implementation": "port-a"
+      },
+      "value": {
+        "scope": "form"
+      }
+    },
+    {
+      "carried_over": [],
+      "holds": true,
+      "id": "check.passed",
+      "source": {
+        "id": "<id-1>",
+        "inputs_digest": "sha256:253f0cb31850daf4cb9289922f04cd007697502503f19b671d3f77d8d51f0adc",
+        "kind": "task",
+        "pair": {
+          "core": "2.0.0b15",
+          "lab": "0.0.3.dev66"
+        }
+      },
+      "stale_reason": null,
+      "subject": {
+        "implementation": "port-a"
+      },
+      "value": true
+    },
+    {
+      "carried_over": [],
+      "holds": false,
+      "id": "conformance.passed",
+      "source": null,
+      "stale_reason": null,
+      "subject": {
+        "implementation": "port-a"
+      },
+      "value": false
+    },
+    {
+      "carried_over": [],
+      "holds": false,
+      "id": "baseline.measured",
+      "source": {
+        "bundle_digest": "fd8c2f641b1437e8a271235807249157345b41f0d2b6628aca874d01481cbcad",
+        "failed": "persistence",
+        "id": "<id-2>",
+        "inputs_digest": "sha256:253f0cb31850daf4cb9289922f04cd007697502503f19b671d3f77d8d51f0adc",
+        "kind": "operation",
+        "measurement_basis": "64338fab0c8b1cb6ac873cd86c8c0b6377f8dd9a824c8ce15f06f31e0089bc43",
+        "pair": {
+          "core": "2.0.0b15",
+          "lab": "0.0.3.dev66"
+        },
+        "same_bundle": true
+      },
+      "stale_reason": null,
+      "subject": {
+        "implementation": "port-a"
+      },
+      "value": false
+    },
+    {
+      "carried_over": [],
+      "holds": false,
+      "id": "connected",
+      "source": {
+        "facts": [
+          "check.passed",
+          "conformance.passed",
+          "baseline.measured"
+        ],
+        "kind": "derived"
+      },
+      "stale_reason": null,
+      "subject": {
+        "implementation": "port-a"
+      },
+      "value": false
+    },
+    {
+      "carried_over": [],
+      "holds": true,
+      "id": "campaigns",
+      "source": {
+        "kind": "links"
+      },
+      "stale_reason": null,
+      "subject": {
+        "implementation": "port-a"
+      },
+      "value": [
+        {
+          "control_state": "finished",
+          "detail": "available",
+          "operation_id": "<id-3>",
+          "pair": {
+            "core": "2.0.0b15",
+            "lab": "0.0.3.dev66"
+          },
+          "results_state": "present",
+          "resume": null
+        },
+        {
+          "control_state": "running",
+          "detail": "available",
+          "operation_id": "<id-4>",
+          "pair": {
+            "core": "2.0.0b15",
+            "lab": "0.0.3.dev66"
+          },
+          "results_state": "present",
+          "resume": null
+        }
+      ]
+    },
+    {
+      "carried_over": [],
+      "holds": true,
+      "id": "spec.confirmed",
+      "source": {
+        "attests": {
+          "digest": "sha256:33408633da99cb4e17e0f12e27ab0ed67057714f421aa34bb6eed9a90f654d83",
+          "path": "SPEC.md"
+        },
+        "author": "neutral",
+        "channel": "cli",
+        "created_at": "<time>",
+        "id": "<id-5>",
+        "kind": "confirmation"
+      },
+      "stale_reason": null,
+      "subject": {
+        "implementation": "port-a"
+      },
+      "value": true
+    }
+  ],
+  "implementation": "port-a",
+  "pair": {
+    "core": "2.0.0b15",
+    "lab": "0.0.3.dev66"
+  },
+  "project": "acq",
+  "revision": {
+    "digest": "sha256:f1f08dfcf5ecfc2e43401911cfeee16a0928231a8ff752f7024f6371c505871b",
+    "files": 13,
+    "git": null,
+    "places": [
+      {
+        "digest": "sha256:9787edf62a78e49ab0dc2d5d78f4db17d66bd424486ea3a376fed9b445450e84",
+        "path": "lab",
+        "role": "materials_root"
+      },
+      {
+        "digest": "sha256:0ee9c5b0cd26a5ded72a068e088dc8a7027f2c81707b3486821341739e5371b4",
+        "id": "agent",
+        "path": "agent",
+        "role": "implementation"
+      },
+      {
+        "digest": "sha256:0ee9c5b0cd26a5ded72a068e088dc8a7027f2c81707b3486821341739e5371b4",
+        "id": "port-a",
+        "path": "agent",
+        "role": "implementation"
+      }
+    ],
+    "schema": "lab-materials-revision/1"
+  },
+  "schema": "lab-project-facts/5"
+}

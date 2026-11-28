@@ -6,7 +6,9 @@ import dataclasses
 import hashlib
 import json
 import shutil
-import tracemalloc
+import subprocess
+import sys
+from pathlib import Path
 
 import pytest
 
@@ -129,23 +131,44 @@ def test_large_all_missing_schedule_has_constant_empty_index_and_bounded_gaps(tm
     assert sum(result.gaps.counts.values()) == 3000
 
 
+#: Run in a fresh child: `tracemalloc` counts every thread, and threads other
+#: modules leave in a pytest worker can otherwise add megabytes to the peak.
+_MEASURE_RETENTION = r"""
+import sys, tracemalloc
+from pathlib import Path
+from evolution.tree import baseline_diagnostics as diagnostics
+from tests.test_tree_baseline_diagnostics import fixture_slot
+from tests.test_tree_baseline_diagnostics_bounds import _repeat
+
+root = Path(sys.argv[1])
+trace, slot = fixture_slot(root)
+with (trace.directory / "stdout").open("ab") as stream:
+    stream.write(b" " * (128 * 1024))
+slots = [_repeat(slot, n) for n in range(1, 129)]
+tracemalloc.start()
+try:
+    result = diagnostics.prepare_diagnostics(
+        slots, source_root=trace.run_root, destination=root / "prepared"
+    )
+    _, peak = tracemalloc.get_traced_memory()
+finally:
+    tracemalloc.stop()
+assert result.included == 128, result.included
+assert result.byte_count > 16 * 1024 * 1024, result.byte_count
+assert peak < 8 * 1024 * 1024, peak
+"""
+
+
 def test_trace_bodies_are_not_retained_across_slots(tmp_path):
-    trace, slot = fixture_slot(tmp_path)
-    stdout = trace.directory / "stdout"
-    with stdout.open("ab") as stream:
-        stream.write(b" " * (128 * 1024))
-    slots = [_repeat(slot, n) for n in range(1, 129)]
-    tracemalloc.start()
-    try:
-        result = diagnostics.prepare_diagnostics(
-            slots, source_root=trace.run_root, destination=tmp_path / "prepared"
-        )
-        _, peak = tracemalloc.get_traced_memory()
-    finally:
-        tracemalloc.stop()
-    assert result.included == 128
-    assert result.byte_count > 16 * 1024 * 1024
-    assert peak < 8 * 1024 * 1024
+    completed = subprocess.run(
+        [sys.executable, "-c", _MEASURE_RETENTION, str(tmp_path)],
+        capture_output=True,
+        text=True,
+        check=False,
+        cwd=Path(__file__).resolve().parents[1],
+        timeout=120,
+    )
+    assert completed.returncode == 0, completed.stderr
 
 
 def test_duplicate_destination_is_rejected_before_writing(tmp_path):

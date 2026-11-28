@@ -276,3 +276,6 @@ def test_start_fsync_failure_prevents_real_target_send(tmp_path, monkeypatch):
     with open_journal(path, identity, corpus, resume=True) as journal:
         plan = recovery_plan(journal.snapshot().records)
         assert any(action.payload.get("operation") == "target_send" for action in plan.actions)
+
+
+pytestmark = pytest.mark.usefixtures("strict_durability")

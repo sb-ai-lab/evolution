@@ -9,6 +9,7 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Literal, Protocol
 
+from evolution.tree.execution.check_modes import RepeatedReadCheck, repeated_read_check
 from evolution.tree.execution.evidence_settings import EvidencePin
 from evolution.tree.execution.journal_identity import canonical_json
 from evolution.tree.roles.identities import EditorIdentity
@@ -658,6 +659,10 @@ class EditRequest:
     #: the `edit_request/1` document, never journaled.
     attempts: AttemptRecorder | None = field(default=None, repr=False, compare=False)
     traces: BaselineTraces | None = field(default=None, repr=False, compare=False)
+    #: Direct /16 chat only. A callable keeps detection lazy when the operator selects off.
+    check_repeated_read: RepeatedReadCheck = field(
+        default_factory=repeated_read_check, repr=False, compare=False
+    )
 
 
 @dataclass(frozen=True)

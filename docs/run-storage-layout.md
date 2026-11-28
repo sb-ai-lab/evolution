@@ -37,6 +37,10 @@ Scorer stream buffers and the Reflector's frozen copy of the Parent, with its pr
 
 `campaign.jsonl`, `artifacts.jsonl`, and each `measurements/<id>/events.jsonl` are durable evidence. Do not edit them by hand. Use `evo tree watch --once` for a status snapshot and the inspection commands in [Running campaigns](running-campaigns.md) to verify a run.
 
+Standalone tree evaluations keep their owner journal in `evaluation.jsonl` and their child journal in `measurements/evaluation/events.jsonl`. New child identities carry `row_provenance: 1`; their `rollout_finished` records can carry `provenance`, `provenance_overflow` and `components_digest`. Each distinct map is a `components_declared` record in that same child journal. See [evaluation reports](cli.md#measure-a-tree-on-train-or-test) for coverage counts and the absent-provenance note.
+
+A baseline imported from an evaluation or inherited by a new linked campaign is born atomically with `run_created`, every admitted `sample_imported`, then the carried `components_declared` records in digest order. Maps that are unavailable or contain campaign secrets are not copied. On `/16`, the bounded diagnostic bundle and its publication records are also owned by the importing campaign. Its audit checks declaration-to-copy integrity and decisions; it does not re-prove the source rows or reopen the source after birth. See [baseline import](cli.md#a-baseline-from-an-evaluation).
+
 Scorer traces may use a packed `.pack` file or an older per-request layout. Read them through `ScorerTraceReader`, which supports both layouts. A missing trace returns `None`; an unsafe, corrupt, ambiguous, invalid, or oversized trace raises `ScorerTraceUnreadable`.
 
 ```python
@@ -62,7 +66,7 @@ If a scorer-trace segment is torn, recovery truncates only an incomplete final r
 
 ## Role diagnostics
 
-Editor and reflector logs are private diagnostics. They are not campaign-journal evidence and are never role input. Inspect them only when a role check or campaign report identifies the corresponding operation.
+Editor and Reflector logs are private diagnostics. They are not campaign-journal evidence and are never role input. Inspect them only when a role check or campaign report identifies the corresponding operation.
 
 Connection preflight uses `connection/<operation_id>/events.jsonl` and `connection-logs/<operation_id>/<operation_id>.pack` for family 14. The preflight verifies the target connection and role visibility before a campaign proceeds. Restore these files from a trusted copy if a recovery report names them; do not invent replacement records.
 

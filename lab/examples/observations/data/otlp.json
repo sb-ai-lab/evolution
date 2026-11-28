@@ -1,0 +1,1 @@
+{"resourceSpans":[{"scopeSpans":[{"spans":[{"traceId":"11111111111111111111111111111111","spanId":"3333333333333333","parentSpanId":"2222222222222222","name":"sort","startTimeUnixNano":"1789171200000000000","attributes":[{"key":"aef.kind","value":{"stringValue":"internal"}},{"key":"example.result","value":{"stringValue":"1, 2, 3"}}]}]}]}]}

@@ -186,7 +186,16 @@ def test_evaluation_cli_notes_are_immediate_and_redacted(tmp_path, monkeypatch, 
     async def engine(*args, **kwargs):
         kwargs["notes"]("early note " + secret)
         assert emitted == ["early note [REDACTED]"]
-        return {"state": "completed"}
+        return {
+            "state": "completed",
+            "provenance": {
+                "recorded": False,
+                "reported": None,
+                "overflow": None,
+                "not_reported": None,
+                "components_declared": None,
+            },
+        }
 
     monkeypatch.setattr(typer, "echo", echo)
     monkeypatch.setattr(evaluation, "evaluate", engine)

@@ -2,7 +2,7 @@
 
 import pytest
 
-pytestmark = pytest.mark.slow
+pytestmark = [pytest.mark.slow, pytest.mark.usefixtures("strict_durability")]
 
 
 def test_recover_editor_workspace_refuses_wrong_parent_and_published_attempt(tmp_path):

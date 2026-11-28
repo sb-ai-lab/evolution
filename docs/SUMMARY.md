@@ -1,12 +1,21 @@
 # Evolution documentation
 
-Choose the task you want to do. These guides describe the v2 tree-evolution beta in this checkout, `2.0.0b18`. The first example needs no API key or separate agent project. Its campaign manifest is `evolution-v2-manifest/15`, the scaffold format; opt-in `/16` adds independent acceptance controls.
+Choose the task you want to do. These guides describe the v2 tree-evolution beta in this checkout, `2.0.0b22`. The first example needs no API key or separate agent project. Its campaign manifest is `evolution-v2-manifest/15`, the scaffold format; opt-in `/16` adds independent acceptance controls.
 
-## Learn by running a campaign
+## Evolution Lab
+
+1. [Quickstart](../QUICKSTART.md) and [Quickstart in Russian](../QUICKSTART.ru.md)
+2. [Lab user guide](guide/README.md) and [Russian guide](guide/ru/README.md)
+3. [Lab package and version pair](../lab/README.md)
+4. [Assistant plugins](../plugins/README.md)
+
+## Run Core directly
 
 The entry guides are also available in Russian: [README](../README.ru.md) and [Quickstart](../QUICKSTART.ru.md). Reference guides below remain in English.
 
-1. [Run your first campaign](../QUICKSTART.md) — clone, install, run the offline example and inspect its selected files.
+For a coding assistant, start with the [Core campaigns skill](core-campaigns/SKILL.md).
+
+1. [Run your first Core campaign](core-quickstart.md) — clone, install, run the offline example and inspect its selected files.
 2. [Understand the workflow](architecture.md) — learn the roles, campaign cycle and evidence behind a promotion.
 3. [Connect your existing agent](connecting-an-agent.md) — wrap its runtime with the target server library.
 4. [Run and inspect your own campaign](running-campaigns.md) — prepare cases, interpret results and continue experiments.

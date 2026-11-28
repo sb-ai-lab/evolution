@@ -1,0 +1,1026 @@
+{
+  "schema": "lab-operation-status/7",
+  "id": "operation-reference",
+  "owner_generation": "owner-reference",
+  "prepared_digest": "a9a2177ce4feb4abc382001254fe2132d1a06519604925c3424660fb9c17713b",
+  "kind": "campaign",
+  "target_ref": {
+    "schema": "lab-target-ref/1",
+    "id": "target-reference",
+    "owner_generation": "owner-reference"
+  },
+  "control_state": "finished",
+  "process": {
+    "launched": true,
+    "exit_code": 0,
+    "cleanup_complete": true,
+    "forced": false
+  },
+  "target_cleanup": {
+    "state": "confirmed",
+    "complete": true
+  },
+  "result": {
+    "schema": "lab-operation-result/2",
+    "kind": "campaign",
+    "prepared_digest": "a9a2177ce4feb4abc382001254fe2132d1a06519604925c3424660fb9c17713b",
+    "process": {
+      "launched": true,
+      "exit_code": 0,
+      "cleanup_complete": true,
+      "forced": false
+    },
+    "core": {
+      "actions": [],
+      "alpha": null,
+      "campaign_outcome": {
+        "champion_path": "artifacts/champions/v1",
+        "continuation": {
+          "kind": "linked_run",
+          "reason": "rounds_exhausted"
+        },
+        "outcome": "completed",
+        "reason": "rounds_exhausted"
+      },
+      "caveats": [
+        {
+          "attempt_id": null,
+          "kind": "champion_not_contemporaneous",
+          "round": null
+        },
+        {
+          "attempt_id": "r01-a01",
+          "kind": "focus_selection_bias",
+          "round": 1
+        }
+      ],
+      "claim_scope": "campaign",
+      "complete": true,
+      "condition_changes": [],
+      "connection": {
+        "attempts": 1,
+        "binding_digest": "041c66f085eaf6736b238dc32d6a9a7a5af5faf30b0849c4cabcf32759c28484",
+        "detail": null,
+        "operation_id": "5aafd1cf360c47f3a74cc677587259cd",
+        "outcome": "compatible",
+        "state": "compatible"
+      },
+      "consistency": "durable",
+      "corpus_split": {
+        "mode": "implicit_train",
+        "partition_digest": "7b790d091190b5271f203b39ec9119cbb055f74f372f76ce8f32797d800769d4",
+        "scope": "train",
+        "test_cases": 0,
+        "train_cases": 2
+      },
+      "family_version": 15,
+      "final_champion": {
+        "baseline_origin": "promoted_attempt",
+        "digest": "03d1b9c4095e94609c8613313abb6695448d1e36767280f0a7e1362d520cd2dc",
+        "measurement_complete": true,
+        "measurement_id": "m-r01-a01-completion",
+        "version": "v1"
+      },
+      "identity_digest": "865131d9f91b97e091e70ca4210d346de65bced03fef4a4daaefe183f0d35a32",
+      "independent": {
+        "attempts": [
+          {
+            "attempt_id": "r01-a01",
+            "comparison": {
+              "confidence_scope": null,
+              "coverage": {
+                "candidate": {
+                  "admissible": 2,
+                  "required": 2,
+                  "settled": 2
+                },
+                "reference": {
+                  "admissible": 2,
+                  "required": 2,
+                  "settled": 2
+                }
+              },
+              "deciding_layer": "global",
+              "eligible": true,
+              "excluded_reference_slots": 0,
+              "method": "bounded-weighted-mean/1",
+              "mode": "confidence",
+              "noise": {
+                "allowance": {
+                  "denominator": "1",
+                  "format": "rational-hex/1",
+                  "numerator": "0"
+                },
+                "diagnostic": "candidate_primary_score_repeat_variance",
+                "extra_measurements": 0,
+                "kind": "negligible",
+                "observed_cases": 0,
+                "source": null,
+                "source_kind": "assumed_negligible",
+                "units": "score_squared",
+                "variation": "not_requested"
+              },
+              "outcome": "passed",
+              "reason": "passed",
+              "reference": "stored_non_contemporaneous",
+              "reference_measurement_id": "m-r00-champion",
+              "scopes": [
+                {
+                  "confidence": null,
+                  "declared_count": 2,
+                  "enclosure": null,
+                  "excluded_mass": {
+                    "denominator": "1",
+                    "format": "rational-hex/1",
+                    "numerator": "0"
+                  },
+                  "mass": {
+                    "denominator": "1",
+                    "format": "rational-hex/1",
+                    "numerator": "1"
+                  },
+                  "name": "global",
+                  "point": {
+                    "denominator": "1",
+                    "format": "rational-hex/1",
+                    "numerator": "1"
+                  },
+                  "rule": "point",
+                  "status": "available",
+                  "strict": true,
+                  "threshold": {
+                    "denominator": "1",
+                    "format": "rational-hex/1",
+                    "numerator": "0"
+                  },
+                  "unavailable": null,
+                  "unit_count": 2
+                }
+              ],
+              "selection_bias_possible": [
+                "stored_reference",
+                "reuse",
+                "candidate_selection"
+              ],
+              "unit": "case",
+              "verification": "reused_evidence"
+            },
+            "conditional_cost": {
+              "baseline_slots": 2,
+              "basis": "full_scenario_complete_scoring_without_retries",
+              "candidate_final_slots": 0,
+              "candidate_gate_slots": 2,
+              "candidate_total_slots": 2,
+              "champion_basis": "per_reached_finalist",
+              "champion_slots": 0,
+              "connection_preflight_slots": 1,
+              "noise_diagnostic_slots": 0,
+              "parent_slots": 0,
+              "probes_and_retries": "separate",
+              "simplest_passing_path_slots": 5,
+              "slots_per_refresh": 2
+            },
+            "eligible_final_score": {
+              "denominator": "1",
+              "format": "rational-hex/1",
+              "numerator": "1"
+            },
+            "gate_comparison": {
+              "confidence_scope": "conditional_fixed_scope_independent_bounded_units",
+              "coverage": {
+                "candidate": {
+                  "admissible": 2,
+                  "required": 2,
+                  "settled": 2
+                },
+                "reference": {
+                  "admissible": 2,
+                  "required": 2,
+                  "settled": 2
+                }
+              },
+              "deciding_layer": "focus",
+              "eligible": true,
+              "excluded_reference_slots": 0,
+              "method": "bounded-weighted-mean/1",
+              "mode": "confidence",
+              "noise": {
+                "allowance": {
+                  "denominator": "1",
+                  "format": "rational-hex/1",
+                  "numerator": "0"
+                },
+                "diagnostic": "candidate_primary_score_repeat_variance",
+                "extra_measurements": 0,
+                "kind": "negligible",
+                "observed_cases": 0,
+                "source": null,
+                "source_kind": "assumed_negligible",
+                "units": "score_squared",
+                "variation": "not_requested"
+              },
+              "outcome": "passed",
+              "reason": "passed",
+              "reference": "stored_non_contemporaneous",
+              "reference_measurement_id": "m-r00-champion",
+              "scopes": [
+                {
+                  "confidence": {
+                    "denominator": "80000000000000",
+                    "format": "rational-hex/1",
+                    "numerator": "ccccccccccccd"
+                  },
+                  "declared_count": 2,
+                  "enclosure": {
+                    "lower": {
+                      "denominator": "4000000000000000",
+                      "format": "rational-hex/1",
+                      "numerator": "37f5fd90fa7caa41"
+                    },
+                    "steps": 64,
+                    "upper": {
+                      "denominator": "8000000000000000",
+                      "format": "rational-hex/1",
+                      "numerator": "6febfb21f4f95483"
+                    }
+                  },
+                  "excluded_mass": {
+                    "denominator": "1",
+                    "format": "rational-hex/1",
+                    "numerator": "0"
+                  },
+                  "mass": {
+                    "denominator": "1",
+                    "format": "rational-hex/1",
+                    "numerator": "1"
+                  },
+                  "name": "focus",
+                  "point": {
+                    "denominator": "1",
+                    "format": "rational-hex/1",
+                    "numerator": "1"
+                  },
+                  "rule": "bound",
+                  "status": "available",
+                  "strict": true,
+                  "threshold": {
+                    "denominator": "20000000000000",
+                    "format": "rational-hex/1",
+                    "numerator": "-1ccccccccccccd"
+                  },
+                  "unavailable": null,
+                  "unit_count": 2
+                },
+                {
+                  "confidence": {
+                    "denominator": "80000000000000",
+                    "format": "rational-hex/1",
+                    "numerator": "ccccccccccccd"
+                  },
+                  "declared_count": 0,
+                  "enclosure": null,
+                  "excluded_mass": {
+                    "denominator": "1",
+                    "format": "rational-hex/1",
+                    "numerator": "0"
+                  },
+                  "mass": {
+                    "denominator": "1",
+                    "format": "rational-hex/1",
+                    "numerator": "0"
+                  },
+                  "name": "causal",
+                  "point": null,
+                  "rule": "bound",
+                  "status": "skipped",
+                  "strict": false,
+                  "threshold": {
+                    "denominator": "1",
+                    "format": "rational-hex/1",
+                    "numerator": "-1"
+                  },
+                  "unavailable": null,
+                  "unit_count": 0
+                }
+              ],
+              "selection_bias_possible": [
+                "focus_selection",
+                "stored_reference"
+              ],
+              "unit": "case",
+              "verification": null
+            },
+            "global_comparison": {
+              "confidence_scope": null,
+              "coverage": {
+                "candidate": {
+                  "admissible": 2,
+                  "required": 2,
+                  "settled": 2
+                },
+                "reference": {
+                  "admissible": 2,
+                  "required": 2,
+                  "settled": 2
+                }
+              },
+              "deciding_layer": "global",
+              "eligible": true,
+              "excluded_reference_slots": 0,
+              "method": "bounded-weighted-mean/1",
+              "mode": "confidence",
+              "noise": {
+                "allowance": {
+                  "denominator": "1",
+                  "format": "rational-hex/1",
+                  "numerator": "0"
+                },
+                "diagnostic": "candidate_primary_score_repeat_variance",
+                "extra_measurements": 0,
+                "kind": "negligible",
+                "observed_cases": 0,
+                "source": null,
+                "source_kind": "assumed_negligible",
+                "units": "score_squared",
+                "variation": "not_requested"
+              },
+              "outcome": "passed",
+              "reason": "passed",
+              "reference": "stored_non_contemporaneous",
+              "reference_measurement_id": "m-r00-champion",
+              "scopes": [
+                {
+                  "confidence": null,
+                  "declared_count": 2,
+                  "enclosure": null,
+                  "excluded_mass": {
+                    "denominator": "1",
+                    "format": "rational-hex/1",
+                    "numerator": "0"
+                  },
+                  "mass": {
+                    "denominator": "1",
+                    "format": "rational-hex/1",
+                    "numerator": "1"
+                  },
+                  "name": "global",
+                  "point": {
+                    "denominator": "1",
+                    "format": "rational-hex/1",
+                    "numerator": "1"
+                  },
+                  "rule": "point",
+                  "status": "available",
+                  "strict": true,
+                  "threshold": {
+                    "denominator": "1",
+                    "format": "rational-hex/1",
+                    "numerator": "0"
+                  },
+                  "unavailable": null,
+                  "unit_count": 2
+                }
+              ],
+              "selection_bias_possible": [
+                "stored_reference",
+                "reuse",
+                "candidate_selection"
+              ],
+              "unit": "case",
+              "verification": "reused_evidence"
+            },
+            "outcome": "finalist",
+            "preflight": null,
+            "reason": "passed",
+            "round": 1
+          },
+          {
+            "attempt_id": "r02-a01",
+            "comparison": null,
+            "conditional_cost": null,
+            "eligible_final_score": null,
+            "gate_comparison": null,
+            "global_comparison": null,
+            "outcome": "rejected",
+            "preflight": {
+              "basis": "stored_reference",
+              "interpretation": "score_range_ceiling_not_a_success_or_power_prediction",
+              "profile_digest": null,
+              "scopes": [
+                {
+                  "delta_max": {
+                    "denominator": "1",
+                    "format": "rational-hex/1",
+                    "numerator": "0"
+                  },
+                  "name": "global",
+                  "passes": false,
+                  "rule": "point",
+                  "status": "calculated",
+                  "strict": true,
+                  "threshold": {
+                    "denominator": "1",
+                    "format": "rational-hex/1",
+                    "numerator": "0"
+                  },
+                  "unit_count": 2
+                }
+              ],
+              "status": "impossible"
+            },
+            "reason": "structurally_unattainable",
+            "round": 2
+          }
+        ],
+        "committed_work": {
+          "connection_preflight": {
+            "imported_slots": 0,
+            "scenario_slots": 1,
+            "scorer_executions": 1,
+            "target_turns": 1,
+            "transport_retries": 0
+          },
+          "interpretation": "journaled_work_not_tokens_currency_or_provider_call_estimates",
+          "measurement": {
+            "imported_slots": 2,
+            "scenario_slots": 4,
+            "scorer_executions": 4,
+            "target_turns": 4,
+            "transport_retries": 0
+          },
+          "reflector_probe_requests": 0,
+          "role_requests": 3
+        },
+        "diagnostics": [],
+        "evidence": "authenticated_publications",
+        "local_guidance": {
+          "assumptions": [
+            "equal_independent_unit_weights",
+            "zero_threshold",
+            "all_ones_contrast_envelope"
+          ],
+          "interpretation": "not_an_admission_or_power_claim",
+          "minimum_units": 1,
+          "status": "conditional_guidance"
+        },
+        "next_action": "finished",
+        "planned_work": {
+          "admitted_baseline_imports": 0,
+          "affected_cases": null,
+          "baseline_slots": 2,
+          "basis": "full_initial_baseline_and_conditional_future_stage_scenarios",
+          "candidate_final_slots_if_gate_passes": null,
+          "champion_scope": "reached_finalist",
+          "champion_slots_per_scope": 0,
+          "connection_preflight": "separate_no_measurement_credit",
+          "noise_diagnostic_slots": 0,
+          "parent_gate_slots": 0,
+          "probes_and_retries": "separate",
+          "slots_per_refresh": 2
+        },
+        "preflight": [],
+        "remaining_work": {
+          "baseline_slots": 0,
+          "basis": "conditional_same_bound_conditions_complete_scoring_without_retries",
+          "candidate_final_slots_if_gates_pass": 0,
+          "candidate_gate_slots": 0,
+          "champion_slots_for_reached_finalists": 0,
+          "noise_diagnostic_slots": 0,
+          "parent_gate_slots": 0,
+          "probes_and_retries": "separate",
+          "refresh_scenario_slots": 0,
+          "remaining_refreshes": 0,
+          "scope": "current_baseline_and_opened_attempts_only"
+        },
+        "settings": {
+          "allowance": {
+            "denominator": "1",
+            "format": "rational-hex/1",
+            "numerator": "0"
+          },
+          "allowance_source": null,
+          "allowance_source_kind": "assumed_negligible",
+          "execution_noise": "negligible",
+          "fresh_parent": false,
+          "global_rule": "point",
+          "method": "bounded-weighted-mean/1",
+          "mode": "confidence",
+          "repeats": 1,
+          "stability": "stable",
+          "train_cases": 2,
+          "train_slots": 2,
+          "unit": "case",
+          "verification": "reuse"
+        }
+      },
+      "indeterminate": {
+        "counts": {
+          "environment": 0,
+          "rollout": 0,
+          "scorer": 0,
+          "target": 0
+        },
+        "denominator": 4,
+        "lineage": null,
+        "threshold_reached": null,
+        "window": {
+          "counts": {
+            "environment": 0,
+            "rollout": 0,
+            "scorer": 0,
+            "target": 0
+          },
+          "denominator": 4,
+          "start": null
+        }
+      },
+      "kind": "campaign_status",
+      "lineage": {
+        "candidates": [
+          {
+            "attempt_id": "r01-a01",
+            "state": "promoted"
+          }
+        ],
+        "champion": "v1",
+        "champions": [
+          "v0",
+          "v1"
+        ],
+        "stopped_code": null,
+        "store_state": "active"
+      },
+      "linked_from": null,
+      "measurements": [
+        {
+          "call_failures_by_code": {},
+          "call_retries": 0,
+          "candidate_digest": "fbd7fa5cd7695fbda3cd44d6052a66419e46395644eabfaf65a0dabc0dabc8c4",
+          "classification": "born",
+          "condition_epoch": 0,
+          "excluded_pairs": null,
+          "imported": 0,
+          "locator": "measurements/m-r00-champion/events.jsonl",
+          "measurement_id": "m-r00-champion",
+          "repair_tries": 0,
+          "repairs_scored": 0,
+          "status": {
+            "candidate_digest": "fbd7fa5cd7695fbda3cd44d6052a66419e46395644eabfaf65a0dabc0dabc8c4",
+            "complete": true,
+            "consistency": "observed",
+            "diagnostics": [],
+            "journal_integrity": "complete",
+            "kind": "status",
+            "last_sequence": 45,
+            "lower_bound": false,
+            "owned_instances": [],
+            "prefix_digest": "842bdb0f3db2dac9cebae9bfe07c596ca10577d8b14edf83b19331c18ff2e488",
+            "recovery_actions": [],
+            "references": [
+              {
+                "content_digest": "842bdb0f3db2dac9cebae9bfe07c596ca10577d8b14edf83b19331c18ff2e488",
+                "kind": "journal_record",
+                "locator": "events.jsonl#bytes=0:22252",
+                "run_id": "m-r00-champion",
+                "version": 1
+              }
+            ],
+            "run_id": "m-r00-champion",
+            "run_identity_digest": "9f2612131d86a7ac3573752c0e96f325b92737428d984acfade1920c47dd059b",
+            "samples": [
+              {
+                "candidate_digest": "fbd7fa5cd7695fbda3cd44d6052a66419e46395644eabfaf65a0dabc0dabc8c4",
+                "case_id": "q1",
+                "critical_pass": true,
+                "evaluation": {
+                  "kind": "score",
+                  "outcome": "completed",
+                  "owner": null,
+                  "reason": null
+                },
+                "execution": {
+                  "kind": "score",
+                  "outcome": "completed",
+                  "owner": null,
+                  "reason": null
+                },
+                "execution_state": "finished",
+                "metrics": {
+                  "score": 0.0
+                },
+                "sample_id": "01",
+                "scoring_state": "finished",
+                "tries": 1
+              },
+              {
+                "candidate_digest": "fbd7fa5cd7695fbda3cd44d6052a66419e46395644eabfaf65a0dabc0dabc8c4",
+                "case_id": "q2",
+                "critical_pass": true,
+                "evaluation": {
+                  "kind": "score",
+                  "outcome": "completed",
+                  "owner": null,
+                  "reason": null
+                },
+                "execution": {
+                  "kind": "score",
+                  "outcome": "completed",
+                  "owner": null,
+                  "reason": null
+                },
+                "execution_state": "finished",
+                "metrics": {
+                  "score": 0.0
+                },
+                "sample_id": "01",
+                "scoring_state": "finished",
+                "tries": 1
+              }
+            ],
+            "schema_version": 1,
+            "valid_bytes": 22252
+          },
+          "tries": 2
+        },
+        {
+          "call_failures_by_code": {},
+          "call_retries": 0,
+          "candidate_digest": "03d1b9c4095e94609c8613313abb6695448d1e36767280f0a7e1362d520cd2dc",
+          "classification": "born",
+          "condition_epoch": 0,
+          "excluded_pairs": null,
+          "imported": 0,
+          "locator": "measurements/m-r01-a01/events.jsonl",
+          "measurement_id": "m-r01-a01",
+          "repair_tries": 0,
+          "repairs_scored": 0,
+          "status": {
+            "candidate_digest": "03d1b9c4095e94609c8613313abb6695448d1e36767280f0a7e1362d520cd2dc",
+            "complete": true,
+            "consistency": "observed",
+            "diagnostics": [],
+            "journal_integrity": "complete",
+            "kind": "status",
+            "last_sequence": 45,
+            "lower_bound": false,
+            "owned_instances": [],
+            "prefix_digest": "65cf9587a8bbcdb020c6590310dd2584809a5ea9aa93d0566cb8a54c600c8e90",
+            "recovery_actions": [],
+            "references": [
+              {
+                "content_digest": "65cf9587a8bbcdb020c6590310dd2584809a5ea9aa93d0566cb8a54c600c8e90",
+                "kind": "journal_record",
+                "locator": "events.jsonl#bytes=0:21918",
+                "run_id": "m-r01-a01",
+                "version": 1
+              }
+            ],
+            "run_id": "m-r01-a01",
+            "run_identity_digest": "0d4f41c271669bcd9f3109091aa805d74a25e081419a927540df88f8296e8946",
+            "samples": [
+              {
+                "candidate_digest": "03d1b9c4095e94609c8613313abb6695448d1e36767280f0a7e1362d520cd2dc",
+                "case_id": "q1",
+                "critical_pass": true,
+                "evaluation": {
+                  "kind": "score",
+                  "outcome": "completed",
+                  "owner": null,
+                  "reason": null
+                },
+                "execution": {
+                  "kind": "score",
+                  "outcome": "completed",
+                  "owner": null,
+                  "reason": null
+                },
+                "execution_state": "finished",
+                "metrics": {
+                  "score": 1.0
+                },
+                "sample_id": "01",
+                "scoring_state": "finished",
+                "tries": 1
+              },
+              {
+                "candidate_digest": "03d1b9c4095e94609c8613313abb6695448d1e36767280f0a7e1362d520cd2dc",
+                "case_id": "q2",
+                "critical_pass": true,
+                "evaluation": {
+                  "kind": "score",
+                  "outcome": "completed",
+                  "owner": null,
+                  "reason": null
+                },
+                "execution": {
+                  "kind": "score",
+                  "outcome": "completed",
+                  "owner": null,
+                  "reason": null
+                },
+                "execution_state": "finished",
+                "metrics": {
+                  "score": 1.0
+                },
+                "sample_id": "01",
+                "scoring_state": "finished",
+                "tries": 1
+              }
+            ],
+            "schema_version": 1,
+            "valid_bytes": 21918
+          },
+          "tries": 2
+        },
+        {
+          "call_failures_by_code": {},
+          "call_retries": 0,
+          "candidate_digest": "03d1b9c4095e94609c8613313abb6695448d1e36767280f0a7e1362d520cd2dc",
+          "classification": "born",
+          "condition_epoch": 0,
+          "excluded_pairs": null,
+          "imported": 2,
+          "locator": "measurements/m-r01-a01-completion/events.jsonl",
+          "measurement_id": "m-r01-a01-completion",
+          "repair_tries": 0,
+          "repairs_scored": 0,
+          "status": {
+            "candidate_digest": "03d1b9c4095e94609c8613313abb6695448d1e36767280f0a7e1362d520cd2dc",
+            "complete": true,
+            "consistency": "observed",
+            "diagnostics": [],
+            "journal_integrity": "complete",
+            "kind": "status",
+            "last_sequence": 3,
+            "lower_bound": false,
+            "owned_instances": [],
+            "prefix_digest": "17aa63532ae06969c11a02161398637b2df9b0fd6fc915a981fac3d99eeca4ed",
+            "recovery_actions": [],
+            "references": [
+              {
+                "content_digest": "17aa63532ae06969c11a02161398637b2df9b0fd6fc915a981fac3d99eeca4ed",
+                "kind": "journal_record",
+                "locator": "events.jsonl#bytes=0:3525",
+                "run_id": "m-r01-a01-completion",
+                "version": 1
+              }
+            ],
+            "run_id": "m-r01-a01-completion",
+            "run_identity_digest": "0d4f41c271669bcd9f3109091aa805d74a25e081419a927540df88f8296e8946",
+            "samples": [
+              {
+                "candidate_digest": "03d1b9c4095e94609c8613313abb6695448d1e36767280f0a7e1362d520cd2dc",
+                "case_id": "q1",
+                "critical_pass": true,
+                "evaluation": {
+                  "kind": "score",
+                  "outcome": "completed",
+                  "owner": null,
+                  "reason": null
+                },
+                "execution": {
+                  "kind": "score",
+                  "outcome": "completed",
+                  "owner": null,
+                  "reason": null
+                },
+                "execution_state": "imported",
+                "metrics": {
+                  "score": 1.0
+                },
+                "sample_id": "01",
+                "scoring_state": "finished",
+                "tries": 0
+              },
+              {
+                "candidate_digest": "03d1b9c4095e94609c8613313abb6695448d1e36767280f0a7e1362d520cd2dc",
+                "case_id": "q2",
+                "critical_pass": true,
+                "evaluation": {
+                  "kind": "score",
+                  "outcome": "completed",
+                  "owner": null,
+                  "reason": null
+                },
+                "execution": {
+                  "kind": "score",
+                  "outcome": "completed",
+                  "owner": null,
+                  "reason": null
+                },
+                "execution_state": "imported",
+                "metrics": {
+                  "score": 1.0
+                },
+                "sample_id": "01",
+                "scoring_state": "finished",
+                "tries": 0
+              }
+            ],
+            "schema_version": 1,
+            "valid_bytes": 3525
+          },
+          "tries": 0
+        }
+      ],
+      "rebases": [],
+      "resilience": {
+        "attempts_saved": 0,
+        "continuation_turns": 0,
+        "rounds_skipped": 0
+      },
+      "roles": {
+        "editor": {
+          "kind": "subprocess"
+        },
+        "grouper": {
+          "kind": "fields"
+        },
+        "reflector": {
+          "kind": "subprocess"
+        }
+      },
+      "rounds": [
+        {
+          "attempts": [
+            {
+              "affected": {
+                "alpha_statement": null,
+                "fallback_reason": null,
+                "fresh_parent": false,
+                "layer_one": 2,
+                "layer_two": 0,
+                "mode": "path",
+                "source": "reported"
+              },
+              "alpha_total": null,
+              "artifact_locator": "artifacts/candidates/r01-a01",
+              "attempt_id": "r01-a01",
+              "confidence": null,
+              "continued": false,
+              "index": 1,
+              "look": null,
+              "looks": [],
+              "measurement_id": "m-r01-a01",
+              "outcome": "finalist",
+              "reason": "passed"
+            }
+          ],
+          "baseline_complete": true,
+          "baseline_measurement_id": "m-r00-champion",
+          "champion_complete": true,
+          "final": [],
+          "gate_scope": {
+            "cases": [
+              "q1",
+              "q2"
+            ],
+            "claimed_cases": [
+              "q1",
+              "q2"
+            ],
+            "selected_cases": [
+              "q1",
+              "q2"
+            ],
+            "source": "claim",
+            "unevaluable_cases": []
+          },
+          "outcome": "promoted",
+          "reason": null,
+          "round": 1,
+          "visitation": null
+        },
+        {
+          "attempts": [
+            {
+              "affected": null,
+              "alpha_total": null,
+              "artifact_locator": null,
+              "attempt_id": "r02-a01",
+              "confidence": null,
+              "continued": false,
+              "index": 1,
+              "look": null,
+              "looks": [],
+              "measurement_id": null,
+              "outcome": "rejected",
+              "reason": "structurally_unattainable"
+            }
+          ],
+          "baseline_complete": true,
+          "baseline_measurement_id": "m-r01-a01-completion",
+          "champion_complete": true,
+          "final": [],
+          "gate_scope": null,
+          "outcome": "retained",
+          "reason": null,
+          "round": 2,
+          "visitation": null
+        }
+      ],
+      "run_id": "c-operation-reference",
+      "schema_version": 1,
+      "settings": {
+        "baseline_refresh": {
+          "count": 1,
+          "every_rounds": 3,
+          "performed": []
+        },
+        "round_stop": "first_accepted",
+        "stability": "stable"
+      },
+      "siblings": {
+        "artifact_store": "born",
+        "m-r00-champion": "born",
+        "m-r01-a01": "born",
+        "m-r01-a01-completion": "born"
+      },
+      "suspended": false,
+      "suspensions": [],
+      "verification": null
+    },
+    "coverage": null,
+    "stopped_reason": null,
+    "unmeasured": null,
+    "min_coverage": 1.0,
+    "campaign_execution": null,
+    "persistence": {
+      "state": "saved",
+      "failure": null
+    }
+  },
+  "failure": null,
+  "refusal": null,
+  "core_terminal": null,
+  "results_state": "present",
+  "executor": {
+    "kind": "lab-campaign-worker/1",
+    "environment_digest": "d4d829b1704ac4adc847c290fd131e85134055c29d7c6833dafdc055a41d53b2",
+    "lab_wheel_sha256": "0fee7e52988d89dc8ae881923c6014f3440851954fa364345fd46957d1afcd9e",
+    "core_wheel_sha256": "56855139bdac1750c28d7ec837e28d5b0c005ad2745b856de9d93c4934ef5352",
+    "module_hashes": {
+      "evolution_lab.owner._campaign_worker": "06030ce103d4c03a1bc294793bcc04055764808a4dd6cda692cad8d36680de7e",
+      "evolution_lab.owner._helper": "d71c3a961da32670119a751baaeed4e6131e12a558e987ce1168218780d836cf",
+      "evolution_lab.owner.settlement": "50761e57a5f99c800cc6470bef219201324b00bef8c5604c3e9258152668c2a1"
+    }
+  },
+  "retained_summary": null,
+  "starts": [
+    {
+      "start": 1,
+      "scope_id": "dd31f6022fdb44a9a2d7f9fc8c70ab37",
+      "owner_generation": "owner-reference",
+      "target_ref": {
+        "schema": "lab-target-ref/1",
+        "id": "target-reference",
+        "owner_generation": "owner-reference"
+      },
+      "process": {
+        "launched": true,
+        "exit_code": 0,
+        "cleanup_complete": true,
+        "forced": false
+      },
+      "target_cleanup": {
+        "state": "confirmed",
+        "complete": true
+      },
+      "failure": null,
+      "settlement": "positive",
+      "refusal": null,
+      "core_terminal": null
+    }
+  ],
+  "resume": null,
+  "entrypoint": "inputs/project/manifest.json",
+  "progress": {
+    "kind": "campaign",
+    "phase": "finished",
+    "stages": [],
+    "rounds": {
+      "completed": 2,
+      "current": null,
+      "planned": 2
+    },
+    "attempts": {
+      "current_round": {
+        "closed": 0,
+        "running": 0,
+        "planned": 1
+      },
+      "total": 2
+    },
+    "coverage": null,
+    "policy_state": "present",
+    "observed_at": "2026-10-31T00:14:02.391549Z"
+  },
+  "progress_state": "present",
+  "times": {
+    "first_event_at": "2026-10-31T00:14:00.286848Z",
+    "last_event_at": "2026-10-31T00:14:02.391549Z"
+  },
+  "times_state": "present",
+  "times_source": "core_raw",
+  "times_reason": null
+}

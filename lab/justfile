@@ -1,0 +1,312 @@
+# Evolution Lab: set up, try and run Lab from this checkout.
+#
+#   just setup                         build Core and Lab, install both into .lab/venv
+#   just python=3.11 setup             use Python 3.11 instead of 3.12
+#   just test                          the installed Lab offline suite
+#   just test-fast                     the offline suite without the tests marked slow
+#
+# Inside the Core repository (Lab in lab/) Core is built from the
+# repository's committed files, one wheel per commit that changed Core.
+# Building the pair requires the complete checkout.
+# Lab and Core versions come from pyproject.toml; nothing here needs editing
+# when the pinned Core changes.
+
+set shell := ["bash", "-euo", "pipefail", "-c"]
+
+# Python for the venv. 3.12 or 3.11 (the versions Lab is tested on).
+python := "3.12"
+# The Core repository whose committed files are built: the enclosing repository when Lab is
+# its lab/ directory, otherwise none (the pinned release is downloaded from GitHub).
+core_repo := if path_exists(justfile_directory() / ".." / "src" / "evolution" / "__init__.py") == "true" { parent_directory(justfile_directory()) } else { "" }
+
+lab_version := `sed -n 's/^version = "\(.*\)"$/\1/p' pyproject.toml`
+core_version := `sed -n 's/.*"evo-skills==\([^"]*\)".*/\1/p' pyproject.toml | head -n1`
+lab_suffix := replace_regex(lab_version, '^.*\.', '')
+core_suffix := replace_regex(core_version, '^[0-9.]+', '')
+# A part that comes out empty (a final Core release such as 2.1.0) is the full version;
+# evolution_lab.quickstart pair_label follows the same rule for lab evaluate's state-<pair>.
+pair := (if lab_suffix == "" { lab_version } else { lab_suffix }) + "-" + (if core_suffix == "" { core_version } else { core_suffix })
+
+lab_dir := justfile_directory() / ".lab"
+wheels := lab_dir / "wheels"
+venv := lab_dir / "venv"
+venv_python := venv / "bin" / "python"
+lab_wheel := wheels / "evolution_lab-" + lab_version + "-py3-none-any.whl"
+core_repo_path := if core_repo == "" { "" } else { shell('cd "$1" && cd "$2" && pwd -P', invocation_directory(), core_repo) }
+# The last commit that changed anything outside lab/ (everything a Core wheel can be built from):
+# a commit that changes only Lab keeps Core's wheel and .lab/venv current. If that commit's files
+# outside lab/ differ from HEAD's (history this lookup misreads), HEAD itself. Empty when Core
+# comes from GitHub.
+core_commit := if core_repo_path == "" { "" } else { shell('''
+    c="$(git -C "$1" log -1 --topo-order --format=%H HEAD -- . ':(exclude)lab')"
+    if [ -n "$c" ] && git -C "$1" diff --quiet "$c" HEAD -- . ':(exclude)lab'; then echo "$c"
+    else git -C "$1" rev-parse --verify 'HEAD^{commit}'; fi
+''', core_repo_path) }
+core_wheel_name := "evo_skills-" + core_version + "-py3-none-any.whl"
+core_wheel := if core_commit == "" { wheels / core_wheel_name } else { wheels / "core-" + core_commit / core_wheel_name }
+default_state := env("HOME") / "lab-state" / pair
+# Hangs (CONTRIBUTING.md "Tests"); every suite run deselects it.
+hanging_test := "tests/test_service_runtime.py::test_shutdown_drains_read_then_stops_then_preparation_before_unlock"
+# A pytest marker expression for just test; just test-fast sets it to "not slow".
+test_marks := ""
+
+# List the recipes.
+default:
+    @just --list --unsorted
+
+# Get Core, build Lab, create .lab/venv and install both wheels.
+setup: core build install
+    @echo
+    @echo "Lab {{lab_version}} + Core {{core_version}} is ready (Python {{python}})."
+    @echo "  python      {{venv_python}}"
+    @echo "  lab wheel   {{lab_wheel}}"
+    @echo "  core wheel  {{core_wheel}}"
+    @echo "Next: just demo"
+
+# Build the Core wheel into .lab/wheels from this checkout.
+core:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    dest="{{core_wheel}}"
+    name="{{core_wheel_name}}"
+    repo="{{core_repo_path}}"
+    commit="{{core_commit}}"
+    if [ -n "$repo" ]; then
+        # The wheel holds committed files only; say which edits it leaves out.
+        dirty="$(git -C "$repo" status --porcelain --untracked-files=all -- src/evolution pyproject.toml)"
+        if [ -n "$dirty" ]; then
+            echo "warning: uncommitted Core changes are not in the wheel; it holds Core as committed at $commit:" >&2
+            printf '%s\n' "$dirty" | sed 's/^/  /' >&2
+        fi
+    fi
+    if [ -f "$dest" ]; then
+        echo "Core {{core_version}}: already in $(dirname "$dest")"
+        exit 0
+    fi
+    tmp="$(mktemp -d)"
+    trap 'rm -rf "$tmp"' EXIT
+    if [ -n "$repo" ]; then
+        mkdir "$tmp/src"
+        # Lab is not part of the Core wheel; leave lab/ out of the build tree.
+        git -C "$repo" archive "$commit" -- . ':(exclude)lab' | tar -x -C "$tmp/src"
+        tree_version="$(sed -n 's/^__version__ = "\(.*\)"$/\1/p' "$tmp/src/src/evolution/__init__.py")"
+        if [ "$tree_version" != "{{core_version}}" ]; then
+            echo "error: Core at $commit is version ${tree_version:-<unknown>}, but Lab pins evo-skills=={{core_version}} (pyproject.toml)." >&2
+            echo "Repin Lab to $tree_version (a new Lab version, docs/RELEASES.md), or check out a Core commit at {{core_version}}." >&2
+            exit 1
+        fi
+        echo "Core {{core_version}}: building commit $commit of $repo (its last change outside lab/; committed files only)"
+        uv build --wheel --quiet --out-dir "$tmp/out" "$tmp/src"
+        if [ ! -f "$tmp/out/$name" ]; then
+            echo "error: building $commit did not produce $name; got: $(ls "$tmp/out")" >&2
+            exit 1
+        fi
+        mkdir -p "$(dirname "$dest")"
+        mv "$tmp/out/$name" "$dest"
+    else
+        echo "error: use lab/ from a complete checkout of Evolution" >&2
+        exit 1
+    fi
+    echo "Core {{core_version}}: $dest"
+
+# Build the Lab wheel from this checkout (uncommitted changes included).
+build:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    mkdir -p "{{wheels}}"
+    tmp="$(mktemp -d)"
+    trap 'rm -rf "$tmp"' EXIT
+    uv build --wheel --quiet --out-dir "$tmp" "{{justfile_directory()}}"
+    if cmp -s "$tmp/$(basename "{{lab_wheel}}")" "{{lab_wheel}}"; then
+        echo "Lab {{lab_version}}: wheel unchanged"
+    else
+        mv "$tmp/$(basename "{{lab_wheel}}")" "{{lab_wheel}}"
+        echo "Lab {{lab_version}}: built {{lab_wheel}}"
+    fi
+
+# Create .lab/venv (recreated if its Python differs) and install both wheels.
+install:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    for wheel in "{{core_wheel}}" "{{lab_wheel}}"; do
+        [ -f "$wheel" ] || { echo "error: $wheel is missing; run: just setup" >&2; exit 1; }
+    done
+    py="{{venv_python}}"
+    if [ -x "$py" ] && [ "$("$py" -c 'import sys; print("%d.%d" % sys.version_info[:2])')" != "{{python}}" ]; then
+        echo "venv: Python changed, recreating {{venv}}"
+        rm -rf "{{venv}}"
+    fi
+    [ -x "$py" ] || uv venv --quiet --python "{{python}}" "{{venv}}"
+    # Reinstall every time: Lab compares the installed files with the wheels byte for byte.
+    uv pip install --quiet --compile-bytecode --python "$py" --reinstall-package evo-skills --reinstall-package evolution-lab \
+        "evo-skills[tree] @ file://{{core_wheel}}" "{{lab_wheel}}[service,mcp]"
+    # Which Core commit the venv holds; _require-fresh-core compares it with core_commit.
+    if [ -n "{{core_commit}}" ]; then echo "{{core_commit}}" > "{{venv}}/core-commit"; else rm -f "{{venv}}/core-commit"; fi
+    "$py" -c 'import importlib.metadata as m; print("installed: evolution-lab", m.version("evolution-lab"), "+ evo-skills", m.version("evo-skills"))'
+
+# Rebuild and reinstall, then run the public Lab tests on both installed wheels.
+test *args: core build install _require-venv _test-deps
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd "{{justfile_directory()}}"
+    "{{justfile_directory()}}/../scripts/test-tmp" bash <<'EVOLUTION_TEST_COMMAND'
+    set -euo pipefail
+    # A short base directory keeps the tests' Unix socket paths under the kernel limit:
+    # a long TMPDIR (a job runner's per-task directory) gives way to /tmp when that is tmpfs.
+    base="${TMPDIR:-/tmp}"
+    if [ "${#base}" -gt 32 ] && [ "$(stat -f -c %T /tmp 2>/dev/null)" = tmpfs ]; then base=/tmp; fi
+    tmp="$(mktemp -d "$base/lab-t.XXXXXX")"
+    trap 'chmod -R u+w "$tmp" 2>/dev/null || true; rm -rf "$tmp"' EXIT
+    # Installed mode: -o pythonpath= keeps src/ from shadowing the installed package.
+    # This offline suite does not run the release-service smoke tests.
+    env -u PYTHONPATH -u PYTEST_ADDOPTS \
+        LAB_TEST_CORE_WHEEL="{{core_wheel}}" EVOLUTION_CORE_WHEEL="{{core_wheel}}" EVOLUTION_LAB_WHEEL="{{lab_wheel}}" \
+        "{{venv_python}}" -m pytest -q -ra -p no:cacheprovider -o pythonpath= --basetemp "$tmp/t" \
+        --ignore-glob='tests/test_service_installed*.py' \
+        --deselect {{hanging_test}} {{ if test_marks == "" { "" } else { "-m '" + test_marks + "'" } }} {{args}}
+    EVOLUTION_TEST_COMMAND
+
+# The offline suite without the tests marked slow, for checks while you work: just test-fast [pytest args].
+test-fast *args:
+    @"{{just_executable()}}" --justfile "{{justfile()}}" test_marks="not slow" test {{args}}
+
+[private]
+_test-deps:
+    @"{{venv_python}}" -c 'import pytest, pytest_asyncio, build, pip, xdist, psutil, mcp' 2>/dev/null \
+        || uv pip install --quiet --compile-bytecode --python "{{venv_python}}" "pytest>=8" "pytest-asyncio>=0.23" "build>=1.2" "pytest-xdist>=3.6" "psutil>=7,<8" "mcp>=2.3,<3" pip
+
+# Write a project skeleton (stub agent, 3-case corpus, scorer) into DIR: just new-project my-agent
+new-project dir: _require-venv
+    @cd "{{invocation_directory()}}" && exec "{{venv}}/bin/lab" new-project "{{dir}}"
+
+# First measurement of the project in DIR with this checkout's wheels: just evaluate my-agent [--json ...]
+evaluate dir *args: _require-venv
+    @cd "{{invocation_directory()}}" && exec "{{venv}}/bin/lab" evaluate "{{dir}}" \
+        --wheel "{{lab_wheel}}" --wheel "{{core_wheel}}" {{args}}
+
+# Campaign from the project in DIR with this checkout's wheels.
+campaign dir *args: _require-venv
+    @cd "{{invocation_directory()}}" && exec "{{venv}}/bin/lab" campaign "{{dir}}" \
+        --wheel "{{lab_wheel}}" --wheel "{{core_wheel}}" {{args}}
+
+# Offline demo: write a skeleton project and measure it, no LLM, no network; workspace .lab/demo/evaluation.
+demo: _require-venv
+    #!/usr/bin/env bash
+    set -euo pipefail
+    ws="{{lab_dir}}/demo/evaluation"
+    # Bundle files are read-only; make them removable.
+    if [ -e "$ws" ]; then chmod -R u+w "$ws"; rm -rf "$ws"; fi
+    "{{venv}}/bin/lab" new-project "$ws/project"
+    echo
+    code=0
+    "{{venv}}/bin/lab" evaluate "$ws/project" --wheel "{{lab_wheel}}" --wheel "{{core_wheel}}" || code=$?
+    echo
+    echo "See it in the panel: just demo-panel"
+    exit "$code"
+
+# Run the offline campaign example: the core improves the agent; workspace .lab/demo/campaign.
+# The Owner example builds the shared project skeleton with the offline observe profile.
+demo-campaign: (_demo "campaign")
+
+# Open the panel on a demo's results: just demo-panel [evaluation|campaign]. Ctrl+C stops it.
+demo-panel which="evaluation" *args: _require-venv
+    #!/usr/bin/env bash
+    set -euo pipefail
+    ws="{{lab_dir}}/demo/{{which}}"
+    state="{{ if which == "campaign" { "$ws/state" } else { "$ws/project/.lab/state-" + pair } }}"
+    if [ ! -d "$state" ]; then
+        echo "error: $ws does not exist; run: just {{ if which == "campaign" { "demo-campaign" } else { "demo" } }}" >&2
+        exit 1
+    fi
+    # A throwaway Lab home in /tmp keeps the socket path short and the real home untouched.
+    home="$(mktemp -d /tmp/lab-demo-home.XXXXXX)"
+    serve_pid=""
+    cleanup() {
+        if [ -n "$serve_pid" ]; then kill -TERM "$serve_pid" 2>/dev/null || true; wait "$serve_pid" 2>/dev/null || true; fi
+        rm -rf "$home"
+    }
+    trap cleanup EXIT
+    "{{venv}}/bin/lab" serve --home "$home" --state "$state" > "$home/serve.out" 2> "$home/serve.err" &
+    serve_pid=$!
+    for _ in $(seq 100); do
+        grep -q listening "$home/serve.out" 2>/dev/null && break
+        kill -0 "$serve_pid" 2>/dev/null || { cat "$home/serve.err" >&2; exit 1; }
+        sleep 0.1
+    done
+    echo "The service reads $state. Open the link below; Ctrl+C stops the panel and the service."
+    "{{venv}}/bin/lab" panel --home "$home" {{args}}
+
+[private]
+_demo kind: _require-venv
+    #!/usr/bin/env bash
+    set -euo pipefail
+    py="{{venv_python}}"
+    ws="{{lab_dir}}/demo/{{kind}}"
+    if [ -e "$ws" ]; then chmod -R u+w "$ws"; rm -rf "$ws"; fi
+    mkdir -p "$ws"
+    port="$("$py" -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])')"
+    echo "Running examples/owner/{{kind}}.py (a few seconds)..."
+    if ! "$py" "{{justfile_directory()}}/examples/owner/{{kind}}.py" \
+        --python "$py" --lab-wheel "{{lab_wheel}}" --core-wheel "{{core_wheel}}" \
+        --state-directory "$ws/state" --source-directory "$ws/source" --port "$port" \
+        > "$ws/summary.json" 2> "$ws/example.log"; then
+        tail -n 20 "$ws/example.log" >&2
+        echo "error: the example failed; full log: $ws/example.log" >&2
+        exit 1
+    fi
+    [ -s "$ws/example.log" ] || rm -f "$ws/example.log"
+    echo
+    "$py" "{{justfile_directory()}}/examples/owner/demo_readout.py" "$ws"
+    echo "See it in the panel: just demo-panel{{ if kind == "campaign" { " campaign" } else { "" } }}"
+
+# Start the local service on this pair's state directory (default ~/lab-state/<pair>).
+serve state=default_state: _require-venv
+    @mkdir -p -m 700 "$(dirname "{{state}}")"
+    @exec "{{venv}}/bin/lab" serve --state "{{state}}" \
+        --execution-wheel "{{lab_wheel}}" --execution-wheel "{{core_wheel}}"
+
+# Start the browser panel for the running service (args go to `lab panel`, e.g. --open, stop).
+panel *args: _require-venv
+    @exec "{{venv}}/bin/lab" panel {{args}}
+
+# Run any lab command with the installed Lab, e.g. just lab health.
+lab *args: _require-venv
+    @exec "{{venv}}/bin/lab" {{args}}
+
+# Show the pinned versions, installed packages and wheel paths.
+versions:
+    #!/usr/bin/env bash
+    set -uo pipefail
+    echo "pinned     Lab {{lab_version}} + Core {{core_version}} (pyproject.toml); state dir name {{pair}}"
+    if [ -n "{{core_commit}}" ]; then
+        echo "core       built from {{core_repo_path}} at {{core_commit}} (last change outside lab/)"
+        installed_commit="$(cat "{{venv}}/core-commit" 2>/dev/null || true)"
+        [ -z "$installed_commit" ] || [ "$installed_commit" = "{{core_commit}}" ] \
+            || echo "           .lab/venv holds Core from $installed_commit; run: just setup"
+    fi
+    if [ -x "{{venv_python}}" ]; then
+        "{{venv_python}}" -c 'import importlib.metadata as m, sys; print("installed  Lab", m.version("evolution-lab"), "+ Core", m.version("evo-skills"), "on Python %d.%d" % sys.version_info[:2])' 2>/dev/null \
+            || echo "installed  .lab/venv exists but Lab is not installed; run: just setup"
+    else
+        echo "installed  nothing yet; run: just setup"
+    fi
+    for wheel in "{{core_wheel}}" "{{lab_wheel}}"; do
+        [ -f "$wheel" ] && echo "wheel      $wheel" || echo "wheel      missing: $(basename "$wheel")"
+    done
+
+[private]
+_require-venv: _require-fresh-core
+    @[ -x "{{venv}}/bin/lab" ] || { echo "error: Lab is not installed in {{venv}}; run: just setup" >&2; exit 1; }
+
+# Refuse to run Lab on a Core the repository has moved past: .lab/venv must hold the current Core.
+[private]
+_require-fresh-core:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    [ -n "{{core_commit}}" ] || exit 0
+    have="$(cat "{{venv}}/core-commit" 2>/dev/null || true)"
+    if [ "$have" != "{{core_commit}}" ]; then
+        echo "error: .lab/venv holds Core from commit ${have:-<none>}, but Core in {{core_repo_path}} last changed in {{core_commit}}." >&2
+        echo "Rebuild and reinstall: just setup" >&2
+        exit 1
+    fi

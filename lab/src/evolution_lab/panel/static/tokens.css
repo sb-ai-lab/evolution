@@ -1,0 +1,56 @@
+@font-face{font-family:"Geist";src:url("/static/fonts/Geist-Regular.woff2") format("woff2");font-weight:400;font-display:swap}
+@font-face{font-family:"Geist";src:url("/static/fonts/Geist-Medium.woff2") format("woff2");font-weight:500;font-display:swap}
+@font-face{font-family:"Geist";src:url("/static/fonts/Geist-SemiBold.woff2") format("woff2");font-weight:600;font-display:swap}
+@font-face{font-family:"Geist Mono";src:url("/static/fonts/GeistMono-Regular.woff2") format("woff2");font-weight:400;font-display:swap}
+@font-face{font-family:"Geist Mono";src:url("/static/fonts/GeistMono-Medium.woff2") format("woff2");font-weight:500;font-display:swap}
+@font-face{font-family:"Geist Mono";src:url("/static/fonts/GeistMono-SemiBold.woff2") format("woff2");font-weight:600;font-display:swap}
+/* Lab Panel design tokens. Dark is the default; add data-theme="light" on <html> for light. */
+:root{
+  --font-ui:"Geist",system-ui,sans-serif;
+  --font-mono:"Geist Mono",ui-monospace,Menlo,monospace;
+  --fs-11:11px;--fs-12:12px;--fs-13:13px;--fs-15:15px;--fs-18:18px;--fs-20:20px;--fs-26:26px;
+  --r-cell:2px;--r-pill-sq:4px;--r-well:6px;--r-panel:8px;--r-pill:99px;
+  --sp-4:4px;--sp-6:6px;--sp-8:8px;--sp-10:10px;--sp-12:12px;--sp-14:14px;--sp-16:16px;--sp-18:18px;--sp-24:24px;
+  --sidebar-w:232px;--main-min-w:1180px;
+
+  --bg:#16181c;--bg-sunk:#111317;--panel:#1b1e23;--panel-2:#1f2227;--hover:#23262c;
+  --border:#2e333b;--border-row:#262a31;--border-strong:#3a404a;--rail:#49515d;
+  --text:#d7dade;--text-2:#b9bec6;--text-3:#9aa1aa;--muted:#7e868f;--faint:#666d77;
+  --chip:#24282f;--nav-active:#25303d;--skeleton:#292e36;
+
+  --blue:#7cb3e8;--blue-bg:#1b2c3e;--blue-line:#28415c;
+  --green:#6fc49b;--green-bg:#1b382b;--green-solid:#57b987;--green-line:#2b503c;
+  --amber:#d9b06a;--amber-bg:#352c19;--amber-line:#4a3f22;
+  --violet:#a99be5;--violet-bg:#2c2741;--violet-line:#494067;
+  --neutral-bg:#2b2f36;
+  --red:#cc8981;
+
+  --s-pass:#57b987;--s-mid:#939c5c;--s-fail:#824a47;
+  --s-ind:repeating-linear-gradient(135deg,#c9a058 0 2px,#3b321f 2px 4px);
+  --s-infra:#9285de;--s-pend:#2a2e35;
+
+  --diff-add-bg:#1b3024;--diff-add:#91cdaa;--diff-del-bg:#362124;--diff-del:#d9a19a;
+
+  --turn-user:#1f2227;--turn-agent:#1a2532;--turn-tool:#252131;
+}
+[data-theme="light"]{
+  --bg:#f6f5f2;--bg-sunk:#efede8;--panel:#ffffff;--panel-2:#faf9f6;--hover:#f3f2ee;
+  --border:#e3e1db;--border-row:#efeee9;--border-strong:#d6d3cc;--rail:#c4c1b9;
+  --text:#16181c;--text-2:#2f3338;--text-3:#50555c;--muted:#6b6f76;--faint:#8a8e95;
+  --chip:#efeee9;--nav-active:#e6eefa;--skeleton:#eceae5;
+
+  --blue:#1f5fb0;--blue-bg:#e1edfb;--blue-line:#c5daf3;
+  --green:#1d7a4f;--green-bg:#dff3e8;--green-solid:#2e9e6a;--green-line:#bfe3cd;
+  --amber:#8a5a00;--amber-bg:#fbefd2;--amber-line:#ecd9a8;
+  --violet:#5b47c9;--violet-bg:#ebe7fd;--violet-line:#d5ccf7;
+  --neutral-bg:#eeede8;
+  --red:#b0493d;
+
+  --s-pass:#2e9e6a;--s-mid:#c4cf8e;--s-fail:#e7b7b0;
+  --s-ind:repeating-linear-gradient(135deg,#e0a52e 0 2px,#f7e6c4 2px 4px);
+  --s-infra:#7a68e8;--s-pend:#e4e2dc;
+
+  --diff-add-bg:#e6f5ec;--diff-add:#1d7a4f;--diff-del-bg:#fbe9e6;--diff-del:#b0493d;
+
+  --turn-user:#faf9f6;--turn-agent:#eef4fc;--turn-tool:#f3f0fe;
+}

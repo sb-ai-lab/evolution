@@ -363,3 +363,97 @@ async def test_guards_ignore_checks(tmp_path, monkeypatch, guard):
                 reader.page("obs:c:1")
         finally:
             trace.close()
+
+
+@pytest.mark.parametrize("mode", ["shadow", "off"])
+async def test_repeated_reads_follow_both_roles_to_the_report(tmp_path, monkeypatch, mode):
+    from evolution.tree.campaign import inspect_campaign
+    from evolution.tree.run_watch import Snapshot
+    from tests import fake_chat_server
+    from tests.test_tree_campaign_family14_reflector_history import chat_reflector
+    from tests.test_tree_campaign_family14_role_feedback import (
+        _chat_plan,
+        _chat_write,
+        chat_budget_section,
+    )
+    from tests.test_tree_campaign_family15_role_contracts import b17_logs, b17_reflector
+    from tests.test_tree_campaign_family15_role_failures import CHAT_GROUP
+
+    check = "repeated_read_without_progress"
+    tool = fake_chat_server.tool_call
+    read = {"path": "skills/SKILL.md", "start_line": 1, "end_line": 1}
+    page = tool("read_file", read)
+    quote = tool("read_file", {**read, "reread": True})
+    base, server = fake_chat_server.start(
+        [
+            tool("list_files"),
+            page,
+            quote,
+            tool("list_evidence"),
+            quote,
+            tool("finish_reflection", {"groups": [CHAT_GROUP]}),
+            tool("list_files"),
+            page,
+            quote,
+            tool("list_evidence"),
+            quote,
+            quote,
+            _chat_plan(["skills/SKILL.md"]),
+            _chat_write("skills/SKILL.md", "edited\n"),
+            tool("finish_edit", {"summary": "done"}),
+        ]
+    )
+    monkeypatch.setenv("E1_KEY", "test-key")
+
+    def configure(document):
+        document["checks"] = {"version": "checks/1", "modes": {check: mode}}
+        b17_reflector(document, {**chat_reflector(base), "max_protocol_repairs": 0})
+        document["editor"] = {**chat_budget_section(base), "max_protocol_repairs": 0}
+
+    try:
+        run, result = await public_run(tmp_path, monkeypatch, configure=configure)
+    finally:
+        server.shutdown()
+        server.server_close()
+
+    for event, count in [("reflection_finished", 1), ("editor_finished", 2)]:
+        (ended,) = payloads(run, event)
+        entries = [{"check": check, "code": "protocol", "count": count}] if mode == "shadow" else []
+        assert ended.get("shadowed", []) == entries
+    for role, quotes in (("reflector", 2), ("editor", 3)):
+        results = [
+            row["result"]["content"]
+            for row in b17_logs(run, f"{role}-logs")
+            if row.get("phase") == "tool_call"
+            and row["tool"] == "read_file"
+            and row["arguments"].get("reread") is True
+        ]
+        assert results == ["seed skill\n"] * quotes
+    expected_hits = {check: 3} if mode == "shadow" else {}
+    assert result.result.to_payload().get("shadow_hits", {}) == expected_hits
+    status = inspect_campaign(run, verify=True).to_payload()
+    assert status["check_modes"] == {check: mode}
+    assert status.get("shadow_hits", {}) == expected_hits
+    snapshot = "\n".join(Snapshot.from_state(run).lines())
+    assert f"checks: {check}={mode}" in snapshot
+    assert (f"shadow hits: {check} · count 3" in snapshot) == (mode == "shadow")
+
+
+def test_repeated_read_shadow_entry_admits_only_its_count():
+    from evolution.tree.family15_schema import validate_family15_payload
+    from evolution.tree.storage.envelope import SchemaError
+
+    entry = {"check": "repeated_read_without_progress", "code": "protocol", "count": 1}
+    terminal = {
+        "attempt_id": "r01-a01",
+        "operation_id": "op",
+        "status": "edited",
+        "continued": False,
+        "note_digest": "a" * 64,
+        "shadowed": [entry],
+    }
+    validate_family15_payload("editor_finished", terminal)
+    with pytest.raises(SchemaError):
+        validate_family15_payload(
+            "editor_finished", {**terminal, "shadowed": [{**entry, "leak": {"case_id": "c1"}}]}
+        )

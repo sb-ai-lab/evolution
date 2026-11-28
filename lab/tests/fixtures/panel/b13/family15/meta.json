@@ -1,0 +1,32 @@
+{
+ "schema": "lab-panel-fixture/1",
+ "snapshot": "family15",
+ "captured_at": "2026-10-27T06:39:44+00:00",
+ "lab_version": "0.0.3.dev61",
+ "core_version": "2.0.0b13",
+ "ids": {
+  "campaign_confidence": "c201b476d56d4cd492290f35a1c02f67"
+ },
+ "capture_id": "family15-e1ff08d9e3894cd8ba20db13f98c0f83",
+ "producing_wheels": {
+  "lab": {
+   "source": "/home/user/sber/evolution_lab/.local-tmp/retained/dev61/builds/task6-intermediate/evolution_lab-0.0.3.dev61-py3-none-any.whl",
+   "file": "evolution_lab-0.0.3.dev61-py3-none-any.whl",
+   "sha256": "19dfc752dd16c31a4980f32f8b7f00d7854a91ded75f173c0beb7b7dfea472c2"
+  },
+  "core": {
+   "source": "/home/user/sber/evolution-wheels/2.0.0b13/evo_skills-2.0.0b13-py3-none-any.whl",
+   "file": "evo_skills-2.0.0b13-py3-none-any.whl",
+   "sha256": "25a2f21619461c743267967424c422cbf0a2990b1db4ac12212af8cde390139e"
+  }
+ },
+ "helper": {
+  "source_revision": "6a01f110b98ff7bf459c11a203d93a4512e28202",
+  "path": "tests/fixtures/panel/capture.py",
+  "sha256": "86bcd50af8f11549d641ff1f8fe5265c0b8f1e83f6a628137697e4ca4963753f",
+  "task7_generator": {
+   "path": "tests/fixtures/panel/capture_b13.py",
+   "sha256": "1364b03944ad160dd137ff2c0f222c63e71bb4f526a7b64daebffa3891c24edd"
+  }
+ }
+}

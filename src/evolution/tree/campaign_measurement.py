@@ -135,12 +135,12 @@ from evolution.tree.execution.journal_recovery import close_interrupted_operatio
 from evolution.tree.execution.journal_rollout import (
     ConnectionAdmission,
     JournalRolloutAdapter,
+    _declare_components,
     durable_rollout,
 )
 from evolution.tree.execution.journal_schema import (
     S1_FAMILY,
     Lifecycle,
-    publish_components,
     try_is_retryable,
 )
 from evolution.tree.execution.journal_scoring import durable_score
@@ -776,7 +776,12 @@ class Measurement:
         scheduled = {str(row["case_id"]) for row in self._schedule}
         return tuple(case for case in self.corpus if case.case_id in scheduled)
 
-    def create(self, imported: Sequence[Mapping[str, Any]] = ()) -> None:
+    def create(
+        self,
+        imported: Sequence[Mapping[str, Any]] = (),
+        *,
+        declared_components: Sequence[Mapping[str, Any]] = (),
+    ) -> None:
         """Create the declared journal; called only after `measurement_bound` is durable."""
 
         os.makedirs(self.path.parent, mode=0o700, exist_ok=True)
@@ -787,6 +792,7 @@ class Measurement:
             self.corpus,
             secrets=self.secrets,
             imported=imported,
+            declared_components=declared_components,
         )
 
     async def resume(
@@ -1796,16 +1802,9 @@ class Measurement:
         instance like a failed attestation does.
         """
 
-        # `getattr`: `components` is not a `TargetInstance` member; the HTTP
-        # adapter's handle carries the creation body's validated map.
-        components = getattr(instance, "components", None)
-        if not self.identity.row_provenance or components is None:
-            return None
-        published = publish_components(components, journal.secrets)
-        if published.digest not in journal.declared_components():
-            journal.append("components_declared", published.payload())
-            self._withheld_components += published.withheld
-        return published.digest
+        digest, withheld = _declare_components(journal, instance)
+        self._withheld_components += withheld
+        return digest
 
     async def _run_row(
         self,

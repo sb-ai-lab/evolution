@@ -1,0 +1,12 @@
+{
+ "terminal": "suspended",
+ "owner": "reflector",
+ "code": "reflector_failing",
+ "event": "reflection_failed",
+ "availability": {
+  "health": "unavailable",
+  "mediator": "failed",
+  "transport_failures": 0,
+  "unreachable": 0
+ }
+}

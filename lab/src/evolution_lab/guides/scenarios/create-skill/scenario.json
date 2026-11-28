@@ -1,0 +1,181 @@
+{
+  "schema": "lab-scenario/2",
+  "id": "create-skill",
+  "version": 1,
+  "title": "Create a skill",
+  "skill": "SKILL.md",
+  "subject": "implementation",
+  "requires": [],
+  "produces": [
+    "create_skill.accepted"
+  ],
+  "repeatable": null,
+  "schemas": {
+    "task/1": "schemas/task-1.json",
+    "scenarios/1": "schemas/scenarios-1.json",
+    "tools/1": "schemas/tools-1.json",
+    "brief/1": "schemas/brief-1.json",
+    "build/1": "schemas/build-1.json",
+    "check/1": "schemas/check-1.json"
+  },
+  "steps": [
+    {
+      "id": "task",
+      "title": "Write the task",
+      "kind": "decide",
+      "human_only": false,
+      "optional": false,
+      "requires": [],
+      "outputs": [
+        {
+          "artifact": {
+            "path": "create-skill/{implementation}/task.json",
+            "check": "schema",
+            "schema": "task/1"
+          }
+        }
+      ],
+      "skill": "SKILL.md#task"
+    },
+    {
+      "id": "scenarios",
+      "title": "Agree on scenarios",
+      "kind": "decide",
+      "human_only": false,
+      "optional": false,
+      "requires": [
+        "task"
+      ],
+      "outputs": [
+        {
+          "artifact": {
+            "path": "create-skill/{implementation}/scenarios.json",
+            "check": "schema",
+            "schema": "scenarios/1"
+          }
+        }
+      ],
+      "skill": "SKILL.md#scenarios"
+    },
+    {
+      "id": "tools",
+      "title": "Review existing tools",
+      "kind": "decide",
+      "human_only": false,
+      "optional": false,
+      "requires": [
+        "scenarios"
+      ],
+      "outputs": [
+        {
+          "artifact": {
+            "path": "create-skill/{implementation}/tools.json",
+            "check": "schema",
+            "schema": "tools/1"
+          }
+        }
+      ],
+      "skill": "SKILL.md#tools"
+    },
+    {
+      "id": "brief",
+      "title": "Write the brief",
+      "kind": "decide",
+      "human_only": false,
+      "optional": false,
+      "requires": [
+        "tools"
+      ],
+      "outputs": [
+        {
+          "artifact": {
+            "path": "create-skill/{implementation}/brief.json",
+            "check": "schema",
+            "schema": "brief/1"
+          }
+        }
+      ],
+      "skill": "SKILL.md#brief"
+    },
+    {
+      "id": "brief-confirm",
+      "title": "Confirm the brief",
+      "kind": "confirm",
+      "human_only": true,
+      "optional": false,
+      "requires": [
+        "brief"
+      ],
+      "outputs": [
+        {
+          "attestation": {
+            "claim": "create_skill.brief_confirmed",
+            "path": "create-skill/{implementation}/brief.json"
+          }
+        }
+      ],
+      "skill": "SKILL.md#brief-confirm"
+    },
+    {
+      "id": "build",
+      "title": "Build the skill",
+      "kind": "work",
+      "human_only": false,
+      "optional": false,
+      "requires": [
+        "brief-confirm",
+        "implementation.available"
+      ],
+      "outputs": [
+        {
+          "artifact": {
+            "path": "create-skill/{implementation}/build.json",
+            "check": "schema",
+            "schema": "build/1"
+          }
+        }
+      ],
+      "skill": "SKILL.md#build"
+    },
+    {
+      "id": "check",
+      "title": "Check the skill",
+      "kind": "work",
+      "human_only": false,
+      "optional": false,
+      "requires": [
+        "build"
+      ],
+      "outputs": [
+        {
+          "artifact": {
+            "path": "create-skill/{implementation}/check.json",
+            "check": "schema",
+            "schema": "check/1"
+          }
+        }
+      ],
+      "skill": "SKILL.md#check"
+    },
+    {
+      "id": "accept",
+      "title": "Accept the skill",
+      "kind": "confirm",
+      "human_only": true,
+      "optional": false,
+      "requires": [
+        "check"
+      ],
+      "outputs": [
+        {
+          "attestation": {
+            "claim": "create_skill.accepted",
+            "path": "create-skill/{implementation}/check.json"
+          }
+        }
+      ],
+      "skill": "SKILL.md#accept"
+    }
+  ],
+  "digest": "4b6f5f7bbaa76ce498553d444351033a342bf5e2a2f062bfbe31da8dd32d5b6a"
+}

@@ -1,0 +1,64 @@
+{
+  "schema": "lab-offline-core-capture/1",
+  "scenario": "insufficient-evidence",
+  "captured_at": "2026-10-29T07:18:27.612740+00:00",
+  "core_version": "2.0.0b15",
+  "lab_version": "0.0.3.dev63",
+  "core_commit": "30ae438c7ca899f694c8dddb5e09f301e98cffc9",
+  "preliminary": false,
+  "producing_wheels": {
+    "lab": {
+      "file": "evolution_lab-0.0.3.dev63-py3-none-any.whl",
+      "sha256": "0aaedc6f1b2db1f7b0952a3ee6ee3e29779b1b083588dffef0a3ddcc20e70bf6"
+    },
+    "core": {
+      "file": "evo_skills-2.0.0b15-py3-none-any.whl",
+      "sha256": "56855139bdac1750c28d7ec837e28d5b0c005ad2745b856de9d93c4934ef5352"
+    }
+  },
+  "generators": [
+    {
+      "path": "tests/fixtures/panel/capture_b15.py",
+      "sha256": "da407c58a4e4eebfdf7dcee667cfb393f2afd515a8774696eaf95f599bd24075"
+    },
+    {
+      "path": "tests/scaffold_16.py",
+      "sha256": "8db8637c0645e11b79c107864be9892f1dfad2d290dba9db9db53697fb856246"
+    },
+    {
+      "path": "tests/dev62_default_outputs.py",
+      "sha256": "687ca0af536753ed72131ddbf3a244007102deba3f233247b4e9efdf85c9466f"
+    }
+  ],
+  "core_functions": [
+    "evolution.tree.evolve.evolve",
+    "evolution.tree.campaign.inspect_campaign"
+  ],
+  "fault_injections": [
+    "after_comparison_bound arms ReferenceSession.turn target_failed on parent c1"
+  ],
+  "executor": "Core ReferenceTarget over loopback HTTP; neutral subprocess roles",
+  "files_sha256": {
+    "campaign.json": "f4f5a95003a5e6ceebcb7d12043b232f0a45cfb0ffb98915d5e0a502a439cca5",
+    "core-projection.json": "a2636ac1270f1ff749fe1c9afc846e1ddde87b63c4dbee1bdb89f124f980087b",
+    "core-report.txt": "be9048e970b7c15a861a687a4153b22df9dd33880c1c89bc14a8fc13e2ea06fa",
+    "owner-report.json": "4ffeae85dfacba75cdb40319a46bc975e1bff402b7cf705d3ef9d69a3d709285",
+    "report.md": "d7a49928bd3cbdc968befc7c5d76ce9c96afec4f78b59a89a096d6c1695743bf",
+    "result.json": "fab5e1f35216058ee982261195f9c1e224aee9d15799c5a2ab0ded5368b81c5b",
+    "run/artifacts/auxiliary/cffc37d3028f1d0170f2a6479d666bc853f209a8afadf093a1288239e22e7c07/payload.json": "cffc37d3028f1d0170f2a6479d666bc853f209a8afadf093a1288239e22e7c07",
+    "run/artifacts/auxiliary/e0e2bed63aa271cc1a19b781eed1d78397a96812acf64d5edf143e56c7fb23ea/payload.json": "e0e2bed63aa271cc1a19b781eed1d78397a96812acf64d5edf143e56c7fb23ea",
+    "run/artifacts/candidates/r01-a01/skills/SKILL.md": "5fae168b2f7066a6ed1d9e9631c5a195e9963f0d7ffb75950bb8399008d5698f",
+    "run/artifacts/candidates/r01-a01/uv.lock": "fdae21c35ba8ab73bee88a075fdae386e692049307adaf0af670c8bced90d349",
+    "run/artifacts/champions/v0/skills/SKILL.md": "e4d9d46200d838b940d7bb19157a1253bd7fcdfbae54a9c134cc8f2e8c972f3b",
+    "run/artifacts/champions/v0/uv.lock": "fdae21c35ba8ab73bee88a075fdae386e692049307adaf0af670c8bced90d349",
+    "run/artifacts.jsonl": "13e5566dfaf32e4a38699f3ffb033d7604f88867a91bf7203d01edce718a2691",
+    "run/campaign.jsonl": "4d1c6c38da94ef1325fa790b877532338ccc73e82398042db490ac843df079ba",
+    "run/connection/296a04217c3846458dc0acb355017aeb/events.jsonl": "c40c0065383e2e7ca9da0dbff2e1d9a90eb063bd4f9f81bcef3bc332052a58f0",
+    "run/measurements/m-r00-champion/events.jsonl": "565a209722b034e2f62712c1c4e503c9fd081a489b42b763a12b58de20395af4",
+    "run/measurements/m-r01-a01/events.jsonl": "addef31894fea6a1fdb95c5589999c917fd72ae0c8b8c184d3fc6a2bef79d327",
+    "run/measurements/m-r01-a01-parent/events.jsonl": "881a3fb042eff9ff6780db5f68a98e1bfe95757f8c9e2a9bf219e99fab8d86c6",
+    "run/scorer-traces/m-r00-champion.pack": "4c3c9a044bba00931fd450d672d21a95b39247c33caa86abf8b412c01a7d8a08",
+    "run/scorer-traces/m-r01-a01-parent.pack": "5fdc1cfcc109d7bd05e6c59a155306004a87d1308626c59b719dba2589a9b728",
+    "run/scorer-traces/m-r01-a01.pack": "7a2214a56024e619b20caeb481d5e90e51b005a76bbdb59c5ff06ccac761bd9f"
+  }
+}

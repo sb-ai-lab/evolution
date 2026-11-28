@@ -6,7 +6,7 @@ keeps the S1 run vocabulary: identity, recovery and dispatch-stop admission.
 
 from __future__ import annotations
 
-import os
+import os  # noqa: F401  compatibility seam used by fsync fault tests
 import threading
 from collections.abc import Callable, Collection, Mapping, Sequence
 from datetime import UTC, datetime
@@ -14,6 +14,7 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Any, cast
 
+from evolution.lineage.state_io import sync_file
 from evolution.tree.execution.interaction import EvalCase
 from evolution.tree.execution.journal_identity import RunIdentityV1, resolve_package_version
 from evolution.tree.execution.journal_schema import S1_FAMILY, Lifecycle
@@ -82,6 +83,7 @@ class Journal:
         max_record_bytes: int = MAX_RECORD_BYTES,
         max_journal_bytes: int = MAX_JOURNAL_BYTES,
         imported: Sequence[Mapping[str, Any]] = (),
+        declared_components: Sequence[Mapping[str, Any]] = (),
     ) -> Journal:
         version = resolve_package_version(version_resolver)
         identity.validate_corpus(corpus)
@@ -105,11 +107,12 @@ class Journal:
             family=S1_FAMILY,
         )
         initial: bytes | None = None
-        if imported:
+        if imported or declared_components:
             initial = cls._birth_bytes(
                 run_id,
                 run_created_payload,
                 imported,
+                declared_components=declared_components,
                 secrets=secrets,
                 max_record_bytes=max_record_bytes,
                 max_journal_bytes=max_journal_bytes,
@@ -128,7 +131,7 @@ class Journal:
             journal._corpus = tuple(corpus)
             if initial is None:
                 journal.append("run_created", run_created_payload)
-                os.fsync(journal._log.directory_fd)
+                sync_file(journal._log.directory_fd)
             return journal
         except OSError as exc:
             journal.close()
@@ -143,6 +146,7 @@ class Journal:
         run_created_payload: dict[str, Any],
         imported: Sequence[Mapping[str, Any]],
         *,
+        declared_components: Sequence[Mapping[str, Any]] = (),
         secrets: Sequence[str],
         max_record_bytes: int,
         max_journal_bytes: int,
@@ -182,6 +186,22 @@ class Journal:
                         event="sample_imported",
                         operation_id=None,
                         payload=dict(row),
+                    ),
+                    secrets=secrets,
+                    family=S1_FAMILY,
+                )
+            )
+        for declaration in declared_components:
+            records.append(
+                Envelope.from_payload(
+                    dict(
+                        schema_version=1,
+                        run_id=run_id,
+                        sequence=len(records) + 1,
+                        timestamp=timestamp,
+                        event="components_declared",
+                        operation_id=None,
+                        payload=dict(declaration),
                     ),
                     secrets=secrets,
                     family=S1_FAMILY,

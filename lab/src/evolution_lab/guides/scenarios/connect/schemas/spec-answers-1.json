@@ -1,0 +1,665 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "connect-spec-answers/1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "catalogue",
+    "path",
+    "items",
+    "fit"
+  ],
+  "properties": {
+    "schema": {
+      "const": "connect-spec-answers/1"
+    },
+    "catalogue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "digest"
+      ],
+      "properties": {
+        "version": {
+          "const": 13
+        },
+        "digest": {
+          "const": "7249ffee24aea86e92a4261e23385cdbe6a8c9a8891a8cd4c236981d49489413"
+        }
+      }
+    },
+    "path": {
+      "enum": [
+        "campaign",
+        "evaluation"
+      ]
+    },
+    "items": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "agent.config": {
+          "$ref": "#/$defs/item"
+        },
+        "agent.effects_guard": {
+          "$ref": "#/$defs/item"
+        },
+        "agent.entrypoint": {
+          "$ref": "#/$defs/item"
+        },
+        "agent.models": {
+          "$ref": "#/$defs/item"
+        },
+        "agent.outcome_vocabulary": {
+          "$ref": "#/$defs/item"
+        },
+        "agent.request_contract": {
+          "$ref": "#/$defs/item"
+        },
+        "agent.session_state": {
+          "$ref": "#/$defs/item"
+        },
+        "agent.skills_layout": {
+          "$ref": "#/$defs/item"
+        },
+        "agent.tools": {
+          "$ref": "#/$defs/item"
+        },
+        "campaign.brief": {
+          "$ref": "#/$defs/item"
+        },
+        "campaign.budget": {
+          "$ref": "#/$defs/item"
+        },
+        "campaign.gate": {
+          "$ref": "#/$defs/item"
+        },
+        "campaign.grouper": {
+          "$ref": "#/$defs/item"
+        },
+        "campaign.independent_acceptance": {
+          "$ref": "#/$defs/item"
+        },
+        "campaign.models": {
+          "$ref": "#/$defs/item"
+        },
+        "campaign.role_visibility": {
+          "$ref": "#/$defs/item"
+        },
+        "campaign.scale": {
+          "$ref": "#/$defs/item"
+        },
+        "campaign.stability_and_stop": {
+          "$ref": "#/$defs/item"
+        },
+        "eval.corpus": {
+          "$ref": "#/$defs/item"
+        },
+        "eval.gold": {
+          "$ref": "#/$defs/item"
+        },
+        "eval.judges": {
+          "$ref": "#/$defs/item"
+        },
+        "eval.metric": {
+          "$ref": "#/$defs/item"
+        },
+        "eval.metric_contract": {
+          "$ref": "#/$defs/item"
+        },
+        "eval.test_isolation": {
+          "$ref": "#/$defs/item"
+        },
+        "launch.environment": {
+          "$ref": "#/$defs/item"
+        },
+        "run.failures": {
+          "$ref": "#/$defs/item"
+        },
+        "scope.editable": {
+          "$ref": "#/$defs/item"
+        },
+        "scope.invariants": {
+          "$ref": "#/$defs/item"
+        },
+        "target.capacity": {
+          "$ref": "#/$defs/item"
+        },
+        "target.conformance_mode": {
+          "$ref": "#/$defs/item"
+        },
+        "target.entry_file": {
+          "$ref": "#/$defs/item"
+        },
+        "world.data": {
+          "$ref": "#/$defs/item"
+        },
+        "world.reference_time": {
+          "$ref": "#/$defs/item"
+        },
+        "world.systems": {
+          "$ref": "#/$defs/item"
+        }
+      }
+    },
+    "fit": {
+      "$ref": "#/$defs/fit"
+    },
+    "client": {
+      "type": "object"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "path": {
+            "const": "campaign"
+          }
+        },
+        "required": [
+          "path"
+        ]
+      },
+      "then": {
+        "properties": {
+          "items": {
+            "required": [
+              "agent.config",
+              "agent.effects_guard",
+              "agent.entrypoint",
+              "agent.models",
+              "agent.request_contract",
+              "agent.session_state",
+              "agent.tools",
+              "campaign.gate",
+              "campaign.grouper",
+              "campaign.models",
+              "campaign.role_visibility",
+              "campaign.scale",
+              "campaign.stability_and_stop",
+              "eval.corpus",
+              "eval.gold",
+              "eval.metric",
+              "eval.metric_contract",
+              "eval.test_isolation",
+              "launch.environment",
+              "scope.editable",
+              "scope.invariants",
+              "target.capacity",
+              "world.data",
+              "world.systems"
+            ],
+            "properties": {
+              "agent.config": {
+                "properties": {
+                  "status": {
+                    "const": "known"
+                  }
+                }
+              },
+              "agent.effects_guard": {
+                "properties": {
+                  "status": {
+                    "const": "known"
+                  }
+                }
+              },
+              "agent.entrypoint": {
+                "properties": {
+                  "status": {
+                    "const": "known"
+                  }
+                }
+              },
+              "agent.models": {
+                "properties": {
+                  "status": {
+                    "const": "known"
+                  }
+                }
+              },
+              "agent.request_contract": {
+                "properties": {
+                  "status": {
+                    "const": "known"
+                  }
+                }
+              },
+              "agent.session_state": {
+                "properties": {
+                  "status": {
+                    "const": "known"
+                  }
+                }
+              },
+              "agent.tools": {
+                "properties": {
+                  "status": {
+                    "const": "known"
+                  }
+                }
+              },
+              "campaign.gate": {
+                "properties": {
+                  "status": {
+                    "const": "known"
+                  }
+                }
+              },
+              "campaign.grouper": {
+                "properties": {
+                  "status": {
+                    "const": "known"
+                  }
+                }
+              },
+              "campaign.models": {
+                "properties": {
+                  "status": {
+                    "const": "known"
+                  }
+                }
+              },
+              "campaign.role_visibility": {
+                "properties": {
+                  "status": {
+                    "const": "known"
+                  }
+                }
+              },
+              "campaign.scale": {
+                "properties": {
+                  "status": {
+                    "const": "known"
+                  }
+                }
+              },
+              "campaign.stability_and_stop": {
+                "properties": {
+                  "status": {
+                    "const": "known"
+                  }
+                }
+              },
+              "eval.corpus": {
+                "properties": {
+                  "status": {
+                    "const": "known"
+                  }
+                }
+              },
+              "eval.gold": {
+                "properties": {
+                  "status": {
+                    "const": "known"
+                  }
+                }
+              },
+              "eval.metric": {
+                "properties": {
+                  "status": {
+                    "const": "known"
+                  }
+                }
+              },
+              "eval.metric_contract": {
+                "properties": {
+                  "status": {
+                    "const": "known"
+                  }
+                }
+              },
+              "eval.test_isolation": {
+                "properties": {
+                  "status": {
+                    "const": "known"
+                  }
+                }
+              },
+              "launch.environment": {
+                "properties": {
+                  "status": {
+                    "const": "known"
+                  }
+                }
+              },
+              "scope.editable": {
+                "properties": {
+                  "status": {
+                    "const": "known"
+                  }
+                }
+              },
+              "scope.invariants": {
+                "properties": {
+                  "status": {
+                    "const": "known"
+                  }
+                }
+              },
+              "target.capacity": {
+                "properties": {
+                  "status": {
+                    "const": "known"
+                  }
+                }
+              },
+              "world.data": {
+                "properties": {
+                  "status": {
+                    "const": "known"
+                  }
+                }
+              },
+              "world.systems": {
+                "properties": {
+                  "status": {
+                    "const": "known"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "path": {
+            "const": "evaluation"
+          }
+        },
+        "required": [
+          "path"
+        ]
+      },
+      "then": {
+        "properties": {
+          "items": {
+            "required": [
+              "agent.config",
+              "agent.effects_guard",
+              "agent.entrypoint",
+              "agent.models",
+              "agent.request_contract",
+              "agent.session_state",
+              "agent.tools",
+              "eval.corpus",
+              "eval.gold",
+              "eval.metric",
+              "launch.environment",
+              "target.capacity",
+              "world.data",
+              "world.systems"
+            ],
+            "properties": {
+              "agent.config": {
+                "properties": {
+                  "status": {
+                    "const": "known"
+                  }
+                }
+              },
+              "agent.effects_guard": {
+                "properties": {
+                  "status": {
+                    "const": "known"
+                  }
+                }
+              },
+              "agent.entrypoint": {
+                "properties": {
+                  "status": {
+                    "const": "known"
+                  }
+                }
+              },
+              "agent.models": {
+                "properties": {
+                  "status": {
+                    "const": "known"
+                  }
+                }
+              },
+              "agent.request_contract": {
+                "properties": {
+                  "status": {
+                    "const": "known"
+                  }
+                }
+              },
+              "agent.session_state": {
+                "properties": {
+                  "status": {
+                    "const": "known"
+                  }
+                }
+              },
+              "agent.tools": {
+                "properties": {
+                  "status": {
+                    "const": "known"
+                  }
+                }
+              },
+              "eval.corpus": {
+                "properties": {
+                  "status": {
+                    "const": "known"
+                  }
+                }
+              },
+              "eval.gold": {
+                "properties": {
+                  "status": {
+                    "const": "known"
+                  }
+                }
+              },
+              "eval.metric": {
+                "properties": {
+                  "status": {
+                    "const": "known"
+                  }
+                }
+              },
+              "launch.environment": {
+                "properties": {
+                  "status": {
+                    "const": "known"
+                  }
+                }
+              },
+              "target.capacity": {
+                "properties": {
+                  "status": {
+                    "const": "known"
+                  }
+                }
+              },
+              "world.data": {
+                "properties": {
+                  "status": {
+                    "const": "known"
+                  }
+                }
+              },
+              "world.systems": {
+                "properties": {
+                  "status": {
+                    "const": "known"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "known",
+            "unknown",
+            "needs_decision"
+          ]
+        },
+        "answer": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "source": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind"
+          ],
+          "properties": {
+            "kind": {
+              "enum": [
+                "code",
+                "user",
+                "decision",
+                "run"
+              ]
+            },
+            "ref": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500
+            }
+          }
+        },
+        "client": {
+          "type": "object"
+        }
+      },
+      "if": {
+        "properties": {
+          "status": {
+            "const": "known"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "answer"
+        ]
+      }
+    },
+    "fit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "implementation",
+        "verdict",
+        "summary",
+        "reasons"
+      ],
+      "properties": {
+        "implementation": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{1,39}(?![\\s\\S])"
+        },
+        "verdict": {
+          "enum": [
+            "as_is",
+            "hard",
+            "restructure"
+          ]
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 600
+        },
+        "reasons": {
+          "type": "array",
+          "maxItems": 8,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "item",
+              "text"
+            ],
+            "properties": {
+              "item": {
+                "enum": [
+                  "agent.config",
+                  "agent.effects_guard",
+                  "agent.entrypoint",
+                  "agent.models",
+                  "agent.outcome_vocabulary",
+                  "agent.request_contract",
+                  "agent.session_state",
+                  "agent.skills_layout",
+                  "agent.tools",
+                  "campaign.brief",
+                  "campaign.budget",
+                  "campaign.gate",
+                  "campaign.grouper",
+                  "campaign.independent_acceptance",
+                  "campaign.models",
+                  "campaign.role_visibility",
+                  "campaign.scale",
+                  "campaign.stability_and_stop",
+                  "eval.corpus",
+                  "eval.gold",
+                  "eval.judges",
+                  "eval.metric",
+                  "eval.metric_contract",
+                  "eval.test_isolation",
+                  "launch.environment",
+                  "run.failures",
+                  "scope.editable",
+                  "scope.invariants",
+                  "target.capacity",
+                  "target.conformance_mode",
+                  "target.entry_file",
+                  "world.data",
+                  "world.reference_time",
+                  "world.systems"
+                ]
+              },
+              "text": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 400
+              }
+            }
+          }
+        }
+      },
+      "if": {
+        "properties": {
+          "verdict": {
+            "not": {
+              "const": "as_is"
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "reasons": {
+            "minItems": 1
+          }
+        }
+      }
+    }
+  }
+}

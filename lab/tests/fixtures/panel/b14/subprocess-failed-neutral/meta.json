@@ -1,0 +1,56 @@
+{
+ "schema": "lab-offline-core-capture/1",
+ "scenario": "subprocess-failed",
+ "capture_id": "probe-fba58b42a9714777a57f23e0cd7b3a6f",
+ "captured_at": "2026-10-27T18:12:29.588124+00:00",
+ "core_version": "2.0.0b14",
+ "lab_version": "0.0.3.dev62",
+ "producing_wheels": {
+  "lab": {
+   "file": "evolution_lab-0.0.3.dev62-py3-none-any.whl",
+   "sha256": "bb7162194c3bf5167fefd7a83fc3a19220e5c14cd6e4b7f5fad3ef085dd4c4a5"
+  },
+  "core": {
+   "file": "evo_skills-2.0.0b14-py3-none-any.whl",
+   "sha256": "7a506e3460fa3b1a697e6e23798032cb2f7768c4adbb822e8cf42829e902e243"
+  }
+ },
+ "generators": [
+  {
+   "path": "tests/fixtures/panel/capture_b14.py",
+   "sha256": "435ef7523d243dd35f7c754cda13f28b4209c493d1a8dc89e046cdaea7e39c5c"
+  },
+  {
+   "path": "tests/b10_campaigns.py",
+   "sha256": "3de9ef45d11c66d4f0978883d18ac4aad30734d5a31c3ae14eeb75e5502725da"
+  },
+  {
+   "path": "tests/scaffold_16.py",
+   "sha256": "8db8637c0645e11b79c107864be9892f1dfad2d290dba9db9db53697fb856246"
+  }
+ ],
+ "core_functions": [
+  "evolution.tree.evolve.evolve",
+  "evolution.tree.campaign.inspect_campaign"
+ ],
+ "fault_injections": [
+  "ProbeMediator.start raises OSError"
+ ],
+ "executor": "neutral subprocess",
+ "fixture_substitutions": {
+  "run/reflector-logs/r01-x01.stderr": "The launcher path is synthetic."
+ },
+ "files_sha256": {
+  "core-projection.json": "45839951cd119734a5f5da1a5f67322e122a9c57981e1e72a36fa03bb5aed144",
+  "core-report.txt": "c956678c0e2e5e50eda1721f2404d411106fee09eb483a91da87a4daf6a82d71",
+  "helper-answers.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+  "lab-report.md": "a16b9bd8c8b08b66340ee572dea5f290cfc5578d9ecf37ad3d83815deff978f6",
+  "result.json": "eef73dde7fc843a67d53fd245fe393f717b71a98f9272a1225e850df46e559f2",
+  "run/campaign.jsonl": "fd043825df4a14accda601856edb4261ada57e1e10aee16f2eefbeb5b3963268",
+  "run/measurements/m-r00-champion/events.jsonl": "3bdf62a96def9dc108f9a889cf1f751ce0d81f5d96f4534fef7b7862e51eb7d5",
+  "run/reflector-logs/probes/r01-x01/startup.json": "d2f925ffd6da94af29e852eb4380e4240c22a1c0d5ac702a09009fadeb21a72c",
+  "run/reflector-logs/r01-x01.stderr": "dfcae56480a43f74cf6752afbd5a7a507b55f37a376fbe0f74abdb88378c546e",
+  "run/scorer-traces/m-r00-champion.pack": "3a18cbc37c63224707c7b4a4e2797ba95d320cbef4fab46e0477d790c29916f6",
+  "worker-notes.txt": "429458ee6dd2dfd90d91625f5d6285207de6c4e2a81d96b2a780bb76f3edeed6"
+ }
+}

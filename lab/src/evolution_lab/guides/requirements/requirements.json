@@ -1,0 +1,655 @@
+{
+  "catalogue_version": 13,
+  "digest": "7249ffee24aea86e92a4261e23385cdbe6a8c9a8891a8cd4c236981d49489413",
+  "items": [
+    {
+      "answer_from": [
+        "code"
+      ],
+      "applies_to": [
+        "campaign",
+        "evaluation"
+      ],
+      "feeds": [
+        "seam:settings",
+        "launch/2:/env"
+      ],
+      "group": "agent",
+      "guide": "target-connector/SKILL.md#explicit-settings",
+      "id": "agent.config",
+      "obligation": "required",
+      "title": "Настройки и переменные окружения агента",
+      "why": "Всё, что влияет на поведение, объявляется в env launch-файла; агент читает это из context или os.environ — процесс цели видит ровно объявленное. Значение из другого источника (файл в home, конфиг-сервис) делает прогон невоспроизводимым."
+    },
+    {
+      "answer_from": [
+        "code"
+      ],
+      "applies_to": [
+        "campaign",
+        "evaluation"
+      ],
+      "feeds": [
+        "seam:backends",
+        "case:/oracle"
+      ],
+      "group": "agent",
+      "guide": "target-connector/SKILL.md#injected-backends",
+      "id": "agent.effects_guard",
+      "obligation": "required",
+      "title": "Барьеры действий с последствиями",
+      "why": "Барьеры и подтверждения остаются внутри хода; scorer и эталоны проверяют, что они соблюдены."
+    },
+    {
+      "answer_from": [
+        "code"
+      ],
+      "applies_to": [
+        "campaign",
+        "evaluation"
+      ],
+      "feeds": [
+        "seam:session",
+        "launch/2:/agent"
+      ],
+      "group": "agent",
+      "guide": "target-connector/SKILL.md#turn-entrypoint",
+      "id": "agent.entrypoint",
+      "obligation": "required",
+      "title": "Точка входа агента для лаунчера Lab",
+      "why": "Лаунчер Lab импортирует модуль агента и вызывает `build`; без точки входа цель не собрать, а сервер цели вызывает агента по одному ходу на сообщение."
+    },
+    {
+      "answer_from": [
+        "code",
+        "user"
+      ],
+      "applies_to": [
+        "campaign",
+        "evaluation"
+      ],
+      "feeds": [
+        "seam:settings",
+        "launch/2:/secret_names"
+      ],
+      "group": "agent",
+      "guide": "target-connector/SKILL.md#explicit-settings",
+      "id": "agent.models",
+      "obligation": "required",
+      "title": "Модели и провайдеры агента",
+      "why": "Модели агента задают ключи и настройки цели; их нельзя брать из фонового окружения."
+    },
+    {
+      "answer_from": [
+        "code"
+      ],
+      "applies_to": [
+        "campaign",
+        "evaluation"
+      ],
+      "feeds": [
+        "seam:session",
+        "rule:target-connector/SKILL.md#agent-outcome"
+      ],
+      "group": "agent",
+      "guide": "target-connector/SKILL.md#agent-outcome",
+      "id": "agent.outcome_vocabulary",
+      "obligation": "optional",
+      "title": "Исход хода для пробы: словарь agent_outcome",
+      "why": "Если шаблон отдаёт в `reason` на успешном ходе категорию `agent_outcome` (answered, off_topic, handoff, gave_up), проба с агентом покажет исход одним словарём. Без этого ход пробы — `unspecified`; кампании и оценку это не меняет."
+    },
+    {
+      "answer_from": [
+        "code"
+      ],
+      "applies_to": [
+        "campaign",
+        "evaluation"
+      ],
+      "feeds": [
+        "seam:session",
+        "case:/public"
+      ],
+      "group": "agent",
+      "guide": "target-connector/SKILL.md#turn-entrypoint",
+      "id": "agent.request_contract",
+      "obligation": "required",
+      "title": "Вход и выход хода",
+      "why": "Из него строятся поля `public` кейса и разбор ответа; без него корпус и scorer не согласованы с агентом."
+    },
+    {
+      "answer_from": [
+        "code"
+      ],
+      "applies_to": [
+        "campaign",
+        "evaluation"
+      ],
+      "feeds": [
+        "seam:session",
+        "launch/2:/limits"
+      ],
+      "group": "agent",
+      "guide": "target-connector/SKILL.md#isolated-session",
+      "id": "agent.session_state",
+      "obligation": "required",
+      "title": "Состояние разговора и изоляция сессий",
+      "why": "Цель ведёт несколько сессий; между ними нет общего изменяемого состояния. Агент держит состояние сам под id сессии и сбрасывает его в close_session или отдаёт его значением, и его хранит нейтральный слой Lab."
+    },
+    {
+      "answer_from": [
+        "code"
+      ],
+      "applies_to": [
+        "campaign"
+      ],
+      "feeds": [
+        "manifest/15:/artifacts",
+        "seam:settings"
+      ],
+      "group": "agent",
+      "guide": "campaign-package/SKILL.md#editable-scope",
+      "id": "agent.skills_layout",
+      "obligation": "optional",
+      "title": "Где лежат скиллы и промпты агента",
+      "why": "Помогает выбрать изменяемую область и неизменяемые зависимости кампании."
+    },
+    {
+      "answer_from": [
+        "code"
+      ],
+      "applies_to": [
+        "campaign",
+        "evaluation"
+      ],
+      "feeds": [
+        "seam:backends",
+        "seam:trace"
+      ],
+      "group": "agent",
+      "guide": "target-connector/SKILL.md#injected-backends",
+      "id": "agent.tools",
+      "obligation": "required",
+      "title": "Инструменты и их побочные эффекты",
+      "why": "Инструменты, меняющие внешнее состояние, нужно перевести на подменяемые бэкенды и отразить в трассе."
+    },
+    {
+      "answer_from": [
+        "decision"
+      ],
+      "applies_to": [
+        "campaign"
+      ],
+      "feeds": [
+        "manifest/15:/editor"
+      ],
+      "group": "campaign",
+      "guide": "campaign-package/SKILL.md#editor-and-reflector",
+      "id": "campaign.brief",
+      "obligation": "optional",
+      "title": "Бриф editor",
+      "why": "Направляет правки; без него editor работает только по обратной связи."
+    },
+    {
+      "answer_from": [
+        "decision"
+      ],
+      "applies_to": [
+        "campaign"
+      ],
+      "feeds": [
+        "external:operator"
+      ],
+      "group": "campaign",
+      "guide": "campaign-package/SKILL.md#campaign-scale",
+      "id": "campaign.budget",
+      "obligation": "optional",
+      "title": "Денежный лимит",
+      "why": "Человек выбирает денежный лимит; необязательный шлюз Lab проверяет его только для проходящих через него вызовов по объявленным ценам и границам токенов."
+    },
+    {
+      "answer_from": [
+        "decision"
+      ],
+      "applies_to": [
+        "campaign"
+      ],
+      "feeds": [
+        "manifest/15:/campaign/gate",
+        "manifest/15:/campaign/evaluation/repeats_per_question"
+      ],
+      "group": "campaign",
+      "guide": "campaign-package/SKILL.md#confidence-gate",
+      "id": "campaign.gate",
+      "obligation": "required",
+      "title": "Как судить кандидата",
+      "why": "Смоук `observe` (умолчание Lab, R = 1) дёшев и проверяет только проводку — результат помечен «гейт не применялся»; `statistical` повторяет каждый вопрос R ≥ 2 раз (расход растёт в R раз), уровни доверия и `global` решает человек; детерминированной цели нужна числовая `causal.tolerance`."
+    },
+    {
+      "answer_from": [
+        "decision"
+      ],
+      "applies_to": [
+        "campaign"
+      ],
+      "feeds": [
+        "manifest/15:/grouper"
+      ],
+      "group": "campaign",
+      "guide": "campaign-package/SKILL.md#grouper",
+      "id": "campaign.grouper",
+      "obligation": "required",
+      "title": "Как группировать ошибки (Grouper)",
+      "why": "Grouper делит провалы раунда на группы для Reflector: `fields` (по полям, бесплатно), `command` (своя программа, её `allowed_env` — секреты прогона) или `chat` (модель, ключ и прокси — секреты прогона). Вид `agent_cli` Lab пока не поддерживает: отказ `grouper_kind_unsupported`."
+    },
+    {
+      "answer_from": [
+        "decision"
+      ],
+      "applies_to": [
+        "campaign"
+      ],
+      "feeds": [
+        "manifest/16:/campaign/gate/mode",
+        "manifest/16:/campaign/gate/execution_noise",
+        "manifest/16:/campaign/gate/verification",
+        "manifest/16:/campaign/gate/fresh_parent",
+        "manifest/16:/campaign/evaluation/repeats_per_question"
+      ],
+      "group": "campaign",
+      "guide": "campaign-package/SKILL.md#manifest-16",
+      "id": "campaign.independent_acceptance",
+      "obligation": "optional",
+      "title": "Независимая приёмка кандидата (манифест /16)",
+      "why": "Только для `/16` (семейство 15): число повторов R выбирается независимо от правила; `gate.mode` — point, confidence или unfiltered; нужны шум исполнения и проверка. При R = 1 и confidence границу проходят от 4 единиц."
+    },
+    {
+      "answer_from": [
+        "decision"
+      ],
+      "applies_to": [
+        "campaign"
+      ],
+      "feeds": [
+        "manifest/15:/editor",
+        "manifest/15:/reflector"
+      ],
+      "group": "campaign",
+      "guide": "campaign-package/SKILL.md#editor-and-reflector",
+      "id": "campaign.models",
+      "obligation": "required",
+      "title": "Модели editor и reflector",
+      "why": "Без них кампанию не запустить; они задают стоимость и качество правок. В `/15` — `reflector.max_consecutive_failures` (1–20) и `retry` (`role_call_retry/1`) у chat-ролей; их пишет автор, Lab не подставляет. Группировка — верхнеуровневый `grouper`."
+    },
+    {
+      "answer_from": [
+        "decision"
+      ],
+      "applies_to": [
+        "campaign"
+      ],
+      "feeds": [
+        "manifest/15:/role_visibility"
+      ],
+      "group": "campaign",
+      "guide": "campaign-package/SKILL.md#role-visibility",
+      "id": "campaign.role_visibility",
+      "obligation": "required",
+      "title": "Что роли видят из дерева агента",
+      "why": "`role_visibility` перечисляет пути дерева, которые Editor и Reflector могут читать; это видимость, не песочница. Смена видимости при продолжении — только закрыть кампанию; Lab передаёт отказ ядра как есть."
+    },
+    {
+      "answer_from": [
+        "decision"
+      ],
+      "applies_to": [
+        "campaign"
+      ],
+      "feeds": [
+        "manifest/15:/campaign/rounds",
+        "manifest/15:/campaign/attempts_per_round",
+        "manifest/15:/campaign/parallel_attempts",
+        "manifest/15:/campaign/budget"
+      ],
+      "group": "campaign",
+      "guide": "campaign-package/SKILL.md#campaign-scale",
+      "id": "campaign.scale",
+      "obligation": "required",
+      "title": "Масштаб кампании",
+      "why": "Раунды, попытки и параллельность определяют длительность и стоимость; бюджет сэмпла задаёт его пределы. Допуск сбоев и повторы — в `run.failures`."
+    },
+    {
+      "answer_from": [
+        "decision"
+      ],
+      "applies_to": [
+        "campaign"
+      ],
+      "feeds": [
+        "manifest/15:/campaign/gate/stability",
+        "manifest/15:/campaign/gate/focus/margin",
+        "manifest/15:/campaign/round_stop",
+        "manifest/15:/campaign/baseline_refresh_after_rounds"
+      ],
+      "group": "campaign",
+      "guide": "campaign-package/SKILL.md#stability-and-stop",
+      "id": "campaign.stability_and_stop",
+      "obligation": "required",
+      "title": "Стабильность Champion, остановка раунда и обновление baseline",
+      "why": "`stability` решает, перемеряет ли ядро Champion в каждом финале (`unstable` — дороже); `round_stop` — финал после первого прошедшего или всех Attempt; `baseline_refresh_after_rounds` — как часто перемерять baseline; `focus.margin` — порог эффекта. Это решение о деньгах и времени."
+    },
+    {
+      "answer_from": [
+        "user"
+      ],
+      "applies_to": [
+        "campaign",
+        "evaluation"
+      ],
+      "feeds": [
+        "manifest/15:/corpus/path",
+        "evaluation-input/1:/corpus",
+        "case:/group_id",
+        "case:/stratum"
+      ],
+      "group": "eval",
+      "guide": "evaluation-inputs/SKILL.md#corpus",
+      "id": "eval.corpus",
+      "obligation": "required",
+      "title": "Кейсы: источник, группы, страты",
+      "why": "Корпус — единица измерения; без групп и страт нет честного сравнения и отложенной выборки."
+    },
+    {
+      "answer_from": [
+        "user"
+      ],
+      "applies_to": [
+        "campaign",
+        "evaluation"
+      ],
+      "feeds": [
+        "case:/oracle"
+      ],
+      "group": "eval",
+      "guide": "evaluation-inputs/SKILL.md#scorer-protocol",
+      "id": "eval.gold",
+      "obligation": "required",
+      "title": "Эталоны и их владелец",
+      "why": "Scorer сравнивает ответ с эталоном `oracle`; без владельца эталонов оценка не имеет автора."
+    },
+    {
+      "answer_from": [
+        "user",
+        "decision"
+      ],
+      "applies_to": [
+        "campaign",
+        "evaluation"
+      ],
+      "feeds": [
+        "manifest/15:/scorer",
+        "evaluation-input/1:/scorer"
+      ],
+      "group": "eval",
+      "guide": "evaluation-inputs/SKILL.md#scorer-protocol",
+      "id": "eval.judges",
+      "obligation": "optional",
+      "title": "Судьи, их модели и голоса",
+      "why": "Нужны, если scorer опирается на судей-LLM; определяют стоимость и воспроизводимость оценки."
+    },
+    {
+      "answer_from": [
+        "decision"
+      ],
+      "applies_to": [
+        "campaign",
+        "evaluation"
+      ],
+      "feeds": [
+        "manifest/15:/campaign/metric/primary",
+        "evaluation-input/1:/metric_plan"
+      ],
+      "group": "eval",
+      "guide": "evaluation-inputs/SKILL.md#scorer-protocol",
+      "id": "eval.metric",
+      "obligation": "required",
+      "title": "Основная метрика и агрегация",
+      "why": "Кампания и оценка сравнивают по одной метрике; её нужно назвать до запуска."
+    },
+    {
+      "answer_from": [
+        "decision"
+      ],
+      "applies_to": [
+        "campaign"
+      ],
+      "feeds": [
+        "manifest/15:/scorer/metric_contract"
+      ],
+      "group": "eval",
+      "guide": "campaign-package/SKILL.md#metric-contract",
+      "id": "eval.metric_contract",
+      "obligation": "required",
+      "title": "Что агент обязан отдавать в ответе",
+      "why": "`scorer.metric_contract` называет поля ответа цели (`target_fields`), без которых скорер не может оценить; ядро проверяет его перед первой выкаткой на одном train-кейсе. Lab смысл контракта не проверяет; ошибка в нём — пауза `connection_incompatible` и новая кампания."
+    },
+    {
+      "answer_from": [
+        "decision"
+      ],
+      "applies_to": [
+        "campaign"
+      ],
+      "feeds": [
+        "rule:pitfalls/SKILL.md#test-outside-feedback"
+      ],
+      "group": "eval",
+      "guide": "pitfalls/SKILL.md#test-outside-feedback",
+      "id": "eval.test_isolation",
+      "obligation": "required",
+      "title": "Кейсы вне обратной связи",
+      "why": "Результаты на отложенных кейсах не должны влиять на editor и reflector, иначе улучшение не доказано."
+    },
+    {
+      "answer_from": [
+        "user",
+        "run"
+      ],
+      "applies_to": [
+        "campaign",
+        "evaluation"
+      ],
+      "feeds": [
+        "bundle-request/2:/environments",
+        "bundle-request/2:/secret_names",
+        "launch/2:/environment_ref"
+      ],
+      "group": "launch",
+      "guide": "target-connector/SKILL.md#launch-file",
+      "id": "launch.environment",
+      "obligation": "required",
+      "title": "Окружение исполнения цели",
+      "why": "Интерпретатор, зависимости и ключи фиксируются в Bundle; без них цель не поднимется воспроизводимо."
+    },
+    {
+      "answer_from": [
+        "decision"
+      ],
+      "applies_to": [
+        "campaign",
+        "evaluation"
+      ],
+      "feeds": [
+        "manifest/15:/campaign/sample_retries",
+        "manifest/15:/campaign/indeterminate",
+        "manifest/15:/campaign/call_retries",
+        "manifest/15:/campaign/budget/max_failed_turns",
+        "manifest/15:/reflector/max_consecutive_failures",
+        "evaluation-input/3:/defaults/sample_retries",
+        "evaluation-input/3:/defaults/min_coverage",
+        "evaluation-input/3:/defaults/max_consecutive_unmeasured",
+        "evaluation-input/3:/defaults/call_retries",
+        "evaluation-input/3:/defaults/max_failed_turns"
+      ],
+      "group": "run",
+      "guide": "campaign-package/SKILL.md#run-failures",
+      "id": "run.failures",
+      "obligation": "optional",
+      "title": "Сбои при исполнении",
+      "why": "Человек выбирает `retry` «С повтором», `no_retry` «Без повтора» или `fail_fast` «Остановка на первом сбое» для кампании и первого замера. По умолчанию — `retry`; числа и ограничения описаны в гайде."
+    },
+    {
+      "answer_from": [
+        "decision"
+      ],
+      "applies_to": [
+        "campaign"
+      ],
+      "feeds": [
+        "manifest/15:/artifacts/writable_paths"
+      ],
+      "group": "scope",
+      "guide": "campaign-package/SKILL.md#editable-scope",
+      "id": "scope.editable",
+      "obligation": "required",
+      "title": "Что меняет эволюция",
+      "why": "Задаёт `writable_paths`; всё остальное кандидат изменить не может."
+    },
+    {
+      "answer_from": [
+        "decision"
+      ],
+      "applies_to": [
+        "campaign"
+      ],
+      "feeds": [
+        "manifest/15:/artifacts/excludes",
+        "manifest/15:/artifacts/dependency_paths"
+      ],
+      "group": "scope",
+      "guide": "campaign-package/SKILL.md#editable-scope",
+      "id": "scope.invariants",
+      "obligation": "required",
+      "title": "Что неприкосновенно",
+      "why": "Задаёт исключения и неизменяемые зависимости; нарушение ломает бизнес-инварианты."
+    },
+    {
+      "answer_from": [
+        "code",
+        "run"
+      ],
+      "applies_to": [
+        "campaign",
+        "evaluation"
+      ],
+      "feeds": [
+        "launch/2:/limits"
+      ],
+      "group": "target",
+      "guide": "target-connector/SKILL.md#capacity",
+      "id": "target.capacity",
+      "obligation": "required",
+      "title": "Ёмкость цели",
+      "why": "Число инстансов и одновременных сессий входит в identity кампании и ограничивает параллельность."
+    },
+    {
+      "answer_from": [
+        "code"
+      ],
+      "applies_to": [
+        "campaign",
+        "evaluation"
+      ],
+      "feeds": [
+        "launch/2:/conformance"
+      ],
+      "group": "target",
+      "guide": "target-connector/SKILL.md#conformance",
+      "id": "target.conformance_mode",
+      "obligation": "optional",
+      "title": "Бесплатный диагностический путь",
+      "why": "Если он есть, `conformance` проверяет цель без расходов модели."
+    },
+    {
+      "answer_from": [
+        "code"
+      ],
+      "applies_to": [
+        "campaign",
+        "evaluation"
+      ],
+      "feeds": [
+        "rule:target-connector/SKILL.md#target-entry"
+      ],
+      "group": "target",
+      "guide": "target-connector/SKILL.md#target-entry",
+      "id": "target.entry_file",
+      "obligation": "optional",
+      "title": "Файл точки входа цели без пакета",
+      "why": "Реализация без пакета (например, порт) поднимает цель для пробы по `lab-target-entry.json` в месте реализации; окружение цели лежит вне места. Без файла и без пакета цель не поднимается (`target_undeclared`)."
+    },
+    {
+      "answer_from": [
+        "user"
+      ],
+      "applies_to": [
+        "campaign",
+        "evaluation"
+      ],
+      "feeds": [
+        "seam:backends",
+        "case:/public",
+        "case:/private/script"
+      ],
+      "group": "world",
+      "guide": "evaluation-inputs/SKILL.md#corpus",
+      "id": "world.data",
+      "obligation": "required",
+      "title": "Данные мира: симулятор, фикстуры, снимки",
+      "why": "Бэкенды наполняются из public кейса (или фикстуры, названной в нём) и из полей сообщений сценария; остальной private агенту не доходит — данные там ход не видит."
+    },
+    {
+      "answer_from": [
+        "user"
+      ],
+      "applies_to": [
+        "campaign",
+        "evaluation"
+      ],
+      "feeds": [
+        "seam:settings",
+        "launch/2:/env",
+        "case:/public"
+      ],
+      "group": "world",
+      "guide": "evaluation-inputs/SKILL.md#corpus",
+      "id": "world.reference_time",
+      "obligation": "optional",
+      "title": "Опорное время сценариев",
+      "why": "Нужен, если ответы агента зависят от текущего времени."
+    },
+    {
+      "answer_from": [
+        "code"
+      ],
+      "applies_to": [
+        "campaign",
+        "evaluation"
+      ],
+      "feeds": [
+        "seam:backends"
+      ],
+      "group": "world",
+      "guide": "target-connector/SKILL.md#injected-backends",
+      "id": "world.systems",
+      "obligation": "required",
+      "title": "Внешние системы, которые нужно подменить",
+      "why": "Цель не должна ходить в настоящие системы; каждую подменяет внедрённый бэкенд."
+    }
+  ],
+  "paths": [
+    "campaign",
+    "evaluation"
+  ],
+  "schema": "lab-requirements/1"
+}

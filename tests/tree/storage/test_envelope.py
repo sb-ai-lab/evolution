@@ -1,10 +1,13 @@
 """Strict envelope grammar and secret-match locations."""
 
+import dataclasses
 import json
+import threading
 
 import pytest
 
 from evolution.tree.execution.journal_schema import S1_FAMILY
+from evolution.tree.storage import envelope as envelope_module
 from evolution.tree.storage.envelope import (
     Envelope,
     EnvelopeFamily,
@@ -181,3 +184,98 @@ def test_secret_match_and_the_journal_refuse_the_same_payloads(raw, expected):
         refused = True
     assert refused is (expected is not None)
     assert refused is _pre_branch_refuses(raw, secrets)
+
+
+def test_admission_marks_exactly_the_family_it_used():
+    parsed = Envelope.from_payload(record(), family=S1_FAMILY)
+    assert parsed.validated_under(S1_FAMILY)
+    assert Envelope.from_bytes(parsed.encode(), family=S1_FAMILY).validated_under(S1_FAMILY)
+    copy = dataclasses.replace(S1_FAMILY)
+    assert copy == S1_FAMILY and copy is not S1_FAMILY
+    assert not parsed.validated_under(copy)
+    other = Envelope.from_payload(record(), family=copy)
+    assert other.validated_under(copy) and not other.validated_under(S1_FAMILY)
+    # The mark is provenance, not content: equal bytes stay equal.
+    assert other == parsed and hash(other) == hash(parsed)
+
+
+def test_the_mark_cannot_be_set_from_outside_from_payload():
+    parsed = Envelope.from_payload(record(), family=S1_FAMILY)
+    with pytest.raises(TypeError):
+        Envelope(parsed.encode(), _family=S1_FAMILY)  # type: ignore[call-arg]
+    with pytest.raises(TypeError):
+        dataclasses.replace(parsed)
+
+
+@pytest.fixture
+def fresh_memo():
+    envelope_module.clear_envelope_memo()
+    yield envelope_module._memo
+    envelope_module.clear_envelope_memo()
+
+
+def test_a_pure_family_reuses_the_admission_of_the_same_bytes(fresh_memo, monkeypatch):
+    assert S1_FAMILY.pure is True
+    raw = Envelope.from_payload(record(), family=S1_FAMILY).encode()
+    first = Envelope.from_bytes(raw, family=S1_FAMILY)
+    assert len(fresh_memo) == 1
+
+    def decode(*_args, **_kwargs):
+        pytest.fail("parsed bytes whose admission was already reached")
+
+    monkeypatch.setattr(envelope_module.json, "loads", decode)
+    again = Envelope.from_bytes(raw, family=S1_FAMILY)
+    assert again is first and again.validated_under(S1_FAMILY)
+    monkeypatch.undo()
+    assert again.to_payload() == Envelope.from_payload(record(), family=S1_FAMILY).to_payload()
+
+
+def test_a_refused_record_is_refused_again_and_never_kept(fresh_memo):
+    bad = json.dumps(record(), separators=(",", ":")).replace('"run-1"', '""').encode()
+    for _ in range(2):
+        with pytest.raises(SchemaError):
+            Envelope.from_bytes(bad, family=S1_FAMILY)
+    assert len(fresh_memo) == 0
+
+
+def test_more_secrets_are_checked_again(fresh_memo):
+    raw = Envelope.from_payload(record(), family=S1_FAMILY).encode()
+    Envelope.from_bytes(raw, family=S1_FAMILY)
+    with pytest.raises(SchemaError):
+        Envelope.from_bytes(raw, secrets=("sample-1",), family=S1_FAMILY)
+    assert len(fresh_memo) == 1
+
+
+def test_only_the_same_pure_family_object_reuses_an_admission(fresh_memo):
+    raw = Envelope.from_payload(record(), family=S1_FAMILY).encode()
+    impure = dataclasses.replace(S1_FAMILY, pure=False)
+    copy = dataclasses.replace(S1_FAMILY)
+    assert not Envelope.from_bytes(raw, family=impure).validated_under(S1_FAMILY)
+    assert len(fresh_memo) == 0
+    first = Envelope.from_bytes(raw, family=S1_FAMILY)
+    other = Envelope.from_bytes(raw, family=copy)
+    assert other is not first and other.validated_under(copy)
+    assert not other.validated_under(S1_FAMILY)
+    assert Envelope.from_bytes(raw, family=S1_FAMILY) is first
+
+
+def test_the_memo_stays_within_its_byte_bound(fresh_memo, monkeypatch):
+    monkeypatch.setattr(envelope_module, "_MEMO_MAX_BYTES", 2_000)
+    for index in range(20):
+        raw = Envelope.from_payload({**record(), "sequence": index + 2}, family=S1_FAMILY).encode()
+        Envelope.from_bytes(raw, family=S1_FAMILY)
+    assert 0 < len(fresh_memo) < 20
+    assert envelope_module._memo_size <= 2_000
+
+
+def test_a_forked_child_starts_with_a_free_lock_and_an_empty_memo(fresh_memo, monkeypatch):
+    raw = Envelope.from_payload(record(), family=S1_FAMILY).encode()
+    Envelope.from_bytes(raw, family=S1_FAMILY)
+    held = threading.Lock()
+    held.acquire()
+    monkeypatch.setattr(envelope_module, "_memo_lock", held)
+    envelope_module._after_fork_in_child()
+    assert envelope_module._memo_lock is not held
+    assert envelope_module._memo_lock.acquire(blocking=False)
+    envelope_module._memo_lock.release()
+    assert len(fresh_memo) == 0 and envelope_module._memo_size == 0

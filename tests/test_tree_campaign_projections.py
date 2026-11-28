@@ -1433,6 +1433,7 @@ def _family14_status() -> dict[str, Any]:
     """The family-13 golden moved to the family-14 shape, before any final binding."""
 
     document = _family13_status()
+    document["baseline_import"] = None
     document["connection"] = {
         "state": "not_started",
         "binding_digest": None,
@@ -1792,3 +1793,47 @@ async def test_projection_invalid_before_a_durable_terminal_propagates(tmp_path,
     monkeypatch.setattr(campaign._Campaign, "hook", cut)
     with pytest.raises(GatePowerCut):
         await independent_run(tmp_path, monkeypatch)
+
+
+# -- b20 F1: documents written before `baseline_import` existed still validate ----
+
+
+def test_a_pre_b20_family_14_status_without_baseline_import_validates() -> None:
+    document = _family14_status()
+    assert document["baseline_import"] is None
+    CampaignProjection(json.loads(json.dumps(document)))
+    del document["baseline_import"]
+    CampaignProjection(document)
+
+
+def test_a_family_14_status_refuses_a_malformed_baseline_import_block() -> None:
+    document = _family14_status()
+    document["baseline_import"] = {"source_kind": "evaluation", "extra": 1}
+    with pytest.raises(SchemaError):
+        CampaignProjection(document)
+    document["baseline_import"] = "nope"
+    with pytest.raises(SchemaError):
+        CampaignProjection(document)
+
+
+async def test_pre_b20_family_16_documents_validate_and_new_ones_emit_null(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import copy
+
+    from tests.family15_fakes import independent_run
+
+    run, evolved = await independent_run(tmp_path, monkeypatch)
+    status = inspect_campaign(run).to_payload()
+    assert evolved.result is not None
+    result = evolved.result.to_payload()
+    for document in (status, result):
+        assert "baseline_import" in document and document["baseline_import"] is None
+        CampaignProjection(copy.deepcopy(document))
+        old = copy.deepcopy(document)
+        del old["baseline_import"]
+        CampaignProjection(old)
+        forged = copy.deepcopy(document)
+        forged["baseline_import"] = {"source_kind": "evaluation", "extra": 1}
+        with pytest.raises(SchemaError):
+            CampaignProjection(forged)
