@@ -1,0 +1,1182 @@
+{
+  "schema": "lab-campaign-view/14",
+  "operation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "family": 15,
+  "caveats": [
+    {
+      "kind": "champion_not_contemporaneous",
+      "round": null,
+      "attempt_id": null
+    }
+  ],
+  "roles": {
+    "editor": {
+      "kind": "subprocess"
+    },
+    "reflector": {
+      "kind": "subprocess"
+    },
+    "grouper": {
+      "kind": "fields"
+    }
+  },
+  "settings": {
+    "stability": "stable",
+    "round_stop": "first_accepted",
+    "baseline_refresh": "off"
+  },
+  "connection": {
+    "state": "compatible",
+    "outcome": "compatible",
+    "attempts": 1,
+    "binding_digest": "3c92e75727684cc77882c7e1e7d0dbb383fa6f939eba7cdb36bbebeb9be0a122",
+    "operation_id": "b66ebfb314064120a6b547a520952546",
+    "detail": null
+  },
+  "policy": {
+    "rounds": 1,
+    "attempts_per_round": 1,
+    "metric_primary": "score"
+  },
+  "progress": {
+    "kind": "campaign",
+    "phase": "finished",
+    "stages": [],
+    "rounds": {
+      "completed": 1,
+      "current": null,
+      "planned": 1
+    },
+    "attempts": {
+      "current_round": {
+        "closed": 0,
+        "running": 0,
+        "planned": 1
+      },
+      "total": 2
+    },
+    "coverage": null,
+    "policy_state": "present",
+    "observed_at": null
+  },
+  "outcome": {
+    "outcome": "completed",
+    "reason": "rounds_exhausted"
+  },
+  "champions": [
+    {
+      "version": "v0",
+      "digest": "fbd7fa5cd7695fbda3cd44d6052a66419e46395644eabfaf65a0dabc0dabc8c4",
+      "origin": "initial",
+      "attempt_id": null,
+      "measurement_id": null
+    },
+    {
+      "version": "v1",
+      "digest": "777ed7c28835d63ab183f85dcaf8d518ee90a863a3618e2b4945fa4639049e33",
+      "origin": "promoted_attempt",
+      "attempt_id": "r01-a02",
+      "measurement_id": "m-r01-a02-completion"
+    }
+  ],
+  "champions_state": "present",
+  "rounds": [
+    {
+      "round": 1,
+      "outcome": "promoted",
+      "baseline_measurement_id": "m-r00-champion",
+      "baseline_version": "v0",
+      "reflection": {
+        "state": "present",
+        "reflection_id": "r01-x01",
+        "error_class": null,
+        "reason": null,
+        "hypotheses": [
+          {
+            "index": 1,
+            "root_cause": "neutral",
+            "suggested_fix": "neutral",
+            "affected_cases": [
+              "c1"
+            ],
+            "target_paths": [
+              "skills/SKILL.md"
+            ],
+            "counterevidence": "neutral",
+            "regression_risks": "neutral",
+            "why_this_layer": "neutral"
+          }
+        ]
+      },
+      "attempts": [
+        {
+          "attempt_id": "r01-a01",
+          "outcome": "rejected",
+          "reason": "threshold_not_passed",
+          "group": "agent_worse",
+          "measurement_id": "m-r01-a01",
+          "has_tree": true,
+          "failure": null
+        },
+        {
+          "attempt_id": "r01-a02",
+          "outcome": "finalist",
+          "reason": "passed",
+          "group": "accepted",
+          "measurement_id": "m-r01-a02",
+          "has_tree": true,
+          "failure": null
+        }
+      ]
+    }
+  ],
+  "measurements": [
+    {
+      "measurement_id": "m-r00-champion",
+      "role": "baseline",
+      "round": 1,
+      "attempt_id": null,
+      "candidate_digest": "fbd7fa5cd7695fbda3cd44d6052a66419e46395644eabfaf65a0dabc0dabc8c4",
+      "coverage": {
+        "expected": 2,
+        "scored": 2,
+        "excluded_pairs": 0
+      },
+      "metrics": {
+        "score": {
+          "mean": 0.5,
+          "count": 2
+        }
+      },
+      "baseline": null,
+      "times": null,
+      "usage": null,
+      "usage_state": "unavailable",
+      "retries": 0,
+      "call_failures_by_code": {},
+      "classification": "born",
+      "repairs": {
+        "tries": 0,
+        "pairs_scored": 0
+      }
+    },
+    {
+      "measurement_id": "m-r01-a01",
+      "role": "attempt",
+      "round": 1,
+      "attempt_id": "r01-a01",
+      "candidate_digest": "1c415578b6bc948b5bf40d41126397c1765d360cfb3a2cd9ec6d8fa124143a7d",
+      "coverage": {
+        "expected": 2,
+        "scored": 1,
+        "excluded_pairs": 0
+      },
+      "metrics": {
+        "score": {
+          "mean": 0.25,
+          "count": 1
+        }
+      },
+      "baseline": null,
+      "times": null,
+      "usage": null,
+      "usage_state": "unavailable",
+      "retries": 0,
+      "call_failures_by_code": {},
+      "classification": "born",
+      "repairs": {
+        "tries": 0,
+        "pairs_scored": 0
+      }
+    },
+    {
+      "measurement_id": "m-r01-a01-parent",
+      "role": "other",
+      "round": null,
+      "attempt_id": null,
+      "candidate_digest": "fbd7fa5cd7695fbda3cd44d6052a66419e46395644eabfaf65a0dabc0dabc8c4",
+      "coverage": {
+        "expected": 2,
+        "scored": 1,
+        "excluded_pairs": 0
+      },
+      "metrics": {
+        "score": {
+          "mean": 0.0,
+          "count": 1
+        }
+      },
+      "baseline": null,
+      "times": null,
+      "usage": null,
+      "usage_state": "unavailable",
+      "retries": 0,
+      "call_failures_by_code": {},
+      "classification": "born",
+      "repairs": {
+        "tries": 0,
+        "pairs_scored": 0
+      }
+    },
+    {
+      "measurement_id": "m-r01-a02",
+      "role": "attempt",
+      "round": 1,
+      "attempt_id": "r01-a02",
+      "candidate_digest": "777ed7c28835d63ab183f85dcaf8d518ee90a863a3618e2b4945fa4639049e33",
+      "coverage": {
+        "expected": 2,
+        "scored": 2,
+        "excluded_pairs": 0
+      },
+      "metrics": {
+        "score": {
+          "mean": 1.0,
+          "count": 2
+        }
+      },
+      "baseline": null,
+      "times": null,
+      "usage": null,
+      "usage_state": "unavailable",
+      "retries": 0,
+      "call_failures_by_code": {},
+      "classification": "born",
+      "repairs": {
+        "tries": 0,
+        "pairs_scored": 0
+      }
+    },
+    {
+      "measurement_id": "m-r01-a02-completion",
+      "role": "other",
+      "round": null,
+      "attempt_id": null,
+      "candidate_digest": "777ed7c28835d63ab183f85dcaf8d518ee90a863a3618e2b4945fa4639049e33",
+      "coverage": {
+        "expected": 2,
+        "scored": 2,
+        "excluded_pairs": 0
+      },
+      "metrics": {
+        "score": {
+          "mean": 1.0,
+          "count": 2
+        }
+      },
+      "baseline": null,
+      "times": null,
+      "usage": null,
+      "usage_state": "unavailable",
+      "retries": 0,
+      "call_failures_by_code": {},
+      "classification": "born",
+      "repairs": {
+        "tries": 0,
+        "pairs_scored": 0
+      }
+    },
+    {
+      "measurement_id": "m-r01-a02-parent",
+      "role": "other",
+      "round": null,
+      "attempt_id": null,
+      "candidate_digest": "fbd7fa5cd7695fbda3cd44d6052a66419e46395644eabfaf65a0dabc0dabc8c4",
+      "coverage": {
+        "expected": 2,
+        "scored": 2,
+        "excluded_pairs": 0
+      },
+      "metrics": {
+        "score": {
+          "mean": 0.5,
+          "count": 2
+        }
+      },
+      "baseline": null,
+      "times": null,
+      "usage": null,
+      "usage_state": "unavailable",
+      "retries": 0,
+      "call_failures_by_code": {},
+      "classification": "born",
+      "repairs": {
+        "tries": 0,
+        "pairs_scored": 0
+      }
+    }
+  ],
+  "suspensions": [],
+  "details_state": "present",
+  "details_reason": null,
+  "details_source": "core_raw",
+  "lab_notices": [],
+  "independent": {
+    "evidence": "authenticated_publications",
+    "next_action": "finished",
+    "settings": {
+      "stages": "focus_first",
+      "mode": "point",
+      "repeats": 1,
+      "verification": "reuse",
+      "stability": "stable",
+      "fresh_parent": true,
+      "global_rule": "point",
+      "train_cases": 2,
+      "train_slots": 2,
+      "execution_noise": {
+        "kind": "negligible",
+        "allowance": {
+          "value": 0.0,
+          "exact": {
+            "denominator": "1",
+            "format": "rational-hex/1",
+            "numerator": "0"
+          }
+        },
+        "source": null,
+        "source_kind": "assumed_negligible"
+      },
+      "statistics": {
+        "method": null,
+        "unit": null
+      },
+      "bound_fallback": null
+    },
+    "attempts": [
+      {
+        "round": 1,
+        "attempt_id": "r01-a01",
+        "outcome": "rejected",
+        "reason": "threshold_not_passed",
+        "group": "agent_worse",
+        "eligible_final_score": null,
+        "gate_binding": {
+          "source": "core_raw",
+          "scopes": [
+            {
+              "name": "focus",
+              "rule": "point"
+            },
+            {
+              "name": "causal",
+              "rule": "point"
+            }
+          ]
+        },
+        "global_binding": null,
+        "comparison": {
+          "outcome": "comparison_not_passed",
+          "reason": "threshold_not_passed",
+          "layer": "gate",
+          "deciding_layer": "focus",
+          "reference": "fresh",
+          "reference_kind": "fresh",
+          "reference_measurement_id": "m-r01-a01-parent",
+          "verification": null,
+          "eligible": false,
+          "mode": "point",
+          "confidence_scope": null,
+          "selection_bias_possible": [
+            "focus_selection"
+          ],
+          "excluded_reference_slots": 0,
+          "coverage": {
+            "candidate": {
+              "required": 1,
+              "settled": 1,
+              "admissible": 1
+            },
+            "reference": {
+              "required": 1,
+              "settled": 1,
+              "admissible": 1
+            }
+          },
+          "noise": {
+            "kind": "negligible",
+            "allowance": {
+              "value": 0.0,
+              "exact": {
+                "denominator": "1",
+                "format": "rational-hex/1",
+                "numerator": "0"
+              }
+            },
+            "source": null,
+            "source_kind": "assumed_negligible",
+            "variation": "not_requested",
+            "units": "score_squared",
+            "observed_cases": 0,
+            "extra_measurements": 0
+          },
+          "scopes": [
+            {
+              "name": "focus",
+              "rule": "point",
+              "status": "available",
+              "unavailable": null,
+              "display": "point",
+              "point": {
+                "value": 0.25,
+                "exact": {
+                  "denominator": "4",
+                  "format": "rational-hex/1",
+                  "numerator": "1"
+                }
+              },
+              "threshold": {
+                "value": 0.5,
+                "exact": {
+                  "denominator": "2",
+                  "format": "rational-hex/1",
+                  "numerator": "1"
+                }
+              },
+              "strict": true,
+              "confidence": null,
+              "enclosure": null,
+              "declared_count": 1,
+              "unit_count": 1,
+              "mass": {
+                "value": 1.0,
+                "exact": {
+                  "denominator": "1",
+                  "format": "rational-hex/1",
+                  "numerator": "1"
+                }
+              },
+              "excluded_mass": {
+                "value": 0.0,
+                "exact": {
+                  "denominator": "1",
+                  "format": "rational-hex/1",
+                  "numerator": "0"
+                }
+              },
+              "fallback": null,
+              "lower": null,
+              "exact": null,
+              "pairing": null
+            },
+            {
+              "name": "causal",
+              "rule": "point",
+              "status": "not_measured",
+              "unavailable": null,
+              "display": "status",
+              "point": null,
+              "threshold": {
+                "value": 0.0,
+                "exact": {
+                  "denominator": "1",
+                  "format": "rational-hex/1",
+                  "numerator": "0"
+                }
+              },
+              "strict": false,
+              "confidence": null,
+              "enclosure": null,
+              "declared_count": 1,
+              "unit_count": 1,
+              "mass": {
+                "value": 1.0,
+                "exact": {
+                  "denominator": "1",
+                  "format": "rational-hex/1",
+                  "numerator": "1"
+                }
+              },
+              "excluded_mass": {
+                "value": 0.0,
+                "exact": {
+                  "denominator": "1",
+                  "format": "rational-hex/1",
+                  "numerator": "0"
+                }
+              },
+              "fallback": null,
+              "lower": null,
+              "exact": null,
+              "pairing": null
+            }
+          ],
+          "method": null,
+          "unit": null,
+          "calibration": null,
+          "caveats": null,
+          "bound_fallback": null
+        },
+        "gate_comparison": {
+          "outcome": "comparison_not_passed",
+          "reason": "threshold_not_passed",
+          "layer": "gate",
+          "deciding_layer": "focus",
+          "reference": "fresh",
+          "reference_kind": "fresh",
+          "reference_measurement_id": "m-r01-a01-parent",
+          "verification": null,
+          "eligible": false,
+          "mode": "point",
+          "confidence_scope": null,
+          "selection_bias_possible": [
+            "focus_selection"
+          ],
+          "excluded_reference_slots": 0,
+          "coverage": {
+            "candidate": {
+              "required": 1,
+              "settled": 1,
+              "admissible": 1
+            },
+            "reference": {
+              "required": 1,
+              "settled": 1,
+              "admissible": 1
+            }
+          },
+          "noise": {
+            "kind": "negligible",
+            "allowance": {
+              "value": 0.0,
+              "exact": {
+                "denominator": "1",
+                "format": "rational-hex/1",
+                "numerator": "0"
+              }
+            },
+            "source": null,
+            "source_kind": "assumed_negligible",
+            "variation": "not_requested",
+            "units": "score_squared",
+            "observed_cases": 0,
+            "extra_measurements": 0
+          },
+          "scopes": [
+            {
+              "name": "focus",
+              "rule": "point",
+              "status": "available",
+              "unavailable": null,
+              "display": "point",
+              "point": {
+                "value": 0.25,
+                "exact": {
+                  "denominator": "4",
+                  "format": "rational-hex/1",
+                  "numerator": "1"
+                }
+              },
+              "threshold": {
+                "value": 0.5,
+                "exact": {
+                  "denominator": "2",
+                  "format": "rational-hex/1",
+                  "numerator": "1"
+                }
+              },
+              "strict": true,
+              "confidence": null,
+              "enclosure": null,
+              "declared_count": 1,
+              "unit_count": 1,
+              "mass": {
+                "value": 1.0,
+                "exact": {
+                  "denominator": "1",
+                  "format": "rational-hex/1",
+                  "numerator": "1"
+                }
+              },
+              "excluded_mass": {
+                "value": 0.0,
+                "exact": {
+                  "denominator": "1",
+                  "format": "rational-hex/1",
+                  "numerator": "0"
+                }
+              },
+              "fallback": null,
+              "lower": null,
+              "exact": null,
+              "pairing": null
+            },
+            {
+              "name": "causal",
+              "rule": "point",
+              "status": "not_measured",
+              "unavailable": null,
+              "display": "status",
+              "point": null,
+              "threshold": {
+                "value": 0.0,
+                "exact": {
+                  "denominator": "1",
+                  "format": "rational-hex/1",
+                  "numerator": "0"
+                }
+              },
+              "strict": false,
+              "confidence": null,
+              "enclosure": null,
+              "declared_count": 1,
+              "unit_count": 1,
+              "mass": {
+                "value": 1.0,
+                "exact": {
+                  "denominator": "1",
+                  "format": "rational-hex/1",
+                  "numerator": "1"
+                }
+              },
+              "excluded_mass": {
+                "value": 0.0,
+                "exact": {
+                  "denominator": "1",
+                  "format": "rational-hex/1",
+                  "numerator": "0"
+                }
+              },
+              "fallback": null,
+              "lower": null,
+              "exact": null,
+              "pairing": null
+            }
+          ],
+          "method": null,
+          "unit": null,
+          "calibration": null,
+          "caveats": null,
+          "bound_fallback": null
+        },
+        "global_comparison": null,
+        "slots": {
+          "candidate": {
+            "scheduled": 2,
+            "dispatched": 1,
+            "not_owed": 1
+          },
+          "parent": {
+            "scheduled": 2,
+            "dispatched": 1,
+            "not_owed": 1
+          }
+        },
+        "stages": [
+          {
+            "scope": "focus",
+            "state": "rejected"
+          },
+          {
+            "scope": "causal",
+            "state": "not_run"
+          }
+        ],
+        "preflight": null,
+        "conditional_cost": {
+          "basis": "full_scenario_complete_scoring_without_retries",
+          "baseline_slots": 2,
+          "candidate_gate_slots": 1,
+          "candidate_final_slots": 0,
+          "candidate_total_slots": 1,
+          "parent_slots": 1,
+          "champion_slots": 0,
+          "champion_basis": "per_reached_finalist",
+          "slots_per_refresh": 2,
+          "connection_preflight_slots": 1,
+          "probes_and_retries": "separate",
+          "noise_diagnostic_slots": 0,
+          "simplest_passing_path_slots": 4
+        }
+      },
+      {
+        "round": 1,
+        "attempt_id": "r01-a02",
+        "outcome": "finalist",
+        "reason": "passed",
+        "group": "accepted",
+        "eligible_final_score": {
+          "value": 1.0,
+          "exact": {
+            "denominator": "1",
+            "format": "rational-hex/1",
+            "numerator": "1"
+          }
+        },
+        "gate_binding": {
+          "source": "core_raw",
+          "scopes": [
+            {
+              "name": "focus",
+              "rule": "point"
+            },
+            {
+              "name": "causal",
+              "rule": "point"
+            }
+          ]
+        },
+        "global_binding": {
+          "source": "core_raw",
+          "scopes": [
+            {
+              "name": "global",
+              "rule": "point"
+            }
+          ]
+        },
+        "comparison": {
+          "outcome": "passed",
+          "reason": "passed",
+          "layer": "global",
+          "deciding_layer": "global",
+          "reference": "stored",
+          "reference_kind": "stored_non_contemporaneous",
+          "reference_measurement_id": "m-r00-champion",
+          "verification": "reused_evidence",
+          "eligible": true,
+          "mode": "point",
+          "confidence_scope": null,
+          "selection_bias_possible": [
+            "stored_reference",
+            "reuse",
+            "candidate_selection"
+          ],
+          "excluded_reference_slots": 0,
+          "coverage": {
+            "candidate": {
+              "required": 2,
+              "settled": 2,
+              "admissible": 2
+            },
+            "reference": {
+              "required": 2,
+              "settled": 2,
+              "admissible": 2
+            }
+          },
+          "noise": {
+            "kind": "negligible",
+            "allowance": {
+              "value": 0.0,
+              "exact": {
+                "denominator": "1",
+                "format": "rational-hex/1",
+                "numerator": "0"
+              }
+            },
+            "source": null,
+            "source_kind": "assumed_negligible",
+            "variation": "not_requested",
+            "units": "score_squared",
+            "observed_cases": 0,
+            "extra_measurements": 0
+          },
+          "scopes": [
+            {
+              "name": "global",
+              "rule": "point",
+              "status": "available",
+              "unavailable": null,
+              "display": "point",
+              "point": {
+                "value": 0.5,
+                "exact": {
+                  "denominator": "2",
+                  "format": "rational-hex/1",
+                  "numerator": "1"
+                }
+              },
+              "threshold": {
+                "value": 0.0,
+                "exact": {
+                  "denominator": "1",
+                  "format": "rational-hex/1",
+                  "numerator": "0"
+                }
+              },
+              "strict": true,
+              "confidence": null,
+              "enclosure": null,
+              "declared_count": 2,
+              "unit_count": 2,
+              "mass": {
+                "value": 1.0,
+                "exact": {
+                  "denominator": "1",
+                  "format": "rational-hex/1",
+                  "numerator": "1"
+                }
+              },
+              "excluded_mass": {
+                "value": 0.0,
+                "exact": {
+                  "denominator": "1",
+                  "format": "rational-hex/1",
+                  "numerator": "0"
+                }
+              },
+              "fallback": null,
+              "lower": null,
+              "exact": null,
+              "pairing": null
+            }
+          ],
+          "method": null,
+          "unit": null,
+          "calibration": null,
+          "caveats": null,
+          "bound_fallback": null
+        },
+        "gate_comparison": {
+          "outcome": "passed",
+          "reason": "passed",
+          "layer": "gate",
+          "deciding_layer": "focus",
+          "reference": "fresh",
+          "reference_kind": "fresh",
+          "reference_measurement_id": "m-r01-a02-parent",
+          "verification": null,
+          "eligible": true,
+          "mode": "point",
+          "confidence_scope": null,
+          "selection_bias_possible": [
+            "focus_selection"
+          ],
+          "excluded_reference_slots": 0,
+          "coverage": {
+            "candidate": {
+              "required": 2,
+              "settled": 2,
+              "admissible": 2
+            },
+            "reference": {
+              "required": 2,
+              "settled": 2,
+              "admissible": 2
+            }
+          },
+          "noise": {
+            "kind": "negligible",
+            "allowance": {
+              "value": 0.0,
+              "exact": {
+                "denominator": "1",
+                "format": "rational-hex/1",
+                "numerator": "0"
+              }
+            },
+            "source": null,
+            "source_kind": "assumed_negligible",
+            "variation": "not_requested",
+            "units": "score_squared",
+            "observed_cases": 0,
+            "extra_measurements": 0
+          },
+          "scopes": [
+            {
+              "name": "focus",
+              "rule": "point",
+              "status": "available",
+              "unavailable": null,
+              "display": "point",
+              "point": {
+                "value": 1.0,
+                "exact": {
+                  "denominator": "1",
+                  "format": "rational-hex/1",
+                  "numerator": "1"
+                }
+              },
+              "threshold": {
+                "value": 0.5,
+                "exact": {
+                  "denominator": "2",
+                  "format": "rational-hex/1",
+                  "numerator": "1"
+                }
+              },
+              "strict": true,
+              "confidence": null,
+              "enclosure": null,
+              "declared_count": 1,
+              "unit_count": 1,
+              "mass": {
+                "value": 1.0,
+                "exact": {
+                  "denominator": "1",
+                  "format": "rational-hex/1",
+                  "numerator": "1"
+                }
+              },
+              "excluded_mass": {
+                "value": 0.0,
+                "exact": {
+                  "denominator": "1",
+                  "format": "rational-hex/1",
+                  "numerator": "0"
+                }
+              },
+              "fallback": null,
+              "lower": null,
+              "exact": null,
+              "pairing": null
+            },
+            {
+              "name": "causal",
+              "rule": "point",
+              "status": "available",
+              "unavailable": null,
+              "display": "point",
+              "point": {
+                "value": 0.0,
+                "exact": {
+                  "denominator": "1",
+                  "format": "rational-hex/1",
+                  "numerator": "0"
+                }
+              },
+              "threshold": {
+                "value": 0.0,
+                "exact": {
+                  "denominator": "1",
+                  "format": "rational-hex/1",
+                  "numerator": "0"
+                }
+              },
+              "strict": false,
+              "confidence": null,
+              "enclosure": null,
+              "declared_count": 1,
+              "unit_count": 1,
+              "mass": {
+                "value": 1.0,
+                "exact": {
+                  "denominator": "1",
+                  "format": "rational-hex/1",
+                  "numerator": "1"
+                }
+              },
+              "excluded_mass": {
+                "value": 0.0,
+                "exact": {
+                  "denominator": "1",
+                  "format": "rational-hex/1",
+                  "numerator": "0"
+                }
+              },
+              "fallback": null,
+              "lower": null,
+              "exact": null,
+              "pairing": null
+            }
+          ],
+          "method": null,
+          "unit": null,
+          "calibration": null,
+          "caveats": null,
+          "bound_fallback": null
+        },
+        "global_comparison": {
+          "outcome": "passed",
+          "reason": "passed",
+          "layer": "global",
+          "deciding_layer": "global",
+          "reference": "stored",
+          "reference_kind": "stored_non_contemporaneous",
+          "reference_measurement_id": "m-r00-champion",
+          "verification": "reused_evidence",
+          "eligible": true,
+          "mode": "point",
+          "confidence_scope": null,
+          "selection_bias_possible": [
+            "stored_reference",
+            "reuse",
+            "candidate_selection"
+          ],
+          "excluded_reference_slots": 0,
+          "coverage": {
+            "candidate": {
+              "required": 2,
+              "settled": 2,
+              "admissible": 2
+            },
+            "reference": {
+              "required": 2,
+              "settled": 2,
+              "admissible": 2
+            }
+          },
+          "noise": {
+            "kind": "negligible",
+            "allowance": {
+              "value": 0.0,
+              "exact": {
+                "denominator": "1",
+                "format": "rational-hex/1",
+                "numerator": "0"
+              }
+            },
+            "source": null,
+            "source_kind": "assumed_negligible",
+            "variation": "not_requested",
+            "units": "score_squared",
+            "observed_cases": 0,
+            "extra_measurements": 0
+          },
+          "scopes": [
+            {
+              "name": "global",
+              "rule": "point",
+              "status": "available",
+              "unavailable": null,
+              "display": "point",
+              "point": {
+                "value": 0.5,
+                "exact": {
+                  "denominator": "2",
+                  "format": "rational-hex/1",
+                  "numerator": "1"
+                }
+              },
+              "threshold": {
+                "value": 0.0,
+                "exact": {
+                  "denominator": "1",
+                  "format": "rational-hex/1",
+                  "numerator": "0"
+                }
+              },
+              "strict": true,
+              "confidence": null,
+              "enclosure": null,
+              "declared_count": 2,
+              "unit_count": 2,
+              "mass": {
+                "value": 1.0,
+                "exact": {
+                  "denominator": "1",
+                  "format": "rational-hex/1",
+                  "numerator": "1"
+                }
+              },
+              "excluded_mass": {
+                "value": 0.0,
+                "exact": {
+                  "denominator": "1",
+                  "format": "rational-hex/1",
+                  "numerator": "0"
+                }
+              },
+              "fallback": null,
+              "lower": null,
+              "exact": null,
+              "pairing": null
+            }
+          ],
+          "method": null,
+          "unit": null,
+          "calibration": null,
+          "caveats": null,
+          "bound_fallback": null
+        },
+        "slots": {
+          "candidate": {
+            "scheduled": 2,
+            "dispatched": 2,
+            "not_owed": 0
+          },
+          "parent": {
+            "scheduled": 2,
+            "dispatched": 2,
+            "not_owed": 0
+          }
+        },
+        "stages": [
+          {
+            "scope": "focus",
+            "state": "passed"
+          },
+          {
+            "scope": "causal",
+            "state": "passed"
+          }
+        ],
+        "preflight": null,
+        "conditional_cost": {
+          "basis": "full_scenario_complete_scoring_without_retries",
+          "baseline_slots": 2,
+          "candidate_gate_slots": 2,
+          "candidate_final_slots": 0,
+          "candidate_total_slots": 2,
+          "parent_slots": 2,
+          "champion_slots": 0,
+          "champion_basis": "per_reached_finalist",
+          "slots_per_refresh": 2,
+          "connection_preflight_slots": 1,
+          "probes_and_retries": "separate",
+          "noise_diagnostic_slots": 0,
+          "simplest_passing_path_slots": 5
+        }
+      }
+    ],
+    "attainability": {
+      "preflight": [],
+      "local_guidance": null
+    },
+    "work": {
+      "planned": {
+        "basis": "full_initial_baseline_and_conditional_future_stage_scenarios",
+        "baseline_slots": 2,
+        "admitted_baseline_imports": 0,
+        "affected_cases": null,
+        "candidate_final_slots_if_gate_passes": null,
+        "parent_gate_slots": null,
+        "champion_slots_per_scope": 0,
+        "champion_scope": "reached_finalist",
+        "slots_per_refresh": 2,
+        "connection_preflight": "separate_no_measurement_credit",
+        "probes_and_retries": "separate",
+        "noise_diagnostic_slots": 0
+      },
+      "committed": {
+        "measurement": {
+          "scenario_slots": 8,
+          "imported_slots": 2,
+          "target_turns": 8,
+          "transport_retries": 0,
+          "scorer_executions": 8
+        },
+        "connection_preflight": {
+          "scenario_slots": 1,
+          "imported_slots": 0,
+          "target_turns": 1,
+          "transport_retries": 0,
+          "scorer_executions": 1
+        },
+        "role_requests": 4,
+        "reflector_probe_requests": 0,
+        "interpretation": "journaled_work_not_tokens_currency_or_provider_call_estimates"
+      },
+      "remaining": {
+        "basis": "conditional_same_bound_conditions_complete_scoring_without_retries",
+        "scope": "current_baseline_and_opened_attempts_only",
+        "baseline_slots": 0,
+        "candidate_gate_slots": 0,
+        "parent_gate_slots": 0,
+        "candidate_final_slots_if_gates_pass": 0,
+        "champion_slots_for_reached_finalists": 0,
+        "remaining_refreshes": 0,
+        "refresh_scenario_slots": 0,
+        "probes_and_retries": "separate",
+        "noise_diagnostic_slots": 0
+      }
+    }
+  },
+  "checks": null,
+  "checks_state": "present",
+  "checks_reason": null,
+  "reflector_probe": null,
+  "reflector_probe_state": "unavailable",
+  "reflector_probe_reason": "unreadable"
+}

@@ -1,8 +1,8 @@
 # Manual task and skill workflow
 
-Use this guide when you want to manage individual tasks, saved skills and traces with `evo task`, `evo skill` and `evo evolve`. For campaigns that evaluate an agent through a Target Service, start with the [campaign quickstart](../QUICKSTART.md). These are separate workflows in the same package.
+Use this guide when you want to manage individual tasks, saved skills and traces with `evo task`, `evo skill` and `evo evolve`. For campaigns that evaluate an agent through a Target Service, start with the [campaign quickstart](core-quickstart.md). These are separate workflows in the same package.
 
-This workflow improves saved Agent Skills through task attempts. [The installation guide](../QUICKSTART.md#1-install-the-beta) covers both a checkout and a supplied wheel.
+This workflow improves saved Agent Skills through task attempts. [The installation guide](core-quickstart.md#1-install-the-beta) covers both a checkout and a supplied wheel.
 
 ## 1. Install
 
@@ -67,7 +67,7 @@ evo skill commit my-skill -m "Improve the general procedure"
 
 The CLI has grouped commands only. A solve injects the active immutable version, not an edited working copy, so commit the accepted rewrite before measuring it. Version identity covers the complete managed tree: `SKILL.md`, `scripts/`, `references/`, and `assets/`.
 
-After a rewrite, inspect `.agents/skills/my-skill/.evolution/last_rewrite_audit.json`. The default policy uses promotion-count decay and one editor call. A `candidate_edit_budget_exceeded` result keeps the parent body. Use `--no-version-decay` for a constant budget, or use `--max-rewrite-attempts 2` for one brake-only retry.
+After a rewrite, inspect `.agents/skills/my-skill/.evolution/last_rewrite_audit.json`. The default policy uses promotion-count decay and one Editor call. A `candidate_edit_budget_exceeded` result keeps the parent body. Use `--no-version-decay` for a constant budget, or use `--max-rewrite-attempts 2` for one brake-only retry.
 
 The model output budget is `--max-tokens`, then `EVO_LLM_MAX_TOKENS`, then `16384`. Agent CLI backends default to `--permission safe`. Request unsafe mode explicitly. Safe calls require Linux filesystem containment and fail if it is unavailable. Use `--seed N` only with a solver backend that supports seed forwarding. Accepted seeds appear in trace provenance. Agent-CLI and GigaChat solver calls reject the option.
 
@@ -90,7 +90,7 @@ evo evolve optimize my-skill \
   --trials 4
 ```
 
-The solver and editor may use separate runtimes. This exact example uses a local Qwen solver and a local GPT-OSS editor:
+The solver and Editor may use separate runtimes. This exact example uses a local Qwen solver and a local GPT-OSS Editor:
 
 ```bash
 evo evolve optimize my-skill \
@@ -107,7 +107,7 @@ evo evolve optimize my-skill \
 
 `--solver-api-base` and `--editor-api-base` override the shared `--api-base` fallback. Explicit role temperature and reasoning settings override the legacy `EVO_LLM_TEMPERATURE` and `EVO_LLM_REASONING_EFFORT` environment fallbacks.
 
-Training and validation tasks must be explicit and disjoint, and the solver backend must support explicit seed forwarding. Parent and candidate use shared validation seeds in counterbalanced order. At least four pairs are required; any per-task regression or failure of the paired sign-flip gate keeps the parent active. Validation state contains scalar scores only.
+Training and validation tasks must be explicit and disjoint, and the solver backend must support explicit seed forwarding. Parent and Candidate use shared validation seeds in counterbalanced order. At least four pairs are required; any per-task regression or failure of the paired sign-flip gate keeps the parent active. Validation state contains scalar scores only.
 
 The optimizer checkpoints after each phase. Its resume identity includes the edit-brake metric revision, budget, decay schedule, promotion-count source, and attempt limit. Old partial runs without that identity require a fresh run. Use `--dry-run` to preview its plan, `--resume RUN_ID` to continue an interrupted run, and `evo evolve status my-skill [--run RUN_ID]` to inspect state.
 

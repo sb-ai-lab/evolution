@@ -1,5 +1,8 @@
 """Shared pre-spend facts for family 15; exact private profiles stay internal."""
 
+from __future__ import annotations
+
+from collections import Counter, defaultdict
 from collections.abc import Mapping, Sequence
 from fractions import Fraction
 from typing import TYPE_CHECKING, Any
@@ -7,8 +10,9 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from evolution.tree.campaign_schema import CampaignSnapshot
     from evolution.tree.case_comparison import ComparisonResult
+    from evolution.tree.storage.envelope import Envelope
 
-from evolution.tree.campaign_identity import CampaignIdentityV1, derived_identity
+from evolution.tree.campaign_identity import CampaignIdentityV1, declared_baseline, derived_identity
 from evolution.tree.campaign_statistics import SampleRow
 from evolution.tree.case_comparison import PreflightResult, build_profile, preflight
 from evolution.tree.case_statistics import passes_bound
@@ -198,8 +202,26 @@ def scenario_cost(
     )
 
 
+def _repeat_variance(body: Mapping[str, Any]) -> dict[str, Any]:
+    """Summarize the recorded case variances without disclosing case identities."""
+    from evolution.tree.family15_schema import decode_rational, encode_rational
+
+    values = []
+    unavailable: Counter[str] = Counter()
+    for row in body["repeat_diagnostics"]:
+        if row["unavailable"] is None:
+            values.append(decode_rational(row["variation"]))
+        else:
+            unavailable[row["unavailable"]] += 1
+    return dict(
+        minimum=encode_rational(min(values)) if values else None,
+        maximum=encode_rational(max(values)) if values else None,
+        unavailable_counts=dict(sorted(unavailable.items())),
+    )
+
+
 def comparison_projection(
-    result: "ComparisonResult",
+    result: ComparisonResult,
     *,
     profile: Mapping[str, Any] | None = None,
     verification: str | None = None,
@@ -209,7 +231,7 @@ def comparison_projection(
 
     The result alone cannot reconstruct its binding. Missing profile fields
     remain unknown; no policy or reference facts are guessed from an outcome.
-    No raw slots, per-case variation, provenance locators or user text escape.
+    Variation aggregates omit case identities and source locators.
     """
     from evolution.tree.family15_schema import encode_rational
 
@@ -296,6 +318,7 @@ def comparison_projection(
         else None,
         selection_bias_possible=bias,
         noise=dict(
+            **({"repeat_variance": _repeat_variance(body)} if kind == "observed" else {}),
             kind=kind,
             allowance=allowance,
             source=noise.get("source") if kind == "bounded" else None,
@@ -316,7 +339,7 @@ def comparison_projection(
 
 
 def campaign15_projection(
-    snapshot: "CampaignSnapshot",
+    snapshot: CampaignSnapshot,
     *,
     run_root: Any = None,
     preflights: Mapping[int, PreflightResult] | None = None,
@@ -336,8 +359,7 @@ def campaign15_projection(
     raw_policy = snapshot.identity["policy"]
     policy: Any = policy_class_for_payload(raw_policy).from_payload(raw_policy)
     n = len(snapshot.identity["corpus_cases"])
-    linked = snapshot.identity.get("linked_from") or {}
-    imported = (linked.get("baseline") or {}).get("imported", 0)
+    imported = (declared_baseline(snapshot.identity) or {}).get("imported", 0)
     if snapshot.baseline_abandoned is not None:
         imported = 0
     report: dict[str, Any] = dict(
@@ -438,12 +460,35 @@ def campaign15_projection(
         _add_external_facts(
             report, run_root, snapshot, policy, campaign_records, measurement_records
         )
+    if snapshot.suspended:
+        last = snapshot.suspensions[-1]
+        report["suspension"] = {name: last[name] for name in ("reason", "owner")}
     if snapshot.family15 is not None:
         for name in ("check_modes", "shadow_hits"):
             value = getattr(snapshot.family15, name)
             if value:
                 report[name] = dict(value)
     return report
+
+
+def _role_failure(error_class: str, reason: str | None, *, editor: bool) -> dict[str, str]:
+    from evolution.tree.roles.role_failures import editor_class, reflection_class
+
+    if reason is None:
+        return dict(category="lifecycle", reason=error_class)
+    classify = editor_class if editor else reflection_class
+    return dict(category=classify(error_class, reason), reason=reason)
+
+
+def _measurement_progress(prefixes: Sequence[Sequence[Envelope]]) -> str:
+    if not prefixes:
+        return "not_bound"
+    events = {record.event for records in prefixes for record in records}
+    if events & {"scoring_finished", "sample_imported"}:
+        return "scored"
+    if "rollout_started" in events:
+        return "started"
+    return "bound"
 
 
 def _add_external_facts(
@@ -468,7 +513,13 @@ def _add_external_facts(
     from evolution.tree.execution.candidate_integrity import ArtifactError
     from evolution.tree.execution.journal_identity import canonical_json
     from evolution.tree.family15_audit import EvidenceMismatch, Family15Audit
-    from evolution.tree.run_reader import committed_campaign_work, remaining_measurement_slots
+    from evolution.tree.run_reader import (
+        _captured_cost_records,
+        _cost_measurement_records,
+        committed_campaign_work,
+        measurement_infos,
+        remaining_measurement_slots,
+    )
     from evolution.tree.storage.journal_errors import JournalBoundaryError
 
     try:
@@ -489,8 +540,45 @@ def _add_external_facts(
         unscored, scheduled = remaining_measurement_slots(
             root, snapshot, measurement_records=measurement_records
         )
+        infos = {info.id: info for info in measurement_infos(snapshot)}
+        sides_by_attempt: dict[str, dict[str, list[str]]] = defaultdict(lambda: defaultdict(list))
+        for info in infos.values():
+            if info.attempt_id is not None and info.role in {
+                "candidate",
+                "parent",
+                "family15_completion",
+                "family15_final",
+            }:
+                side = "parent" if info.role == "parent" else "candidate"
+                sides_by_attempt[info.attempt_id][side].append(info.id)
+        prefixes: dict[str, tuple[Envelope, ...]] = {}
+
+        def records_for(mid: str) -> tuple[Envelope, ...]:
+            if mid not in prefixes:
+                records = (
+                    _cost_measurement_records(root, snapshot, infos[mid])
+                    if measurement_records is None
+                    else _captured_cost_records(snapshot, infos[mid], measurement_records)
+                )
+                if records:
+                    if records[0].to_payload()["run_id"] != mid:
+                        raise EvidenceMismatch("measurement journal names another run")
+                    audit.identity(mid, records[0].payload["identity"])
+                prefixes[mid] = records
+            return prefixes[mid]
+
+        editor_failures: dict[str, list[dict[str, str]]] = defaultdict(list)
+        for record in campaign_records:
+            if record.event == "editor_failed":
+                p = record.payload
+                editor_failures[p["attempt_id"]].append(
+                    _role_failure(p["error_class"], p.get("reason"), editor=True)
+                )
+
         attempts = []
+        rounds = []
         for number, state in sorted(snapshot.rounds.items()):
+            candidates_sealed = attempts_measured = 0
             ranking = {}
             extra_round = state.family15
             ranked = None if extra_round is None else extra_round.selection
@@ -625,11 +713,7 @@ def _add_external_facts(
                                 or entry.get("attempt_id") != attempt.attempt_id
                             ):
                                 continue
-                            records = (
-                                context.measurement_journal(owned)
-                                if measurement_records is None
-                                else measurement_records.get(owned, ())
-                            )
+                            records = records_for(owned)
                             slots_by_id = (
                                 {}
                                 if not records
@@ -657,6 +741,23 @@ def _add_external_facts(
                             not_owed=case_slots - len(owed_rows(snapshot, mid)),
                         )
                 ranked_row = ranking.get(attempt.attempt_id)
+                sides = sides_by_attempt[attempt.attempt_id]
+                candidate_sealed = attempt.candidate_digest is not None
+                measurement = _measurement_progress(
+                    [records_for(mid) for mid in sides.get("candidate", ())]
+                )
+                progress = dict(
+                    editor=attempt.editor or "not_started",
+                    editor_failures=editor_failures[attempt.attempt_id],
+                    candidate_sealed=candidate_sealed,
+                    measurement=measurement,
+                )
+                if "parent" in sides:
+                    progress["parent_measurement"] = _measurement_progress(
+                        [records_for(mid) for mid in sides["parent"]]
+                    )
+                candidates_sealed += candidate_sealed
+                attempts_measured += measurement == "scored"
                 attempts.append(
                     dict(
                         **slot_counts,
@@ -664,6 +765,7 @@ def _add_external_facts(
                         attempt_id=attempt.attempt_id,
                         outcome=attempt.outcome,
                         reason=attempt.reason,
+                        progress=progress,
                         comparison=comparison,
                         gate_comparison=gate_comparison,
                         global_comparison=global_comparison,
@@ -677,12 +779,37 @@ def _add_external_facts(
                         else None,
                     )
                 )
-        report["attempts"] = attempts
-        report["remaining_work"] = remaining_cost(snapshot, policy, unscored, scheduled)
-        report["committed_work"] = committed_campaign_work(
+            reflections = []
+            for entry in state.reflections:
+                failure = (
+                    _role_failure(entry["error_class"], entry.get("reason"), editor=False)
+                    if entry["status"] == "failed"
+                    else dict(category=None, reason=None)
+                )
+                reflections.append(
+                    dict(status=entry["status"], **failure, suspended=entry.get("suspended", False))
+                )
+            rounds.append(
+                dict(
+                    round=number,
+                    outcome=None if state.closed is None else state.closed["outcome"],
+                    reason=None if state.closed is None else state.closed["reason"],
+                    attempts_opened=len(state.attempts),
+                    candidates_sealed=candidates_sealed,
+                    attempts_measured=attempts_measured,
+                    reflections=reflections,
+                )
+            )
+        committed = committed_campaign_work(
             root, snapshot, tuple(campaign_records), measurement_records=measurement_records
         )
-        report["evidence"] = "authenticated_publications"
+        report.update(
+            attempts=attempts,
+            round_progress=rounds,
+            remaining_work=remaining_cost(snapshot, policy, unscored, scheduled),
+            committed_work=committed,
+            evidence="authenticated_publications",
+        )
     except (EvidenceMismatch, ArtifactError, JournalBoundaryError, OSError):
         report["evidence"] = "unavailable"
         report["committed_work"] = None
@@ -734,9 +861,7 @@ def remaining_cost(
         if not current.baseline_complete:
             inherited = 0
             if current.round == snapshot.first_round and snapshot.baseline_abandoned is None:
-                inherited = (
-                    (snapshot.identity.get("linked_from") or {}).get("baseline") or {}
-                ).get("imported", 0)
+                inherited = (declared_baseline(snapshot.identity) or {}).get("imported", 0)
             baseline = missing(current.baseline_measurement_id, max(0, total - inherited))
         if current.baseline_complete and current.baseline_measurement_id is not None:
             refresh = remaining_refresh_cost(snapshot, policy, current.round)
@@ -961,8 +1086,9 @@ def _comparison_lines(comparison: Mapping[str, Any], *, label: str) -> list[str]
             )
         if scope["rule"] == "bootstrap":
             exact = "unavailable" if scope["exact"] is None else "yes" if scope["exact"] else "no"
+            status = f" · {scope['unavailable']}" if scope["unavailable"] else ""
             lines.append(
-                f"{scope['name']} · repeat-bootstrap confidence {readable(scope['confidence'])} · lower {readable(scope['lower'])} · exact contrast: {exact} · pairing {scope['pairing'] or 'unavailable'}"
+                f"{scope['name']} · empirical one-sided repeat-bootstrap confidence {readable(scope['confidence'])} · lower {readable(scope['lower'])} · exact contrast: {exact} · pairing {scope['pairing'] or 'unavailable'}{status}"
             )
     if calibration is not None:
         lines.append(
@@ -981,6 +1107,22 @@ def _comparison_lines(comparison: Mapping[str, Any], *, label: str) -> list[str]
     lines.append(
         f"noise · {noise['source_kind']} · allowance {readable(noise['allowance'])} · Candidate repeat variance {noise['variation']} (score squared)"
     )
+    variance = noise.get("repeat_variance")
+    if variance is not None:
+        if variance["minimum"] is not None:
+            lo, hi = readable(variance["minimum"]), readable(variance["maximum"])
+            detail = lo if variance["minimum"] == variance["maximum"] else f"{lo} to {hi}"
+        else:
+            detail = "unavailable"
+        missing = " · ".join(
+            f"{reason}: {count}" for reason, count in variance["unavailable_counts"].items()
+        )
+        lines.append(
+            f"Candidate primary-score repeat variance (score squared) · {detail} · {noise['observed_cases']} cases with variance"
+            + (f" · unavailable cases: {missing}" if missing else "")
+        )
+    elif noise["kind"] == "observed":
+        lines.append("Candidate primary-score repeat variance details unavailable in this report")
     if noise["source"] is not None:
         lines.append("declared allowance source · " + public_source(noise["source"]))
     lines.append(
@@ -1074,7 +1216,44 @@ def report_lines(report: Mapping[str, Any]) -> list[str]:
         lines.append(
             f"conditional remaining · baseline {remaining['baseline_slots']} · Candidate gate {remaining['candidate_gate_slots']} · Parent gate {remaining['parent_gate_slots']} · Candidate final if gates pass {remaining['candidate_final_slots_if_gates_pass']} · Champion {remaining['champion_slots_for_reached_finalists']} scenario slots"
         )
+    if "suspension" in report:
+        suspension = report["suspension"]
+        lines.append(f"campaign suspended · {suspension['reason']} · {suspension['owner']}")
+    if report["evidence"] == "unavailable":
+        lines.append("round and Attempt progress unavailable · evidence unavailable")
+    for round_row in report.get("round_progress", ()):
+        label = f"round {round_row['round']}"
+        close = f" · {round_row['outcome']}" if round_row["outcome"] is not None else ""
+        if round_row["reason"] is not None:
+            close += f" ({round_row['reason']})"
+        lines.append(
+            f"{label} · {round_row['attempts_opened']} Attempts opened · {round_row['candidates_sealed']} Candidates sealed · {round_row['attempts_measured']} Attempts with a Candidate score{close}"
+        )
+        for reflection in round_row["reflections"]:
+            reason = (
+                f" · {reflection['category']}: {reflection['reason']}"
+                if reflection["reason"] is not None
+                else ""
+            )
+            suspended = " · suspension recorded" if reflection["suspended"] else ""
+            lines.append(f"{label} · Reflection {reflection['status']}{reason}{suspended}")
     for attempt in report["attempts"]:
+        if "progress" in attempt:
+            progress = attempt["progress"]
+            parent = (
+                f" · Parent measurement {progress['parent_measurement']}"
+                if "parent_measurement" in progress
+                else ""
+            )
+            close = f" · {attempt['outcome']} ({attempt['reason']})" if attempt["outcome"] else ""
+            sealed = "sealed" if progress["candidate_sealed"] else "not sealed"
+            lines.append(
+                f"{attempt['attempt_id']} · Editor {progress['editor']} · Candidate {sealed} · Candidate measurement {progress['measurement']}{parent}{close}"
+            )
+            for failure in progress["editor_failures"]:
+                lines.append(
+                    f"{attempt['attempt_id']} · Editor failed · {failure['category']}: {failure['reason']}"
+                )
         not_owed = sum(side["not_owed"] for side in attempt.get("slots", {}).values())
         if not_owed and attempt.get("outcome") == "rejected":
             lines.append(
@@ -1087,6 +1266,7 @@ def report_lines(report: Mapping[str, Any]) -> list[str]:
             and attempt.get("global_comparison") is not None
             and (
                 gate["mode"] == "statistical"
+                or gate["noise"]["kind"] == "observed"
                 or "calibration" in gate
                 or any("fallback" in scope for scope in gate["scopes"])
             )
@@ -1102,6 +1282,15 @@ def report_lines(report: Mapping[str, Any]) -> list[str]:
 def validate_campaign15_projection(report: Any) -> None:
     """Closed public report grammar, independent of private artifact grammar."""
     from evolution.tree.campaign_projections import _identifier, _keys, _require, _sha
+    from evolution.tree.campaign_schema import (
+        _CONFIDENCE_ROUND_OUTCOMES,
+        CHAMPION_SUSPENSIONS,
+        OWNERS,
+        REFLECTION_STATUSES,
+        SUSPENSION_REASONS,
+        UNPLANNED_REASONS,
+    )
+    from evolution.tree.campaign_vocabulary import campaign_vocabulary_for
     from evolution.tree.family15_schema import (
         BOOTSTRAP_METHOD,
         OUTCOMES,
@@ -1110,6 +1299,11 @@ def validate_campaign15_projection(report: Any) -> None:
         _caveats,
         _fallback,
         decode_rational,
+    )
+    from evolution.tree.roles.role_failures import (
+        EDITOR_REASONS,
+        LIFECYCLE_ERRORS,
+        REFLECTION_REASONS,
     )
 
     def keys(value: Any, names: str) -> None:
@@ -1124,6 +1318,14 @@ def validate_campaign15_projection(report: Any) -> None:
     def rational(value: Any) -> None:
         if value is not None:
             decode_rational(value)
+
+    def failure(value: Any, vocabulary: Mapping[tuple[str, str], str]) -> None:
+        pair = (value["reason"], value["category"])
+        _require(
+            pair in {(reason, category) for (_, reason), category in vocabulary.items()}
+            or pair[1] == "lifecycle"
+            and pair[0] in LIFECYCLE_ERRORS
+        )
 
     def fallback(scope: Any, mode: str, declaration: Any) -> None:
         if "fallback" in scope:
@@ -1303,7 +1505,8 @@ def validate_campaign15_projection(report: Any) -> None:
         noise = value["noise"]
         keys(
             noise,
-            "kind allowance source source_kind variation diagnostic units observed_cases extra_measurements",
+            "kind allowance source source_kind variation diagnostic units observed_cases extra_measurements"
+            + (" repeat_variance" if "repeat_variance" in noise else ""),
         )
         _require(noise["kind"] in (None, "negligible", "bounded", "observed"))
         _require(
@@ -1323,14 +1526,46 @@ def validate_campaign15_projection(report: Any) -> None:
             and noise["extra_measurements"] == 0
         )
         count(noise["observed_cases"])
+        if "repeat_variance" in noise:
+            variance = noise["repeat_variance"]
+            keys(variance, "minimum maximum unavailable_counts")
+            _require(noise["kind"] == "observed" and noise["variation"] != "not_requested")
+            unavailable = variance["unavailable_counts"]
+            _require(
+                type(unavailable) is dict
+                and set(unavailable) <= {"insufficient_repeats", "incomplete"}
+            )
+            for total in unavailable.values():
+                _require(type(total) is int and total > 0)
+            _require(bool(unavailable) == (noise["variation"] == "unavailable"))
+            lo, hi = variance["minimum"], variance["maximum"]
+            if noise["observed_cases"]:
+                _require(lo is not None and hi is not None)
+                _require(0 <= decode_rational(lo) <= decode_rational(hi))
+            else:
+                _require(lo is None and hi is None and bool(unavailable))
 
     keys(
         report,
         "next_action settings planned_work local_guidance preflight attempts diagnostics committed_work remaining_work evidence"
         + (" check_modes" if "check_modes" in report else "")
         + (" shadow_hits" if "shadow_hits" in report else "")
-        + (" probe_availability" if "probe_availability" in report else ""),
+        + (" probe_availability" if "probe_availability" in report else "")
+        + (" round_progress" if "round_progress" in report else "")
+        + (" suspension" if "suspension" in report else ""),
     )
+    if "suspension" in report:
+        suspension = report["suspension"]
+        keys(suspension, "reason owner")
+        reason, owner = suspension["reason"], suspension["owner"]
+        if (
+            reason in CHAMPION_SUSPENSIONS
+            or reason == campaign_vocabulary_for(14).incomplete_reason
+        ):
+            _require(owner in OWNERS)
+        else:
+            _require(reason in SUSPENSION_REASONS and owner == SUSPENSION_REASONS[reason][0])
+        _require(report["next_action"] in {"repair_and_resume", "repair_evidence"})
     if "probe_availability" in report:
         _require(type(report["probe_availability"]) is list and bool(report["probe_availability"]))
         for item in report["probe_availability"]:
@@ -1451,7 +1686,8 @@ def validate_campaign15_projection(report: Any) -> None:
         keys(
             value,
             "round attempt_id outcome reason comparison gate_comparison global_comparison preflight conditional_cost eligible_final_score"
-            + (" slots" if "slots" in value else ""),
+            + (" slots" if "slots" in value else "")
+            + (" progress" if "progress" in value else ""),
         )
         count(value["round"])
         _identifier(value["attempt_id"])
@@ -1463,6 +1699,23 @@ def validate_campaign15_projection(report: Any) -> None:
             _identifier(value["reason"])
         if outcome in vocabulary:
             _require(value["reason"] in vocabulary[outcome])
+        if "progress" in value:
+            progress = value["progress"]
+            keys(
+                progress,
+                "editor editor_failures candidate_sealed measurement"
+                + (" parent_measurement" if "parent_measurement" in progress else ""),
+            )
+            choice(progress["editor"], "not_started started edited declined failed")
+            _require(type(progress["editor_failures"]) is list)
+            for entry in progress["editor_failures"]:
+                keys(entry, "category reason")
+                failure(entry, EDITOR_REASONS)
+            _require(type(progress["candidate_sealed"]) is bool)
+            choice(progress["measurement"], "not_bound bound started scored")
+            _require(progress["candidate_sealed"] or progress["measurement"] == "not_bound")
+            if "parent_measurement" in progress:
+                choice(progress["parent_measurement"], "bound started scored")
         if "slots" in value:
             keys(value["slots"], "candidate" + (" parent" if settings["fresh_parent"] else ""))
             for side in value["slots"].values():
@@ -1481,6 +1734,52 @@ def validate_campaign15_projection(report: Any) -> None:
             or value["comparison"] is not None
             and value["comparison"]["eligible"]
         )
+    if "round_progress" in report:
+        _require(
+            type(report["round_progress"]) is list
+            and report["evidence"] == "authenticated_publications"
+        )
+        progress_by_round: dict[int, list[dict[str, Any]]] = defaultdict(list)
+        for attempt in report["attempts"]:
+            _require("progress" in attempt)
+            progress_by_round[attempt["round"]].append(attempt["progress"])
+        last_round = 0
+        for row in report["round_progress"]:
+            keys(
+                row,
+                "round outcome reason attempts_opened candidates_sealed attempts_measured reflections",
+            )
+            count(row["round"])
+            _require(row["round"] > last_round)
+            last_round = row["round"]
+            _require(row["outcome"] is None or row["outcome"] in _CONFIDENCE_ROUND_OUTCOMES)
+            _require(
+                row["reason"] in UNPLANNED_REASONS
+                if row["outcome"] == "unplanned"
+                else row["reason"] is None
+            )
+            for name in ("attempts_opened", "candidates_sealed", "attempts_measured"):
+                count(row[name])
+            progress_rows = progress_by_round.pop(last_round, ())
+            _require(row["attempts_opened"] == len(progress_rows))
+            _require(row["candidates_sealed"] == sum(v["candidate_sealed"] for v in progress_rows))
+            _require(
+                row["attempts_measured"] == sum(v["measurement"] == "scored" for v in progress_rows)
+            )
+            _require(type(row["reflections"]) is list)
+            for entry in row["reflections"]:
+                keys(entry, "status category reason suspended")
+                _require(type(entry["suspended"]) is bool)
+                if entry["status"] == "failed":
+                    failure(entry, REFLECTION_REASONS)
+                else:
+                    _require(entry["status"] == "started" or entry["status"] in REFLECTION_STATUSES)
+                    _require(
+                        entry["category"] is None
+                        and entry["reason"] is None
+                        and not entry["suspended"]
+                    )
+        _require(not progress_by_round)
     for value in report["diagnostics"]:
         keys(
             value,

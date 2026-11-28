@@ -1,0 +1,22 @@
+Corpus split: train (2 cases); held-out test (0 cases); mode implicit_train.
+Corpus partition_mode: implicit_train.
+Corpus split train: 2 cases, 1 groups.
+Corpus split train, stratum "neutral": 2 cases, 1 groups.
+Corpus split test: 0 cases, 0 groups.
+Corpus split test, stratum "neutral": 0 cases, 0 groups.
+Corpus split coverage: stratum "neutral" is absent from test.
+independent · point · 2 train cases × 1 repeats · reuse verification
+noise · assumed_negligible · allowance 0 (approx) · None / None
+initial baseline scenario: 2 scenario slots · 0 admitted imports · preflight/probes/retries separate
+conditional Champion: 0 slots per reached_finalist · noise extra measurements: 0
+independent · point · 2 train cases × 1 repeats · reuse verification
+noise · assumed_negligible · allowance 0 (approx) · None / None
+initial baseline scenario: 2 scenario slots · 0 admitted imports · preflight/probes/retries separate
+conditional Champion: 0 slots per reached_finalist · noise extra measurements: 0
+global preflight · not_ruled_out · stored_reference · score-range ceiling, not a power prediction
+global · threshold 0 (approx) · maximal point 0.5 (approx) · 2 units
+conditional remaining refreshes: 0 · 0 scenario slots
+independent · point · 2 train cases × 1 repeats · reuse verification
+noise · assumed_negligible · allowance 0 (approx) · None / None
+initial baseline scenario: 2 scenario slots · 0 admitted imports · preflight/probes/retries separate
+conditional Champion: 0 slots per reached_finalist · noise extra measurements: 0

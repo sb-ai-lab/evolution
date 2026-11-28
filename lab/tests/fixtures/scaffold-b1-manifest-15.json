@@ -1,0 +1,163 @@
+{
+  "schema": "evolution-v2-manifest/15",
+  "seed_root": "seed",
+  "target": {
+    "base_url": "http://127.0.0.1:8765",
+    "seed_mode": "exact"
+  },
+  "artifacts": {
+    "excludes": [
+      "build/**"
+    ],
+    "dependency_paths": [
+      "uv.lock"
+    ],
+    "writable_paths": [
+      "skills/**"
+    ]
+  },
+  "role_visibility": {
+    "version": "role_visibility/1",
+    "readable_paths": []
+  },
+  "campaign": {
+    "rounds": 2,
+    "attempts_per_round": 1,
+    "parallel_attempts": 1,
+    "evaluation": {
+      "repeats_per_question": 3
+    },
+    "round_stop": "first_accepted",
+    "baseline_refresh_after_rounds": 3,
+    "indeterminate": {
+      "target": {
+        "max_count": 2,
+        "max_rate": "0.5"
+      },
+      "environment": {
+        "max_count": 2,
+        "max_rate": "0.5"
+      },
+      "scorer": {
+        "max_count": 2,
+        "max_rate": "0.5"
+      },
+      "rollout": {
+        "max_count": 2,
+        "max_rate": "0.5"
+      }
+    },
+    "budget": {
+      "max_turns": 2,
+      "timeout_seconds": 30,
+      "max_failed_turns": 1
+    },
+    "call_retries": {
+      "max_attempts": 4,
+      "turn_max_attempts": 1
+    },
+    "max_concurrency": 2,
+    "max_scorer_concurrency": 2,
+    "metric": {
+      "primary": "score"
+    },
+    "random_seed": 7,
+    "editor_timeout_seconds": 60,
+    "editor_context": null,
+    "reflection_timeout_seconds": 60,
+    "gate": {
+      "mode": "statistical",
+      "stability": "stable",
+      "focus": {
+        "confidence": 0.9,
+        "margin": 0
+      },
+      "causal": {
+        "confidence": 0.9,
+        "tolerance": "measured_noise"
+      },
+      "provenance": {
+        "kind": "reported"
+      },
+      "fresh_parent": false,
+      "global": "point"
+    },
+    "attempt_feedback": "sequential"
+  },
+  "environment": {
+    "kind": "static",
+    "input_text_key": "text"
+  },
+  "scorer": {
+    "argv": [
+      "python3",
+      "score.py"
+    ],
+    "cwd": "scorer",
+    "timeout_seconds": 30,
+    "dependency_paths": [],
+    "allowed_env": [],
+    "metric_contract": {
+      "version": "metric_contract/1",
+      "kind": "pointwise",
+      "target_fields": [
+        {
+          "event": "assistant_message",
+          "pointer": "/content",
+          "value": "nonempty_string"
+        }
+      ]
+    }
+  },
+  "editor": {
+    "kind": "subprocess",
+    "argv": [
+      "python3",
+      "edit.py"
+    ],
+    "cwd": "editor",
+    "dependency_paths": [],
+    "allowed_env": []
+  },
+  "grouper": {
+    "kind": "fields",
+    "features": [
+      {
+        "name": "failed_criteria",
+        "source": "observation",
+        "path": "/failed_criteria",
+        "description": "Failed criteria."
+      },
+      {
+        "name": "terminal",
+        "source": "observation",
+        "path": "/terminal",
+        "description": "Terminal observation status."
+      }
+    ]
+  },
+  "reflector": {
+    "kind": "subprocess",
+    "argv": [
+      "python3",
+      "reflect.py"
+    ],
+    "cwd": "reflector",
+    "dependency_paths": [],
+    "allowed_env": [],
+    "environment_docs": null,
+    "probe": null,
+    "max_consecutive_failures": 2,
+    "selection": {
+      "focus_cases": 16,
+      "representatives_per_case": 2,
+      "context_page_size": 32
+    },
+    "families": {
+      "kind": "none"
+    }
+  },
+  "corpus": {
+    "path": "corpus.jsonl"
+  }
+}

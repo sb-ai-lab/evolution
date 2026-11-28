@@ -2,7 +2,7 @@
 
 This page covers the Python API for the manual task/skill workflow and its optimizer. For tree campaigns, start with [Running campaigns](running-campaigns.md); for an agent integration, use the [target server API](target-server.md). The two workflows have different inputs and run storage.
 
-From the repository root, install this checkout before importing it. If you use a supplied wheel instead, follow the [installation guide](../QUICKSTART.md#1-install-the-beta) and request the `[llm]` extra:
+From the repository root, install this checkout before importing it. If you use a supplied wheel instead, follow the [installation guide](core-quickstart.md#1-install-the-beta) and request the `[llm]` extra:
 
 ```bash
 python -m pip install -e ".[llm]"
@@ -11,6 +11,21 @@ python -m pip install -e ".[llm]"
 `evolution.workflow` is the supported manual lifecycle API. The production optimizer is exported from `evolution.evolve`.
 
 Provider credentials are read from environment variables. Prefer passing a constructed backend when an application needs custom authentication; do not put credentials in command arguments or examples.
+
+## Lab-facing campaign helpers
+
+These helpers are public names in `evolution.tree`; they use the same implementation as the Core commands:
+
+- `scaffold(target_dir: Path) -> ScaffoldResult` creates the reference campaign project. `ScaffoldResult` names its paths, and `ScaffoldError` reports a scaffold refusal.
+- `export_run(*, run_dir, out, manifest=None, measurements=(), max_field_bytes=65536, environ=None) -> TraceSummary` exports per-try trace records. Supply the run's secret environment for redaction; the export can contain private case inputs and oracles.
+- `declare_instance_components(journal: Journal, instance: object) -> str | None` publishes an instance's component map once per digest in a journal marked with `row_provenance`. It screens secret component identifiers through the journal's existing rules and returns the digest, or `None` for an unmarked journal or an instance without a map.
+- `measurement_provenance(directory: Path) -> MeasurementProvenance` inspects the valid prefix of `directory/events.jsonl` without acquiring a lease or changing files. The frozen result has `recorded: bool` and nullable integer fields `reported`, `overflow`, `not_reported` and `components_declared`; `to_payload()` returns these five fields. Sample counts cover scheduled samples' latest tries that reached `rollout_finished`, including unscored tries. An unmarked identity has `recorded: false` and `None` counts. Missing, unreadable or unborn journals raise `ValueError("measurement journal unavailable")`.
+- `EvolveRefused` carries Core's refusal findings for a campaign.
+- `effect_sentence(effect: str) -> tuple[str, ...]` returns Core's CLI explanation lines for an effect. It raises `KeyError` when no explanation is recorded. The underlying text mapping stays private.
+
+## Campaign process settings
+
+Core reads `EVOLUTION_DURABILITY` from the process's `os.environ`, independently of `evolve(..., environ=...)`. Set `relaxed` (the default) or `strict` before the process starts and keep it fixed for its lifetime. An unsupported value raises `ValueError` before the campaign or evaluation entry point writes anything. The setting changes no manifest, identity or journal bytes. See [durability](running-campaigns.md#host-crashes-and-durability).
 
 ## Discover Tasks And Skills
 
@@ -107,7 +122,7 @@ if candidate.candidate_status == PROMOTED_ELIGIBLE:
     print(version)
 ```
 
-`rewrite(..., apply=True)` changes the working `SKILL.md` only when guards mark the candidate eligible. `commit_skill` snapshots and promotes the complete managed tree. Manual callers are responsible for independent validation; use the optimizer below when promotion must be automatic and conservative.
+`rewrite(..., apply=True)` changes the working `SKILL.md` only when guards mark the Candidate eligible. `commit_skill` snapshots and promotes the complete managed tree. Manual callers are responsible for independent validation; use the optimizer below when promotion must be automatic and conservative.
 
 ## Production Optimizer
 
@@ -139,7 +154,7 @@ print(state["phase"], state["status"])
 
 Training and validation task IDs must be explicit, unique, non-empty, and disjoint. The solver backend must support seed forwarding. Agent-CLI and GigaChat solver backends reject optimizer calls. Every task must require the target exactly once. Supporting skills remain exact active bindings. With `manifest=`, training tasks must be in `train` and validation tasks in `val`.
 
-Fewer than four planned validation pairs are rejected before model calls. Each round checks parent validation saturation on a separate seed namespace. Candidate train diagnostics reuse collect seeds after rewrite. They do not affect promotion. Promotion validation uses new shared parent/candidate seeds and counterbalanced order. It requires no per-task mean regression and a conservative paired sign-flip decision.
+Fewer than four planned validation pairs are rejected before model calls. Each round checks parent validation saturation on a separate seed namespace. Candidate train diagnostics reuse collect seeds after rewrite. They do not affect promotion. Promotion validation uses new shared parent/Candidate seeds and counterbalanced order. It requires no per-task mean regression and a conservative paired sign-flip decision.
 
 Saturated validation and positive-but-underpowered gain return terminal `status="inconclusive"`. The latter keeps the parent active and recommends more `trials`. All non-collect measurements persist only scalar `seed`, `passed`, `total`, and `pass_rate` values; prompts, responses, code, outputs, and evaluator feedback are not persisted.
 

@@ -74,6 +74,7 @@ __all__ = [
     "TREE_EDITOR_SYSTEM",
     "TREE_EDITOR_SYSTEM_V2",
     "TREE_EDITOR_SYSTEM_V3",
+    "TREE_EDITOR_SYSTEM_V4",
     "TREE_AGENT_REFLECTOR_SYSTEM",
     "TREE_REFLECTOR_SYSTEM",
     "TREE_AGENT_REFLECTOR_SYSTEM_V3",
@@ -82,6 +83,8 @@ __all__ = [
     "TREE_REFLECTOR_SYSTEM_V4",
     "TREE_REFLECTOR_SYSTEM_V5",
     "TREE_REFLECTOR_SYSTEM_V6",
+    "TREE_REFLECTOR_SYSTEM_V7",
+    "TREE_REFLECTOR_SYSTEM_V8",
     "TREE_GROUPING_MODEL_SYSTEM",
     "TREE_GROUPING_MODEL_V2_SYSTEM",
     "TREE_GROUPING_MODEL_V3_SYSTEM",
@@ -152,10 +155,13 @@ TREE_AGENT_EDITOR_SYSTEM = load_prompt("tree_agent_editor").removesuffix("\n")
 TREE_AGENT_EDITOR_SYSTEM_V2 = load_prompt("tree_agent_editor_v2").removesuffix("\n")
 TREE_EDITOR_SYSTEM = load_prompt("tree_editor").removesuffix("\n")
 TREE_EDITOR_SYSTEM_V2 = load_prompt("tree_editor_v2").removesuffix("\n")
-#: `/16` chat Editor default (b18, #399, ADR-0061): V2 plus one paragraph that
+#: b18 `/16` chat Editor default (#399, ADR-0061): V2 plus one paragraph that
 #: tells the Editor to reconcile a new rule with the files it changes. `/15`
 #: keeps `TREE_EDITOR_SYSTEM`; V2 stays packaged unchanged.
 TREE_EDITOR_SYSTEM_V3 = load_prompt("tree_editor_v3").removesuffix("\n")
+#: b22 `/16` chat Editor default. Conclude with the available evidence and
+#: connect each proposed edit to an observation, its trigger and an editable location.
+TREE_EDITOR_SYSTEM_V4 = load_prompt("tree_editor_v4").removesuffix("\n")
 TREE_AGENT_REFLECTOR_SYSTEM = load_prompt("tree_agent_reflector").removesuffix("\n")
 TREE_REFLECTOR_SYSTEM = load_prompt("tree_reflector").removesuffix("\n")
 #: Current campaign default (ADR-0022): frames a selected group's description
@@ -169,6 +175,9 @@ TREE_REFLECTOR_SYSTEM_V3 = load_prompt("tree_reflector_v3").removesuffix("\n")
 TREE_REFLECTOR_SYSTEM_V4 = load_prompt("tree_reflector_v4").removesuffix("\n")
 TREE_REFLECTOR_SYSTEM_V5 = load_prompt("tree_reflector_v5").removesuffix("\n")
 TREE_REFLECTOR_SYSTEM_V6 = load_prompt("tree_reflector_v6").removesuffix("\n")
+TREE_REFLECTOR_SYSTEM_V7 = load_prompt("tree_reflector_v7").removesuffix("\n")
+#: b22 `/16` chat Reflector default. Conclude with the available citations.
+TREE_REFLECTOR_SYSTEM_V8 = load_prompt("tree_reflector_v8").removesuffix("\n")
 #: The packaged default system prompt of a `/10` model grouping role and a
 #: `/15` Chat Grouper using `model_grouping/1`; a declared
 #: `system_prompt` file wins over it. Its digest is bound into the adaptation

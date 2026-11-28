@@ -1,0 +1,382 @@
+{
+  "schema": "lab-owner-report/12",
+  "operation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "state": "available",
+  "report": {
+    "campaign_journal_integrity": "complete",
+    "comparison_scope": "unspecified",
+    "core": {
+      "alpha": null,
+      "campaign_outcome": {
+        "champion_path": "artifacts/champions/v0",
+        "continuation": {
+          "kind": "linked_run",
+          "reason": "rounds_exhausted"
+        },
+        "outcome": "completed",
+        "reason": "rounds_exhausted"
+      },
+      "caveats": [
+        {
+          "attempt_id": null,
+          "kind": "champion_not_contemporaneous",
+          "round": null
+        }
+      ],
+      "claim_scope": "campaign",
+      "complete": true,
+      "condition_changes": [],
+      "connection": {
+        "attempts": 1,
+        "binding_digest": "4493cda679860f83008e0ccc3aed098a1575316275a7b935beaa1d3c6d477b16",
+        "detail": null,
+        "operation_id": "44bb911570f641c0a2c4de619a185d65",
+        "outcome": "compatible",
+        "state": "compatible"
+      },
+      "consistency": "durable",
+      "corpus_split": {
+        "mode": "implicit_train",
+        "partition_digest": "5ee837c26a0470d6db285ccdc0ce2876a9a02d5ec0e20055dd4f4597c6c039db",
+        "scope": "train",
+        "test_cases": 0,
+        "train_cases": 2
+      },
+      "family_version": 15,
+      "final_champion": {
+        "baseline_origin": "seed",
+        "digest": "fbd7fa5cd7695fbda3cd44d6052a66419e46395644eabfaf65a0dabc0dabc8c4",
+        "measurement_complete": true,
+        "measurement_id": "m-r00-champion",
+        "version": "v0"
+      },
+      "identity_digest": "6894f4aa0337578e15f2e20853a8cd0d679ba5c2c0328d6e5359a7d9116941ff",
+      "independent": {
+        "attempts": [],
+        "committed_work": null,
+        "diagnostics": [],
+        "evidence": "unavailable",
+        "local_guidance": null,
+        "next_action": "finished",
+        "planned_work": {
+          "admitted_baseline_imports": 0,
+          "affected_cases": null,
+          "baseline_slots": 2,
+          "basis": "full_initial_baseline_and_conditional_future_stage_scenarios",
+          "candidate_final_slots_if_gate_passes": null,
+          "champion_scope": "reached_finalist",
+          "champion_slots_per_scope": 0,
+          "connection_preflight": "separate_no_measurement_credit",
+          "noise_diagnostic_slots": 0,
+          "parent_gate_slots": 0,
+          "probes_and_retries": "separate",
+          "slots_per_refresh": 2
+        },
+        "preflight": [],
+        "probe_availability": [
+          {
+            "health": "unavailable",
+            "mediator": "failed",
+            "round": 1,
+            "transport_failures": 0,
+            "unreachable": 2
+          }
+        ],
+        "remaining_work": null,
+        "settings": {
+          "allowance": {
+            "denominator": "1",
+            "format": "rational-hex/1",
+            "numerator": "0"
+          },
+          "allowance_source": null,
+          "allowance_source_kind": "assumed_negligible",
+          "execution_noise": "negligible",
+          "fresh_parent": false,
+          "global_rule": "point",
+          "method": null,
+          "mode": "point",
+          "repeats": 1,
+          "stability": "stable",
+          "train_cases": 2,
+          "train_slots": 2,
+          "unit": null,
+          "verification": "reuse"
+        }
+      },
+      "indeterminate": {
+        "counts": {
+          "environment": 0,
+          "rollout": 0,
+          "scorer": 0,
+          "target": 0
+        },
+        "denominator": 2,
+        "lineage": null,
+        "threshold_reached": null,
+        "window": {
+          "counts": {
+            "environment": 0,
+            "rollout": 0,
+            "scorer": 0,
+            "target": 0
+          },
+          "denominator": 2,
+          "start": null
+        }
+      },
+      "initial_champion": {
+        "digest": "fbd7fa5cd7695fbda3cd44d6052a66419e46395644eabfaf65a0dabc0dabc8c4",
+        "measurement_id": "m-r00-champion",
+        "version": "v0"
+      },
+      "kind": "campaign_result",
+      "linked_from": null,
+      "measurements": [
+        {
+          "call_failures_by_code": {},
+          "call_retries": 0,
+          "candidate_digest": "fbd7fa5cd7695fbda3cd44d6052a66419e46395644eabfaf65a0dabc0dabc8c4",
+          "condition_epoch": 0,
+          "excluded_pairs": null,
+          "imported": 0,
+          "locator": "measurements/m-r00-champion/events.jsonl",
+          "measurement_id": "m-r00-champion",
+          "repair_tries": 0,
+          "repairs_scored": 0,
+          "tries": 2
+        }
+      ],
+      "rebases": [],
+      "resilience": {
+        "attempts_saved": 0,
+        "continuation_turns": 0,
+        "rounds_skipped": 0
+      },
+      "roles": {
+        "editor": {
+          "kind": "subprocess"
+        },
+        "grouper": {
+          "kind": "fields"
+        },
+        "reflector": {
+          "kind": "agent_cli"
+        }
+      },
+      "rounds": [
+        {
+          "attempts": [],
+          "baseline_complete": true,
+          "baseline_measurement_id": "m-r00-champion",
+          "champion_complete": false,
+          "final": [],
+          "gate_scope": null,
+          "outcome": "unplanned",
+          "reason": "reflection_declined",
+          "round": 1,
+          "visitation": null
+        }
+      ],
+      "run_id": "c-run",
+      "schema_version": 1,
+      "selection": [],
+      "settings": {
+        "baseline_refresh": "off",
+        "round_stop": "first_accepted",
+        "stability": "stable"
+      },
+      "suspended": false,
+      "suspensions": []
+    },
+    "cost": null,
+    "distributions": [],
+    "lab_checks": null,
+    "lab_checks_reason": null,
+    "lab_checks_state": "present",
+    "lab_independent": {
+      "attainability": {
+        "local_guidance": null,
+        "preflight": []
+      },
+      "attempts": [],
+      "evidence": "unavailable",
+      "next_action": "finished",
+      "settings": {
+        "bound_fallback": null,
+        "execution_noise": {
+          "allowance": {
+            "exact": {
+              "denominator": "1",
+              "format": "rational-hex/1",
+              "numerator": "0"
+            },
+            "value": 0.0
+          },
+          "kind": "negligible",
+          "source": null,
+          "source_kind": "assumed_negligible"
+        },
+        "fresh_parent": false,
+        "global_rule": "point",
+        "mode": "point",
+        "repeats": 1,
+        "stability": "stable",
+        "statistics": {
+          "method": null,
+          "unit": null
+        },
+        "train_cases": 2,
+        "train_slots": 2,
+        "verification": "reuse"
+      },
+      "work": {
+        "committed": null,
+        "planned": {
+          "admitted_baseline_imports": 0,
+          "affected_cases": null,
+          "baseline_slots": 2,
+          "basis": "full_initial_baseline_and_conditional_future_stage_scenarios",
+          "candidate_final_slots_if_gate_passes": null,
+          "champion_scope": "reached_finalist",
+          "champion_slots_per_scope": 0,
+          "connection_preflight": "separate_no_measurement_credit",
+          "noise_diagnostic_slots": 0,
+          "parent_gate_slots": 0,
+          "probes_and_retries": "separate",
+          "slots_per_refresh": 2
+        },
+        "remaining": null
+      }
+    },
+    "lab_independent_reason": null,
+    "lab_independent_state": "present",
+    "lab_notices": [
+      {
+        "by_reason": {
+          "reflection_declined": 1
+        },
+        "code": "no_candidate_measured",
+        "reflection_errors": {},
+        "rounds": 1
+      }
+    ],
+    "lab_result": null,
+    "lab_rounds": [
+      {
+        "reflection": {
+          "error_class": null,
+          "reason": null,
+          "state": "declined"
+        },
+        "round": 1,
+        "source": "core_raw"
+      }
+    ],
+    "lab_rounds_reason": null,
+    "lab_rounds_state": "present",
+    "lab_starts": [],
+    "legacy_run": false,
+    "measurements": [
+      {
+        "call_failures_by_code": {},
+        "call_retries": 0,
+        "candidate_digest": "fbd7fa5cd7695fbda3cd44d6052a66419e46395644eabfaf65a0dabc0dabc8c4",
+        "coverage": {
+          "expected": 2,
+          "scored": 2,
+          "state": "complete"
+        },
+        "excluded_pairs": null,
+        "journal_integrity": "complete",
+        "metrics": {
+          "score": {
+            "count": 2,
+            "mean": 0.5
+          }
+        },
+        "references": [
+          {
+            "content_digest": "de2357032a1a6288202ba0cdf1bcb780670420e2d1baf1fa156c631514d93801",
+            "kind": "journal_record",
+            "locator": "events.jsonl#bytes=0:19374",
+            "run_id": "m-r00-champion",
+            "version": 1
+          }
+        ],
+        "run_id": "m-r00-champion",
+        "samples": [
+          {
+            "candidate_digest": "fbd7fa5cd7695fbda3cd44d6052a66419e46395644eabfaf65a0dabc0dabc8c4",
+            "case_id": "c1",
+            "critical_pass": true,
+            "evaluation": {
+              "kind": "score",
+              "outcome": "completed",
+              "owner": null,
+              "reason": null
+            },
+            "execution": {
+              "kind": "score",
+              "outcome": "completed",
+              "owner": null,
+              "reason": null
+            },
+            "execution_state": "finished",
+            "metrics": {
+              "score": 0.0
+            },
+            "sample_id": "01",
+            "scoring_state": "finished",
+            "tries": 1
+          },
+          {
+            "candidate_digest": "fbd7fa5cd7695fbda3cd44d6052a66419e46395644eabfaf65a0dabc0dabc8c4",
+            "case_id": "c2",
+            "critical_pass": true,
+            "evaluation": {
+              "kind": "score",
+              "outcome": "completed",
+              "owner": null,
+              "reason": null
+            },
+            "execution": {
+              "kind": "score",
+              "outcome": "completed",
+              "owner": null,
+              "reason": null
+            },
+            "execution_state": "finished",
+            "metrics": {
+              "score": 1.0
+            },
+            "sample_id": "01",
+            "scoring_state": "finished",
+            "tries": 1
+          }
+        ],
+        "tries": 2
+      }
+    ],
+    "operation": "campaign",
+    "owner_run": true,
+    "producing_version": "2.0.0b14",
+    "reflector_probe": null,
+    "reflector_probe_reason": "unreadable",
+    "reflector_probe_state": "unavailable",
+    "unavailable_measurements": []
+  },
+  "reason": null,
+  "reflector_probe": null,
+  "reflector_probe_state": "unavailable",
+  "reflector_probe_reason": "unreadable",
+  "starts": [],
+  "usage": [
+    {
+      "measurement_id": "m-r00-champion",
+      "usage": null,
+      "usage_state": "unavailable"
+    }
+  ],
+  "core_terminal": null
+}

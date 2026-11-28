@@ -788,14 +788,14 @@ def test_the_target_call_ledger_is_exported() -> None:
         assert name not in tree_package.__all__
 
 
-def test_the_comparable_links_surface_removes_one_name_and_adds_none() -> None:
-    """D2a §3, §6: `LineageConditionChanged` is gone; the findings stay by module path.
+def test_the_comparable_links_surface_keeps_the_removed_name_absent() -> None:
+    """D2a §3, §6: `LineageConditionChanged` is gone; findings stay by module path.
 
     A link across a changed comparable field is no longer refused, so the class
     that refusal raised is not exported any more (a pre-1.0 alpha removal,
     recorded in `CHANGELOG.md`). The collected refusal is still
-    `EvolveRefused`, reachable as before through `evolution.tree.execution.output_admission`, and
-    its `findings` element, `RefusalFinding`, sits beside it.
+    `EvolveRefused`, also exported through the root for Lab (PDR-0055). Its
+    `findings` element, `RefusalFinding`, stays by module path.
     """
 
     from evolution.tree import campaign
@@ -806,7 +806,8 @@ def test_the_comparable_links_surface_removes_one_name_and_adds_none() -> None:
     assert not hasattr(campaign, "LineageConditionChanged")
     for name in ("EvolveRefused", "RefusalFinding"):
         assert name in output_admission.__all__
-        assert name not in tree_package.__all__
+    assert tree_package.EvolveRefused is output_admission.EvolveRefused
+    assert "RefusalFinding" not in tree_package.__all__
 
 
 # -- the continuation line (continuable terminals §8) --------------------------
@@ -1146,7 +1147,7 @@ ArtifactAdmissionRefused ArtifactStoreStopped AttestationError PromotionCapableA
 verify_attestation HttpInstance HttpSessionAdapter HttpTransport TargetCallLedger TargetCallSettlement
 TargetCallRecord Authorization RefusalDifference read_decisions refusal_class write_decision
 ManifestError SCHEMA_V15 ManifestV2 TargetBinding load_manifest_v2 conformance_manifest
-manifest_dependencies DependencyInventory Dependency EnvironmentName new_instance_id
+manifest_dependencies measure_manifest_chat_scenario DependencyInventory Dependency EnvironmentName new_instance_id
 Check ConformanceReport Scenario adapter_conformance wire_conformance run_conformance
 ReferenceTarget serve_reference_target TargetServer TargetBackend BackendInstance BackendSession
 BackendReply LoadedTree BackendError serve_target CallRetries Message TurnResult Usage
@@ -1158,5 +1159,40 @@ LineageFamilyUnsupported LineageModeUnsupported LineageNotContinuable LineageNot
 PolicyError ReflectRequest ReflectResult ReflectorIdentity UndeclaredSibling inspect_campaign
 next_actions project_campaign_result project_campaign_status read_run_id resume_campaign run_campaign
 evaluate inspect_evaluation
+scaffold ScaffoldResult ScaffoldError export_run TraceSummary EvolveRefused effect_sentence safe_record
+declare_instance_components MeasurementProvenance measurement_provenance
 """.split()
     assert tree_package.__all__ == expected
+
+
+def test_effect_sentence_matches_the_cli_text() -> None:
+    from evolution.tree.execution.authorizations import EFFECT_SENTENCES
+
+    for effect, lines in EFFECT_SENTENCES.items():
+        assert tree_package.effect_sentence(effect) == lines
+    with pytest.raises(KeyError):
+        tree_package.effect_sentence("unknown-effect")
+
+
+@pytest.mark.parametrize(
+    ("module", "name"),
+    [
+        ("evolution.tree.reference_target_cli", "scaffold"),
+        ("evolution.tree.reference_target_cli", "ScaffoldResult"),
+        ("evolution.tree.reference_target_cli", "ScaffoldError"),
+        ("evolution.tree.run_trace", "export_run"),
+        ("evolution.tree.run_trace", "TraceSummary"),
+        ("evolution.tree.execution.output_admission", "EvolveRefused"),
+        ("evolution.tree.storage.redaction", "safe_record"),
+    ],
+)
+def test_campaign_helper_exports_keep_their_identity(module: str, name: str) -> None:
+    assert name in tree_package.__all__
+    assert getattr(tree_package, name) is getattr(importlib.import_module(module), name)
+
+
+def test_public_record_redactor_keeps_existing_behavior() -> None:
+    assert tree_package.safe_record(
+        {"message": "<think>hidden</think> credential-value", "api_key": "value"},
+        ("credential-value",),
+    ) == {"message": "[REDACTED] [REDACTED]", "api_key": "[REDACTED]"}

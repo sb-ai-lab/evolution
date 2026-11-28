@@ -127,6 +127,7 @@ from evolution.tree.roles.grouping.portion_session import (
     chat_section,
     map_portions,
     model_group,
+    portion_messages,
 )
 from evolution.tree.roles.grouping.reflect_grouping import GroupingRegistry, _digest
 from evolution.tree.roles.role_call import AttemptRecorder, RoleCallExhausted
@@ -238,7 +239,7 @@ def input_budget(
     """
 
     tools = grouping_tools(traces=True)
-    opening = [{"role": "system", "content": system}, {"role": "user", "content": PORTION_LEAD}]
+    opening = portion_messages(system, "")
     reserve = (
         chat_request_size(opening, tools)
         + limits.read_chars

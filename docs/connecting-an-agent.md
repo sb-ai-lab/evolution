@@ -2,7 +2,7 @@
 
 A Target Service lets Evolution run your agent against a particular version of its files. You bring an agent runtime, the editable skills or prompts it reads, evaluation cases and a scorer. Evolution supplies a snapshot of those files and the case inputs; your backend runs the agent and returns what happened. You keep control of its provider and tools.
 
-Run the [Quickstart](../QUICKSTART.md) first to see the complete offline flow. To connect your own agent, implement a small Python backend that loads the supplied snapshot, opens a case, runs each turn and closes its resources. The packaged `TargetServer` handles the HTTP protocol, request IDs, replay, identity checks and snapshot creation. The [complete offline backend](target-server.md#a-complete-offline-backend) gives you a working callback example to adapt.
+Run the [Quickstart](core-quickstart.md) first to see the complete offline flow. To connect your own agent, implement a small Python backend that loads the supplied snapshot, opens a case, runs each turn and closes its resources. The packaged `TargetServer` handles the HTTP protocol, request IDs, replay, identity checks and snapshot creation. The [complete offline backend](target-server.md#a-complete-offline-backend) gives you a working callback example to adapt.
 
 The crucial step is reading instructions from `LoadedTree.root` in `backend.load(tree)`. Evolution creates a different snapshot for each version it tests. If your agent keeps reading files from your original checkout, every comparison runs the same instructions, even after an edit. [Load the files Evolution gives you](#load-the-files-evolution-gives-you) shows the read.
 
@@ -139,7 +139,7 @@ reply = BackendReply(TurnResult(
 ))
 ```
 
-Here `answer`, `prompt_tokens` and `completion_tokens` come from your runtime. The server measures turn latency. Include useful structured events, such as tool calls or skill reads, when your runtime provides them. The [event reference](target-server.md#replies-and-events) lists which fields the editor can see.
+Here `answer`, `prompt_tokens` and `completion_tokens` come from your runtime. The server measures turn latency. Include useful structured events, such as tool calls or skill reads, when your runtime provides them. The [event reference](target-server.md#replies-and-events) lists which fields the Editor can see.
 
 Choose the outcome based on what happened:
 
@@ -196,7 +196,7 @@ With these reports, the initial gate measures only the text cases about deposits
 
 A path names a whole file. If one file holds a section for each topic, an edit to any section changes the file, and the gate measures every case that used it. To narrow this, implement `components()` on the instance. It names parts of the agent's context, such as `prompt/prompts.yaml#deposits`, with a hash of the text the agent renders for each part and the files each part is built from. A turn then lists those component identifiers in `used` instead of the file path, and the gate measures cases that used a component whose hash changed, plus cases whose provenance is unknown.
 
-Every file the editor may change must then appear in some component's `sources` or in some baseline turn's `used`. An edit to a file that is in neither measures every case, with the fallback `unaccounted_path`. A Target must also render the same component map for the same tree. The format, the limits and that rule are in [The optional `components()` callback](target-server.md#the-optional-components-callback). Start with file paths, and add components when most edits change a file that every case uses.
+Every file the Editor may change must then appear in some component's `sources` or in some baseline turn's `used`. An edit to a file that is in neither measures every case, with the fallback `unaccounted_path`. A Target must also render the same component map for the same tree. The format, the limits and that rule are in [The optional `components()` callback](target-server.md#the-optional-components-callback). Start with file paths, and add components when most edits change a file that every case uses.
 
 Keep run secrets out of component IDs and `sources` paths too. Evolution omits an ID that contains a run secret from every published map, including the Candidate inspection, and records the number omitted as `components_withheld` only when positive. If either the baseline or Candidate map has withheld components, every case counts as affected, with fallback reason `components_withheld`. The omitted ID does not by itself make every sample's provenance unknown; a sample that reports it in `used` has a secret in its union and becomes unknown under the rule above. This protection applies to both `/15` and `/16`, including a secret inside an ID or equal to a real component name, without replacement tokens.
 
@@ -225,13 +225,13 @@ Your application constructs `TargetServer` with your backend and then calls `ser
 
 Start the target yourself. Evolution does not launch your server process. Ensure shutdown stops the HTTP server and closes the `TargetServer` so instances and temporary snapshots are released.
 
-Credentials for your agent belong in its process environment or its own credential system. Credentials for in-process editor and Reflector backends are separately named by the manifest. Keep secret values out of the manifest, corpus, events and `describe()` output.
+Credentials for your agent belong in its process environment or its own credential system. Credentials for in-process Editor and Reflector backends are separately named by the manifest. Keep secret values out of the manifest, corpus, events and `describe()` output.
 
 ## Replace the demo evaluation and improvement roles
 
 The sample scorer rewards the word `IMPROVED`; replace it with a scorer for your task. It reads one JSON request from stdin and writes one JSON object to stdout. Use stderr for diagnostic logs. Return the configured primary metric and meaningful criterion verdicts. Return the primary metric as a number between 0 and 1. The [scorer contract](manifest-v2.md#what-the-scorer-program-reads-and-writes) includes the request and response rules.
 
-The sample editor and Reflector are also scripted demonstrations. For real use, each role supports `subprocess`, `chat` or `agent_cli`. Choose a role backend appropriate to your environment and follow the complete [editor](manifest-v2.md#editor) and [Reflector](manifest-v2.md#reflector) configuration examples. Both roles are part of the campaign; replacing only the editor leaves the demo diagnosis logic in place.
+The sample Editor and Reflector are also scripted demonstrations. For real use, each role supports `subprocess`, `chat` or `agent_cli`. Choose a role backend appropriate to your environment and follow the complete [Editor](manifest-v2.md#editor) and [Reflector](manifest-v2.md#reflector) configuration examples. Both roles are part of the campaign; replacing only the Editor leaves the demo diagnosis logic in place.
 
 The Grouper groups the failing cases before the Reflector sees them. The sample uses `kind: fields`, which groups offline by equal failed criteria and needs no model. For grouping by meaning, declare `command`, `chat` or `agent_cli` instead; see the [`grouper` reference](manifest-v2.md#grouper).
 
@@ -281,7 +281,7 @@ The scorer's criterion ids can reach the Editor in family 14: a criterion id the
    ```
 
    The demo prints `      6 ["skills/SKILL.md"]`. A `null` line is a try with unknown provenance. Compare the lists with the files your agent loads for those cases.
-5. Run the actual editor and Reflector. Inspect the proposed diff and selected version before increasing the campaign budget.
+5. Run the actual Editor and Reflector. Inspect the proposed diff and selected version before increasing the campaign budget.
 6. Exercise an outage and recovery path. Keep turn resends disabled until you can justify that a failed turn is safe to retry.
 
 Conformance tests protocol behavior; it does not certify your scorer, your agent's isolation or the quality of its answers. Record integration limitations with your experiment so colleagues know what the measurements mean.

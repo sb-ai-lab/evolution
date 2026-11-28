@@ -105,6 +105,7 @@ from evolution.tree.campaign_identity import (
     PARTITION_PROFILES,
     AdaptationIdentityV1,
     CampaignIdentityV1,
+    declared_baseline,
     final_measurement_id_for,
     focus_case_repeats,
     measurement_id_for,
@@ -5225,6 +5226,7 @@ FINAL_CAMPAIGN_FAMILY = EnvelopeFamily(
     lambda event: (
         event in (START_EVENT, REFLECTION_START_EVENT, GROUPING_START_EVENT, CONNECTION_START_EVENT)
     ),
+    pure=True,
 )
 
 
@@ -6248,7 +6250,10 @@ class CampaignLifecycle:
     def prepare(self, record: Envelope) -> LifecycleTransition:
         v = record.to_payload()
         if self._independent:
-            campaign_family_for(15).validate_payload(v["event"], v["payload"])
+            family15 = campaign_family_for(15)
+            # An envelope admitted under the family-15 contract already passed this.
+            if not record.validated_under(family15):
+                family15.validate_payload(v["event"], v["payload"])
         p, event = v["payload"], v["event"]
         sequence = self.sequence
         _durable_reference._refuse(v["sequence"] == sequence + 1, "sequence is not contiguous")
@@ -6648,7 +6653,7 @@ class CampaignLifecycle:
             self.creation_identity_digest = identity_digest
             self._epochs = [dict(data)]
             self.producing_version = self._creation_version = version
-            declared = (linked or {}).get("baseline") or {}
+            declared = declared_baseline(data) or {}
             self._declared_import = int(declared.get("imported", 0)) > 0
             self._adaptation = None if adaptation is None else dict(adaptation)
             self._grouping_policy = grouping_policy
@@ -6969,8 +6974,7 @@ class CampaignLifecycle:
         # `rebaseline` (the baseline is measured from empty): it is abandoned
         # as an applied `fresh_baseline` abandons it.
         next_round = max(begun) + 1 if begun else None
-        linked = self.identity.get("linked_from")
-        declared = linked.get("baseline") if isinstance(linked, Mapping) else None
+        declared = declared_baseline(self.identity)
         abandons_import = (
             effect == "rebaseline"
             and not begun
@@ -7168,8 +7172,7 @@ class CampaignLifecycle:
         no terminal; the baseline is then born empty and measured fresh.
         """
 
-        linked = self.identity.get("linked_from")
-        baseline = linked.get("baseline") if isinstance(linked, Mapping) else None
+        baseline = declared_baseline(self.identity)
         declared = _need(baseline, "fresh_baseline needs a declared baseline import")
         _durable_reference._refuse(
             self._baseline_abandoned is None, "the baseline import is already abandoned"
@@ -9970,8 +9973,7 @@ class CampaignLifecycle:
             # rows a stage dispatches, never its carried ones.
             # I2 spec §5.3 widens it to any measurement a `measurement_rebound`
             # created with carried rows.
-            linked = self.identity.get("linked_from")
-            baseline = linked.get("baseline") if isinstance(linked, Mapping) else None
+            baseline = declared_baseline(self.identity)
             _durable_reference._refuse(
                 (
                     p["measurement_id"] == measurement_id_for(None)

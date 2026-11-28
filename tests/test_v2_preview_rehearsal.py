@@ -1,4 +1,4 @@
-"""The pure helpers of the preview rehearsal script.
+"""Focused checks for the preview rehearsal script.
 
 The rehearsal itself builds a wheel and creates virtual environments, so it
 is run by hand as part of the whole-change gate (spec §5.2). What a test can
@@ -332,6 +332,39 @@ def test_boundary_env_redirects_every_implicit_location_under_root(tmp_path: Pat
         assert Path(env[name]).is_relative_to(tmp_path), name
     assert "PYTHONPATH" not in env
     assert env["PATH"] == os.environ["PATH"]
+
+
+@pytest.mark.parametrize("step", ["venv", "install"])
+def test_installation_keeps_rustup_state_out_of_home(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, step: str
+) -> None:
+    monkeypatch.delenv("RUSTUP_HOME", raising=False)
+    home = tmp_path / "home"
+    home.mkdir()
+    cwd = tmp_path / "cwd"
+    cwd.mkdir()
+    preview = tmp_path / "preview"
+    python = preview / "bin" / "python"
+    python.parent.mkdir(parents=True)
+    python.write_text(
+        "#!/bin/sh\n"
+        'if [ "$2" = venv ] || [ "$3" = install ]; then\n'
+        '    rustup_home="${RUSTUP_HOME:-$HOME/.rustup}"\n'
+        '    mkdir -p "$rustup_home" && touch "$rustup_home/settings.toml"\n'
+        "fi\n",
+        encoding="utf-8",
+    )
+    python.chmod(0o755)
+
+    env = rehearsal.boundary_env(tmp_path)
+    if step == "venv":
+        rehearsal.make_venv(str(python), preview, env, cwd, "preview venv")
+    else:
+        rehearsal.install_preview(preview, tmp_path / "package.whl", env, cwd)
+
+    assert list(home.iterdir()) == []
+    assert list(cwd.iterdir()) == []
+    assert list(preview.iterdir()) == [python.parent]
 
 
 def test_set_port_rewrites_only_the_base_url(tmp_path: Path) -> None:

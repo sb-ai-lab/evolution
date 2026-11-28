@@ -1,0 +1,152 @@
+{
+ "actions": [
+  {
+   "fields": {
+    "measurement_id": "m-r00-champion",
+    "round": 1,
+    "stage": 1
+   },
+   "kind": "MeasureBaselineStage"
+  }
+ ],
+ "alpha": null,
+ "campaign_outcome": null,
+ "caveats": [
+  {
+   "attempt_id": null,
+   "kind": "observe_gate_not_enforced",
+   "round": null
+  },
+  {
+   "attempt_id": null,
+   "kind": "uncalibrated_point_estimates",
+   "round": null
+  },
+  {
+   "attempt_id": null,
+   "kind": "champion_not_contemporaneous",
+   "round": null
+  }
+ ],
+ "claim_scope": "campaign",
+ "complete": false,
+ "condition_changes": [],
+ "connection": {
+  "attempts": 1,
+  "binding_digest": "603502bf624226583dcd9b0496963811eeab357dd7a365ec6c0f39fe4f96f18c",
+  "detail": {
+   "code": "connection_field_empty",
+   "manifest_path": "scorer.metric_contract.target_fields[0]",
+   "metric": "score",
+   "observed_path": "events[event=assistant_message,last]/content"
+  },
+  "operation_id": "dae95f822ee3479c9af4e3006043a034",
+  "outcome": "connection_incompatible",
+  "state": "suspended"
+ },
+ "consistency": "durable",
+ "corpus_split": {
+  "mode": "implicit_train",
+  "partition_digest": "7b790d091190b5271f203b39ec9119cbb055f74f372f76ce8f32797d800769d4",
+  "scope": "train",
+  "test_cases": 0,
+  "train_cases": 2
+ },
+ "final_champion": {
+  "baseline_origin": "seed",
+  "digest": "fbd7fa5cd7695fbda3cd44d6052a66419e46395644eabfaf65a0dabc0dabc8c4",
+  "measurement_complete": false,
+  "measurement_id": "m-r00-champion",
+  "version": "v0"
+ },
+ "identity_digest": "57234d7eaf2f40b2bc0d443bab0ab4a1680fe90151d28c79be0325d1256f748d",
+ "indeterminate": {
+  "counts": {
+   "environment": 0,
+   "rollout": 0,
+   "scorer": 0,
+   "target": 0
+  },
+  "denominator": 0,
+  "lineage": null,
+  "threshold_reached": null,
+  "window": {
+   "counts": {
+    "environment": 0,
+    "rollout": 0,
+    "scorer": 0,
+    "target": 0
+   },
+   "denominator": 0,
+   "start": 6
+  }
+ },
+ "kind": "campaign_status",
+ "lineage": {
+  "candidates": [],
+  "champion": "v0",
+  "champions": [
+   "v0"
+  ],
+  "stopped_code": null,
+  "store_state": "active"
+ },
+ "linked_from": null,
+ "measurements": [],
+ "rebases": [],
+ "resilience": {
+  "attempts_saved": 0,
+  "continuation_turns": 0,
+  "rounds_skipped": 0
+ },
+ "roles": {
+  "editor": {
+   "kind": "subprocess"
+  },
+  "grouper": {
+   "kind": "fields"
+  },
+  "reflector": {
+   "kind": "subprocess"
+  }
+ },
+ "rounds": [
+  {
+   "attempts": [],
+   "baseline_complete": false,
+   "baseline_measurement_id": "m-r00-champion",
+   "champion_complete": false,
+   "final": [],
+   "gate_scope": null,
+   "outcome": null,
+   "reason": null,
+   "round": 1,
+   "visitation": null
+  }
+ ],
+ "run_id": "c-0f84a4e8e5074a7286dc8a9661840703",
+ "schema_version": 1,
+ "settings": {
+  "baseline_refresh": {
+   "count": 0,
+   "every_rounds": 3,
+   "performed": []
+  },
+  "round_stop": "first_accepted",
+  "stability": "stable"
+ },
+ "siblings": {
+  "artifact_store": "born",
+  "m-r00-champion": "born"
+ },
+ "suspended": true,
+ "suspensions": [
+  {
+   "evidence_kind": "stage_record",
+   "owner": "connection",
+   "reason": "connection_incompatible",
+   "seq": 6
+  }
+ ],
+ "verification": null
+}

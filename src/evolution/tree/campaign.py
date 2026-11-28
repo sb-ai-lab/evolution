@@ -163,7 +163,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Final, Literal, NamedTuple, cast
 from uuid import uuid4
 
-from evolution.lineage.state_io import ensure_private_directory
+from evolution.lineage.state_io import check_durability, ensure_private_directory
 from evolution.tree.affected_cases import (
     BaselineUnavailable,
     baseline_inputs,
@@ -202,11 +202,21 @@ from evolution.tree.baseline_import import (
     FrozenSourceCorrupt,
     SourceMeasurement,
     admit_rows,
+    carried_components,
     carried_traces,
     fields_between,
     import_pairs_digest,
     read_frozen_source,
     read_source,
+)
+from evolution.tree.baseline_sources import (
+    BaselineImportRefused,
+    ImportFinding,
+    StandaloneSource,
+    authorizable_differences,
+    caveat_fields,
+    held_out_finding,
+    read_standalone_source,
 )
 from evolution.tree.campaign_caveats import aggregate_lineage
 from evolution.tree.campaign_editor import build_brief, run_editor, unchanged
@@ -229,10 +239,12 @@ from evolution.tree.campaign_identity import (
     adaptation_identity_slot,
     admit_capabilities,
     build_identity,
+    declared_baseline,
     final_measurement_id_for,
     focus_case_repeats,
     measurement_id_for,
     measurement_identity,
+    metric_plan_digest,
     observe_case_repeats,
     parent_measurement_id_for,
     probe_continues,
@@ -445,6 +457,8 @@ from evolution.tree.execution.authorizations import (
     AuthorizationError,
     Effect,
     RefusalDifference,
+    baseline_import_held_out_digest,
+    baseline_import_incompatible_digest,
     baseline_import_instance_digest,
     comparable_changed,
     comparable_field,
@@ -462,6 +476,7 @@ from evolution.tree.execution.check_modes import (
     check_predicate,
     combine_checks,
     redact_for_journal,
+    repeated_read_check,
     scan_grouping_value,
 )
 from evolution.tree.execution.interaction import (
@@ -483,6 +498,7 @@ from evolution.tree.execution.journal_identity import (
     IdentityError,
     canonical_json,
     resolve_package_version,
+    scorer_binding,
 )
 from evolution.tree.execution.journal_rollout import ConnectionAdmission
 from evolution.tree.execution.journal_schema import Lifecycle
@@ -1338,6 +1354,27 @@ class BaselineImportUnavailable(ValueError):
 
     def __str__(self) -> str:
         return "baseline_import_unavailable"
+
+
+class BaselineImportInputsChanged(ValueError):
+    """`baseline_import_inputs_changed`, hard (ADR-0065, amended 2026-11-16).
+
+    The import compared the source with this campaign's seed tree, scorer and
+    metric plan before Target preflight; preflight and `build` compute them
+    again for the identity. When the two disagree, rows would be imported, or
+    a decision recorded, against values nobody compared. `differences` names
+    each moved field as the import comparison does (`identity.candidate_digest`,
+    `identity.scorer.<key>`, `identity.metric_plan_digest`), `journaled` being
+    the compared value and `observed` the one the identity recorded. Raised
+    before anything is written, and no decision accepts it.
+    """
+
+    def __init__(self, differences: tuple[RefusalDifference, ...]) -> None:
+        super().__init__("baseline_import_inputs_changed")
+        self.differences = differences
+
+    def __str__(self) -> str:
+        return "baseline_import_inputs_changed"
 
 
 class HygieneNotAuthorizable(ValueError):
@@ -2280,6 +2317,7 @@ class _Campaign:
         # first-round baseline's birth. Held in memory, never journaled; a
         # resume before the birth has none (`owed_import`).
         self.pending_import: tuple[Mapping[str, Any], ...] = ()
+        self.pending_components: tuple[Mapping[str, Any], ...] = ()
         self.pending_diagnostics: Any = None
         self.pending_diagnostic_data: dict[str, Any] | None = None
         self.diagnostic_staging: Any = None
@@ -2288,6 +2326,8 @@ class _Campaign:
         # accepted `fresh_baseline` decision `adopt` matched for a lost source
         # (§5.3), written by `_write_consequences`.
         self.linked_from_path: Path | None = None
+        self.baseline_import_path: Path | None = None
+        self.baseline_import_declared = False
         self.pending_fresh_baseline: tuple[Authorization, str, str] | None = None
         # Comparable-links spec §5.2: set once an accepted close or terminal
         # has been written by `adopt`, so `resume_campaign` reports the
@@ -5279,9 +5319,9 @@ class _Campaign:
             # ADR-0019 (amended 2026-10-03): the binding names the version the
             # declared import was admitted under.
             measurement.primary_range = self.range_of(action.measurement_id)
-            imported = self.birth_import(action.round)
+            imported, components = self.birth_import(action.round)
             with _boundary("measurement_journal", action.measurement_id):
-                measurement.create(imported=imported)
+                measurement.create(imported=imported, declared_components=components)
             self.measurements[action.measurement_id] = measurement
             self.siblings[action.measurement_id] = "born"
         # The baseline is bound and, when it was fresh, born: the seam a fixture
@@ -5356,6 +5396,7 @@ class _Campaign:
         target: Any,
         *,
         source_root: Path,
+        locator: str | None = None,
     ) -> None:
         if self.family_version != 15 or not rows:
             return
@@ -5407,7 +5448,8 @@ class _Campaign:
                 and r.payload["purpose"] == "baseline_diagnostics"
             ]
             if previous and any(dict(r.payload) != declaration for r in previous):
-                declared = observed.records[0].payload["identity"]["linked_from"]["baseline"]
+                declared = declared_baseline(observed.records[0].payload["identity"])
+                assert declared is not None
                 raise BaselineImportUnavailable(
                     baseline_import_instance_digest(self.run_id, str(declared["pairs_digest"]))
                 )
@@ -5441,7 +5483,7 @@ class _Campaign:
                         version=1,
                         kind="journal_prefix",
                         run_id=source.records[0].to_payload()["run_id"],
-                        locator=f"measurements/{source.measurement_id}/events.jsonl#bytes=0:{raw_bytes}",
+                        locator=f"{locator or f'measurements/{source.measurement_id}/events.jsonl'}#bytes=0:{raw_bytes}",
                         content_digest=source.prefix_digest,
                     ),
                 )
@@ -5521,6 +5563,35 @@ class _Campaign:
         )
         self.hook("after_diagnostic_import_bound")
 
+    def import_metadata(
+        self, source: SourceMeasurement, imported: BaselineImport
+    ) -> dict[str, Any]:
+        carried = carried_components(source, imported.rows, self.secrets)
+        self.pending_components = tuple(payload for _, payload in carried)
+        wanted = {row["components_digest"] for row in imported.rows if "components_digest" in row}
+        missing = len(wanted - {digest for digest, _ in carried})
+        if missing and self.notes is not None:
+            self.notes(f"{missing} component maps not carried")
+        reported = sum("provenance" in row for row in imported.rows)
+        unknown = imported.imported - reported
+        if (
+            unknown
+            and self.notes is not None
+            and self.policy.to_payload()["gate"]["provenance"]["kind"] == "reported"
+        ):
+            self.notes(
+                f"{unknown} of {imported.imported} imported rows carry no provenance; with gate.provenance.kind reported every Attempt treats their cases as affected"
+            )
+        return dict(
+            not_imported=dict(imported.not_imported),
+            components=[digest for digest, _ in carried],
+            provenance=dict(
+                reported=reported,
+                unknown=imported.imported - reported,
+                source_recorded=source.records[0].payload["identity"].get("row_provenance") == 1,
+            ),
+        )
+
     def declared_baseline(
         self, identity: CampaignIdentityV1 | None = None
     ) -> Mapping[str, Any] | None:
@@ -5529,10 +5600,11 @@ class _Campaign:
         identity = identity or self.identity
         if identity is None:
             return None
-        linked = identity.to_payload().get("linked_from")
-        return None if linked is None else linked.get("baseline")
+        return declared_baseline(identity.to_payload())
 
-    def birth_import(self, round_number: int) -> tuple[Mapping[str, Any], ...]:
+    def birth_import(
+        self, round_number: int
+    ) -> tuple[tuple[Mapping[str, Any], ...], tuple[Mapping[str, Any], ...]]:
         """The rows the first-round baseline is born with (§5.2), verified.
 
         Only the successor's first round's baseline carries a declared import;
@@ -5545,17 +5617,17 @@ class _Campaign:
         declared = self.declared_baseline()
         snapshot = self.snapshot()
         if declared is None or round_number != snapshot.first_round:
-            return ()
+            return (), ()
         # §5.3: an accepted `fresh_baseline` releases the copy; the baseline
         # is born empty and measured in full.
         if declared["imported"] == 0 or snapshot.baseline_abandoned is not None:
-            return ()
+            return (), ()
         rows = self.owed_import()
         if len(rows) != declared["imported"] or (
             import_pairs_digest(rows) != declared["pairs_digest"]
         ):
             raise CampaignInvariantViolated("the baseline import does not match its declaration")
-        return rows
+        return rows, self.pending_components
 
     def owed_import(
         self, identity: CampaignIdentityV1 | None = None, creation_version: str | None = None
@@ -5598,36 +5670,64 @@ class _Campaign:
         """
 
         instance = baseline_import_instance_digest(self.run_id, str(declared["pairs_digest"]))
-        if self.linked_from_path is None:
-            raise BaselineImportUnavailable(instance)
         payload = identity.to_payload()
-        linked = payload["linked_from"]
-        root = Path(self.linked_from_path)
-        # Only the reads of the source are the source's failures: a missing,
-        # unreadable, other-family or unfinished predecessor, or a champion
-        # measurement `read_source` cannot open. The recomputation below them
-        # is this run's own, and an error there is an invariant bug that must
-        # surface, never be offered to the operator as an authorizable refusal.
-        try:
-            predecessor = _predecessor(root, expected_family=self.family_version)
-            source = read_source(root, predecessor.reduced)
-        except (
-            BaselineSourceUnavailable,
-            CampaignMissing,
-            CampaignUnreadable,
-            LineageFamilyUnsupported,
-            LineageNotFinished,
-            JournalBoundaryError,
-            SchemaError,
-            OSError,
-        ):
-            raise BaselineImportUnavailable(instance) from None
-        if (
-            predecessor.reduced.run_id != linked["run_id"]
-            or source.measurement_id != declared["source_measurement_id"]
-            or source.prefix_digest != declared["source_prefix_digest"]
-        ):
-            raise BaselineImportUnavailable(instance)
+        locator = None
+        if declared.get("mode") == "import":
+            if self.baseline_import_path is None:
+                raise BaselineImportUnavailable(instance)
+            root = self.baseline_import_path
+            try:
+                standalone = read_standalone_source(root)
+            except BaselineSourceUnavailable:
+                raise BaselineImportUnavailable(instance) from None
+            source = standalone.measurement
+            facts = dict(
+                kind=standalone.kind,
+                run_id=source.run_id,
+                measurement_id=source.measurement_id,
+                identity_digest=source.identity_digest,
+                configuration_digest=standalone.configuration_digest,
+                split=standalone.split,
+                row_provenance=standalone.row_provenance,
+            )
+            if (
+                facts != dict(declared["source"])
+                or source.prefix_digest != declared["source_prefix_digest"]
+            ):
+                raise BaselineImportUnavailable(instance)
+            changed_fields = tuple(declared["fields"])
+            locator = standalone.journal_locator
+        else:
+            linked = payload["linked_from"]
+            if self.linked_from_path is None:
+                raise BaselineImportUnavailable(instance)
+            root = Path(self.linked_from_path)
+            # Only the reads of the source are the source's failures: a missing,
+            # unreadable, other-family or unfinished predecessor, or a champion
+            # measurement `read_source` cannot open. The recomputation below them
+            # is this run's own, and an error there is an invariant bug that must
+            # surface, never be offered to the operator as an authorizable refusal.
+            try:
+                predecessor = _predecessor(root, expected_family=self.family_version)
+                source = read_source(root, predecessor.reduced)
+            except (
+                BaselineSourceUnavailable,
+                CampaignMissing,
+                CampaignUnreadable,
+                LineageFamilyUnsupported,
+                LineageNotFinished,
+                JournalBoundaryError,
+                SchemaError,
+                OSError,
+            ):
+                raise BaselineImportUnavailable(instance) from None
+            if (
+                predecessor.reduced.run_id != linked["run_id"]
+                or source.measurement_id != declared["source_measurement_id"]
+                or source.prefix_digest != declared["source_prefix_digest"]
+            ):
+                raise BaselineImportUnavailable(instance)
+            changed_fields = tuple(linked.get("condition_changed", ()))
         target = measurement_identity(
             identity,
             self.corpus,
@@ -5638,7 +5738,7 @@ class _Campaign:
             source,
             target,
             primary=self.policy.metric_primary,
-            condition_changed=tuple(linked.get("condition_changed", ())),
+            condition_changed=changed_fields,
             dotted=False,
             primary_range=primary_range_required(self.family_version, creation_version),
         )
@@ -5647,7 +5747,14 @@ class _Campaign:
             or imported.imported != declared["imported"]
         ):
             raise BaselineImportUnavailable(instance)
-        self.prepare_link_diagnostics(source, imported.rows, target, source_root=root)
+        if "components" in declared:
+            carried = carried_components(source, imported.rows, self.secrets)
+            if [digest for digest, _ in carried] != list(declared["components"]):
+                raise BaselineImportUnavailable(instance)
+            self.pending_components = tuple(payload for _, payload in carried)
+        self.prepare_link_diagnostics(
+            source, imported.rows, target, source_root=root, locator=locator
+        )
         return imported.rows
 
     def _admit_owed_import(self, reduced: CampaignSnapshot, identity: CampaignIdentityV1) -> None:
@@ -7750,6 +7857,7 @@ class _Campaign:
                     if in_role
                     else None,
                     normalize_empty_keys=self.family_version == 15,
+                    check_repeated_read=repeated_read_check(self.checks, hits),
                 ),
                 cancelled=lambda: self.cancelled() or self.stopping,
                 deadline_at=deadline_at,
@@ -8535,6 +8643,7 @@ class _Campaign:
             ),
             attempts=AttemptRecorder(),
             traces=traces,
+            check_repeated_read=repeated_read_check(self.checks, tool_hits),
         )
         outcome = await run_editor(
             self.editor, request, cancelled=lambda: self.cancelled() or self.stopping
@@ -12127,7 +12236,12 @@ class _Campaign:
         return store_identity, preflight
 
     def build(
-        self, store_identity: ArtifactStoreIdentityV1, preflight: Any, linked: LinkedFrom | None
+        self,
+        store_identity: ArtifactStoreIdentityV1,
+        preflight: Any,
+        linked: LinkedFrom | None,
+        *,
+        baseline_import: Mapping[str, Any] | None = None,
     ) -> CampaignIdentityV1:
         identity: EditorIdentity = self.editor.identity
         return build_identity(
@@ -12146,6 +12260,7 @@ class _Campaign:
             ),
             probe=probe_identity_payload(self.probe),
             connection=None if self.connection is None else self.connection.identity_fields(),
+            baseline_import=baseline_import,
         )
 
     def open_log(self, *, create: bool) -> None:
@@ -12332,6 +12447,19 @@ class _Campaign:
             if now["identity_digest"] != latest["identity_digest"]:
                 raise IdentityError("run_identity_changed")
 
+        stored_import = latest["identity"].get("baseline_import")
+        if (stored_import is not None) != self.baseline_import_declared:
+            raise IdentityChanged(
+                (
+                    RefusalDifference(
+                        "identity.baseline_import",
+                        "present" if stored_import is not None else "absent",
+                        "present" if self.baseline_import_declared else "absent",
+                    ),
+                ),
+                None,
+                hard=True,
+            )
         if reduced.finished is None and reduced.cancelled_role_seq is not None:
             # Family 10 (PDR-0019, ADR-0023 amended 2026-09-28): a durable
             # `cancelled` role terminal is the caller's
@@ -12361,7 +12489,9 @@ class _Campaign:
                 stored["linked_from"], successor_family=_link_context(stored)
             )
         )
-        identity = self.build(store_identity, preflight, linked)
+        identity = self.build(
+            store_identity, preflight, linked, baseline_import=stored.get("baseline_import")
+        )
         rebuilt = {
             "identity": identity.to_payload(),
             "identity_digest": identity.digest,
@@ -13662,9 +13792,11 @@ class _Campaign:
                         and snapshot.finished is None
                         and snapshot.owed_terminal is None
                     )
-                    imported = self.birth_import(int(entry["round"])) if owes_copy else ()
+                    imported, components = (
+                        self.birth_import(int(entry["round"])) if owes_copy else ((), ())
+                    )
                     Measurement.remove_unborn(self.run_root, measurement_id)
-                    measurement.create(imported=imported)
+                    measurement.create(imported=imported, declared_components=components)
             self.measurements[measurement_id] = measurement
             self.siblings[measurement_id] = "born"
 
@@ -14681,6 +14813,12 @@ def derive_linked_from(
                 predecessor.linked,
                 reduced.run_id,
                 predecessor_baseline_abandoned=reduced.baseline_abandoned is not None,
+                predecessor_baseline_import=reduced.identity.get("baseline_import"),
+                provenance_reported=reduced.identity["policy"]
+                .get("gate", {})
+                .get("provenance", {})
+                .get("kind")
+                == "reported",
                 # I2 §6.3: the predecessor's in-place changes, one folded item
                 # -- for a family-7 successor only. A family-6 one (PDR-0016)
                 # journals what 0.3.0a17
@@ -14763,6 +14901,28 @@ def _validate_run_id(run_id: str | None) -> None:
         raise ValueError("run_id_invalid")
 
 
+def _require_compared_inputs(identity: CampaignIdentityV1, compared: Mapping[str, Any]) -> None:
+    """The identity records the values the baseline import was compared on.
+
+    The comparison runs before Target preflight, and preflight and `build`
+    scan the seed tree and bind the scorer again. An edit between them would
+    import rows measured on another tree with no finding, or record a decision
+    its own audit cannot recompute. Nothing of the import is durable yet, so a
+    difference is refused here as `BaselineImportInputsChanged`, naming the
+    fields; a new start compares again.
+    """
+
+    payload = identity.to_payload()
+    recorded = dict(
+        candidate_digest=payload["artifact_store"]["seed_candidate_digest"],
+        scorer=payload["scorer"],
+        metric_plan_digest=payload["metric_plan_digest"],
+    )
+    differences = identity_differences({"identity": dict(compared)}, {"identity": recorded})
+    if differences:
+        raise BaselineImportInputsChanged(differences)
+
+
 async def run_campaign(
     policy: CampaignPolicyV11,
     *,
@@ -14778,6 +14938,8 @@ async def run_campaign(
     environment_docs_repair: bool = False,
     corpus: Sequence[EvalCase],
     linked_from: Path | None = None,
+    baseline_import: Path | None = None,
+    on_baseline_imported: Callable[[BaselineImport, StandaloneSource], None] | None = None,
     run_id: str | None = None,
     cancelled: Callable[[], bool] = lambda: False,
     secrets: Sequence[str] = (),
@@ -14830,6 +14992,7 @@ async def run_campaign(
     set and whether the seed tree differs from the predecessor's champion.
     """
 
+    check_durability()
     _validate_run_id(run_id)
     _admit_active_runtime(policy, adaptive, connection)
     _refuse_unadmitted_family(_runtime_family_version(policy, adaptive))
@@ -14891,6 +15054,57 @@ async def run_campaign(
             baseline=linked_baseline,
             successor_mode=campaign.policy.gate_mode,
         )
+    standalone: StandaloneSource | None = None
+    import_differences: tuple[RefusalDifference, ...] = ()
+    compared: dict[str, Any] = {}
+    incompatible: list[str] = []
+    incompatible_decision: Authorization | None = None
+    held_out: Mapping[str, Any] | None = None
+    held_out_decision: Authorization | None = None
+    if baseline_import is not None:
+        if linked_from is not None:
+            raise IdentityError("invalid_identity_fields")
+        standalone = read_standalone_source(Path(baseline_import))
+        source = standalone.measurement
+        partition = campaign.adaptive.identity.to_payload()["corpus_partition"]
+        findings: list[ImportFinding] = []
+        held_out = held_out_finding(standalone, partition)
+        if held_out is not None:
+            digest = baseline_import_held_out_digest(source.identity_digest, held_out)
+            held_out_decision = match_authorization(
+                campaign.authorizations, "baseline_import_held_out", digest
+            )
+            if held_out_decision is None:
+                findings.append(ImportFinding("baseline_import_held_out", digest))
+        # The values the comparison and any decision digest use, computed
+        # once; `_require_compared_inputs` holds the recorded identity to them.
+        compared = dict(
+            candidate_digest=scan_tree(Path(seed_root), artifact_policy).candidate_digest,
+            scorer=scorer_binding(scorer),
+            metric_plan_digest=metric_plan_digest(policy.metric_primary),
+        )
+        import_differences = authorizable_differences(
+            standalone,
+            candidate_digest=compared["candidate_digest"],
+            scorer=compared["scorer"],
+            primary=policy.metric_primary,
+        )
+        if import_differences:
+            incompatible = sorted(
+                {difference.field.split(".")[1] for difference in import_differences}
+            )
+            digest = baseline_import_incompatible_digest(
+                source.identity_digest, {name: compared[name] for name in incompatible}
+            )
+            incompatible_decision = match_authorization(
+                campaign.authorizations, "baseline_import_incompatible", digest
+            )
+            if incompatible_decision is None:
+                findings.append(
+                    ImportFinding("baseline_import_incompatible", digest, import_differences)
+                )
+        if findings:
+            raise BaselineImportRefused(tuple(findings))
     # Comparable-links spec §6: a new run directory's collected hygiene is
     # reported after the link finding and refused before the target is
     # contacted and before the run root is written.
@@ -14933,7 +15147,10 @@ async def run_campaign(
                 campaign.family_version, resolve_package_version()
             ),
         )
-        linked = replace(linked, baseline=imported.declaration())
+        linked = replace(
+            linked,
+            baseline=dict(imported.declaration(), **campaign.import_metadata(source, imported)),
+        )
         identity = campaign.build(store_identity, preflight, linked)
         campaign.pending_import = imported.rows
         assert linked_from is not None
@@ -14945,6 +15162,76 @@ async def run_campaign(
                 imported,
                 any(field.startswith("seed_root.") for field in linked.condition_changed),
             )
+    if standalone is not None:
+        assert source is not None and baseline_import is not None
+        _require_compared_inputs(identity, compared)
+        target = measurement_identity(
+            identity, campaign.corpus, store_identity.seed_candidate_digest, "champion"
+        )
+        fields = caveat_fields(standalone, target, partition, corpus=campaign.corpus)
+        imported = admit_rows(
+            source,
+            target,
+            primary=policy.metric_primary,
+            condition_changed=fields,
+            primary_range=primary_range_required(
+                campaign.family_version, resolve_package_version()
+            ),
+        )
+        metadata = campaign.import_metadata(source, imported)
+        declaration = dict(
+            imported.declaration(),
+            mode="import",
+            source=dict(
+                kind=standalone.kind,
+                run_id=source.run_id,
+                measurement_id=source.measurement_id,
+                identity_digest=source.identity_digest,
+                configuration_digest=standalone.configuration_digest,
+                split=standalone.split,
+                row_provenance=standalone.row_provenance,
+            ),
+            **metadata,
+            incompatible=incompatible,
+            authorization=None
+            if incompatible_decision is None
+            else incompatible_decision.decision_payload(),
+            held_out=held_out,
+            held_out_authorization=None
+            if held_out_decision is None
+            else held_out_decision.decision_payload(),
+        )
+        identity = campaign.build(store_identity, preflight, None, baseline_import=declaration)
+        _require_compared_inputs(identity, compared)
+        campaign.pending_import = imported.rows
+        campaign.prepare_link_diagnostics(
+            source,
+            imported.rows,
+            target,
+            source_root=Path(baseline_import),
+            locator=standalone.journal_locator,
+        )
+        if fields and on_condition_changed is not None:
+            before = source.records[0].payload["identity"]
+            after = target.to_payload()
+            differences = identity_differences(
+                {
+                    "identity": dict(
+                        before,
+                        corpus_cases=sorted({entry["case_id"] for entry in before["schedule"]}),
+                    )
+                },
+                {
+                    "identity": dict(
+                        after, corpus_cases=sorted(case.case_id for case in campaign.corpus)
+                    )
+                },
+            )
+            on_condition_changed(
+                tuple(difference for difference in differences if difference.field in fields)
+            )
+        if on_baseline_imported is not None:
+            on_baseline_imported(imported, standalone)
     # Admission before the run root exists (spec §3): a corpus the creation
     # record cannot hold, or one whose strings match a secret, is refused here
     # -- `CorpusTooLarge` / `RecordMatchesSecret` propagate uncaught, and
@@ -15001,6 +15288,8 @@ async def resume_campaign(
     hygiene_applications: Sequence[tuple[HygieneFinding, Authorization]] = (),
     pending_findings: Sequence[HygieneFinding] = (),
     linked_from: Path | None = None,
+    baseline_import: Path | None = None,
+    baseline_import_declared: bool | None = None,
     connection: ConnectionContract | None = None,
     process_log: Callable[[Path], None] | None = None,
     notes: Callable[[str], None] | None = None,
@@ -15032,6 +15321,7 @@ async def resume_campaign(
     one that cannot yield the declared set is `BaselineImportUnavailable`.
     """
 
+    check_durability()
     _validate_run_id(run_id)
     _admit_active_runtime(policy, adaptive, connection)
     _refuse_unadmitted_family(_runtime_family_version(policy, adaptive))
@@ -15104,6 +15394,12 @@ async def resume_campaign(
         family_version=expected_family,
     )
     campaign.linked_from_path = None if linked_from is None else Path(linked_from)
+    campaign.baseline_import_path = None if baseline_import is None else Path(baseline_import)
+    campaign.baseline_import_declared = (
+        baseline_import is not None
+        if baseline_import_declared is None
+        else baseline_import_declared
+    )
     # The id this resume was attempted under, before the journal has been read.
     # `adopt` replaces it with the journaled one and refuses a mismatch; until
     # then it is the only id a result built over an illegible prefix can name.

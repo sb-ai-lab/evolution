@@ -1,0 +1,118 @@
+{"format":"scorer_trace_pack/1","hsha":"bc3bf55da97077daa0b2a60b3a97e20dad16c1d3fac99172ce7347320c8dfd98","kind":"pack","pack_id":"m-r00-champion","segment":0}
+
+{"format":"scorer_trace_pack/1","hsha":"17c6711748860ff6b5292adc49a8945a0297d59733512117e0452014db04cb28","kind":"request","score_request_id":"fed508c667b5419bbd5d3d0f92fdc500","sections":[["request",1407,"b58a5de88a2163135b53d8ff1d758d7232dd916238b8d05ddf87959a7f2fe804"]]}
+{
+  "scorer": "6c225cd7997471868bf44354e80383d956b3e002d3383f68ee0316767fca950e",
+  "trace_id": "fed508c667b5419bbd5d3d0f92fdc500",
+  "input": {
+    "case_id": "c1",
+    "public": {
+      "text": "c1"
+    },
+    "oracle": {
+      "critical": true
+    },
+    "view": {
+      "history": {
+        "turns": [
+          {
+            "index": 0,
+            "message": {
+              "content": "c1",
+              "fields": {
+                "text": "c1"
+              }
+            },
+            "events": [
+              {
+                "content": "Reference skill: answer with this line. | c1",
+                "type": "assistant_message"
+              }
+            ],
+            "usage": {
+              "prompt": 2,
+              "completion": 44,
+              "cached": 0,
+              "total": 46
+            },
+            "latency_ms": 0,
+            "outcome": "ok",
+            "reason": null
+          }
+        ]
+      },
+      "terminal": "completed",
+      "target": {
+        "contract_digest": "reference-contract-1",
+        "dependency_digest": "a9a8c97dbddc86ed4c2848eabe833785d3002e1eea4d3d419374f91daecb9fce",
+        "settings_hash": "reference-settings-1",
+        "seed_mode": "exact",
+        "protocol_version": "2",
+        "runtime_ref_digest": "reference-runtime-1"
+      }
+    }
+  },
+  "input_sha256": "6b538d3820230d362f0a886a06ba467df3381657257f8ef7f59a42a615b9885a"
+}
+
+{"format":"scorer_trace_pack/1","hsha":"97d738db5f44a88e2c6cbcdfd4b93691a33dd4e184ad47ee1ecb539a52ee8c7f","kind":"request","score_request_id":"0698225cd5f6499783cd3792df616e11","sections":[["request",1407,"babae052f88f5c8f51a70928922e5d31884f6984d6dfbb39862952c53099c69f"]]}
+{
+  "scorer": "6c225cd7997471868bf44354e80383d956b3e002d3383f68ee0316767fca950e",
+  "trace_id": "0698225cd5f6499783cd3792df616e11",
+  "input": {
+    "case_id": "c2",
+    "public": {
+      "text": "c2"
+    },
+    "oracle": {
+      "critical": true
+    },
+    "view": {
+      "history": {
+        "turns": [
+          {
+            "index": 0,
+            "message": {
+              "content": "c2",
+              "fields": {
+                "text": "c2"
+              }
+            },
+            "events": [
+              {
+                "content": "Reference skill: answer with this line. | c2",
+                "type": "assistant_message"
+              }
+            ],
+            "usage": {
+              "prompt": 2,
+              "completion": 44,
+              "cached": 0,
+              "total": 46
+            },
+            "latency_ms": 0,
+            "outcome": "ok",
+            "reason": null
+          }
+        ]
+      },
+      "terminal": "completed",
+      "target": {
+        "contract_digest": "reference-contract-1",
+        "dependency_digest": "a9a8c97dbddc86ed4c2848eabe833785d3002e1eea4d3d419374f91daecb9fce",
+        "settings_hash": "reference-settings-1",
+        "seed_mode": "exact",
+        "protocol_version": "2",
+        "runtime_ref_digest": "reference-runtime-1"
+      }
+    }
+  },
+  "input_sha256": "ab533fcc28ad5043208db1dfb867275a6740f482c67e1831726bf137b8e7cd58"
+}
+
+{"format":"scorer_trace_pack/1","hsha":"bbe2114096c1e9f6ab303c6340dc13a8cde2f5c136eba6f70bf6a1cea2876a9a","kind":"output","returncode":0,"score_request_id":"fed508c667b5419bbd5d3d0f92fdc500","sections":[["stdout",109,"dc6d5129eea9be21af82365814b3628e7ff6d0cb408048257010d99d2f2f35b8"],["stderr",0,"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"]],"status":"completed"}
+{"metrics": {"score": 0.0}, "critical_pass": true, "verdicts": [{"criterion": "answered", "passed": false}]}
+
+{"format":"scorer_trace_pack/1","hsha":"f7f1dace40ad857ea53d12f4edce2a80aaf91e15fa0d1156e6d8f896b7eb169c","kind":"output","returncode":0,"score_request_id":"0698225cd5f6499783cd3792df616e11","sections":[["stdout",108,"e8140c934a0e7f1e5276b03aa1d30e6927f19b93f498575f69b336419622fe51"],["stderr",0,"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"]],"status":"completed"}
+{"metrics": {"score": 1.0}, "critical_pass": true, "verdicts": [{"criterion": "answered", "passed": true}]}
+

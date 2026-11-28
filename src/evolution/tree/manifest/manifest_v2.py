@@ -137,7 +137,7 @@ _TOP_LEVEL_KEYS_V15 = _CONFORMANCE_KEYS | {
     "role_visibility",
     "grouper",
 }
-_OPTIONAL_TOP_LEVEL_KEYS_V15 = frozenset({"linked_from", "verbatim_answers"})
+_OPTIONAL_TOP_LEVEL_KEYS_V15 = frozenset({"linked_from", "verbatim_answers", "baseline_import"})
 _OPTIONAL_TOP_LEVEL_KEYS_V16 = _OPTIONAL_TOP_LEVEL_KEYS_V15 | {
     "secret_oracle_paths",
     "evidence",
@@ -367,6 +367,8 @@ class ManifestV2:
     linked_from: str | None = None
     #: linked_from.baseline, or fresh when no link is declared.
     linked_baseline: Literal["fresh", "inherit"] = "fresh"
+    #: Standalone baseline_import.source spelling, absent for ordinary/link runs.
+    baseline_import: str | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "declared", MappingProxyType(dict(self.declared)))
@@ -1955,7 +1957,9 @@ def _parse_corpus(value: object, prefix: str, manifest_dir: Path) -> Path:
     return (manifest_dir / raw).resolve()
 
 
-def _declared_spellings(obj: dict[str, Any], *, linked_from: str | None) -> dict[str, str | None]:
+def _declared_spellings(
+    obj: dict[str, Any], *, linked_from: str | None, baseline_import: str | None = None
+) -> dict[str, str | None]:
     """The source spelling of every path field the loader parsed, keyed by the
     dotted field `ManifestError` would name.
 
@@ -1975,6 +1979,8 @@ def _declared_spellings(obj: dict[str, Any], *, linked_from: str | None) -> dict
     declared: dict[str, str | None] = {"seed_root": obj["seed_root"]}
     if linked_from is not None:
         declared["linked_from"] = linked_from
+    if baseline_import is not None:
+        declared["baseline_import.source"] = baseline_import
 
     def command(section: dict[str, Any], prefix: str) -> None:
         declared[f"{prefix}.cwd"] = section["cwd"]
@@ -2164,6 +2170,23 @@ def _load_manifest(path: Path) -> ManifestV2:
         checks=checks,
     )
     linked_from, linked_baseline = _parse_linked_from_v6(obj)
+    baseline_import = None
+    if "baseline_import" in obj:
+        section = _dict_or_raise(obj["baseline_import"], "baseline_import")
+        _check_missing(section, frozenset({"source"}), "baseline_import")
+        _check_unknown(section, frozenset({"source"}), "baseline_import")
+        baseline_import = _str_or_raise(section["source"], "baseline_import.source")
+        if not baseline_import.strip():
+            raise ManifestError("bad_value", "baseline_import.source")
+        if linked_from is not None:
+            raise ManifestError(
+                "bad_value",
+                "baseline_import",
+                expected=(
+                    "a campaign takes one first-round baseline source; a linked run carries "
+                    "its predecessor's rows with linked_from.baseline: inherit"
+                ),
+            )
 
     return ManifestV2(
         schema=schema,
@@ -2172,7 +2195,8 @@ def _load_manifest(path: Path) -> ManifestV2:
         target=target,
         policy=policy,
         workflow=workflow,
-        declared=_declared_spellings(obj, linked_from=linked_from),
+        declared=_declared_spellings(obj, linked_from=linked_from, baseline_import=baseline_import),
         linked_from=linked_from,
         linked_baseline=linked_baseline,
+        baseline_import=baseline_import,
     )

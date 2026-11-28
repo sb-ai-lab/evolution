@@ -1,0 +1,3 @@
+{"case_id": "q1", "group_id": "codes", "stratum": "known", "public": {"text": "What is the code word for alpha?"}, "oracle": {"expected": "A1", "critical": true}}
+{"case_id": "q2", "group_id": "codes", "stratum": "known", "public": {"text": "What is the code word for beta?"}, "oracle": {"expected": "B2", "critical": true}}
+{"case_id": "q3", "group_id": "codes", "stratum": "unknown", "public": {"text": "What is the code word for gamma?"}, "oracle": {"expected": "C3", "critical": true}}

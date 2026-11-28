@@ -154,7 +154,11 @@ def test_cli_prints_modes_and_bind_hits_on_start_and_resume_including_process_lo
     from evolution.tree.execution.check_modes import CONSEQUENCES
     from tests.campaign_fakes import FakeAdapter
 
-    asyncio.run(public_run(tmp_path, monkeypatch, configure=shadow_settings))
+    def configure(document):
+        shadow_settings(document)
+        document["checks"]["modes"]["repeated_read_without_progress"] = "off"
+
+    asyncio.run(public_run(tmp_path, monkeypatch, configure=configure))
     monkeypatch.setattr(module, "_http_session_adapter", lambda *a, **kw: FakeAdapter())
     run = tmp_path / "cli-run"
     command = ["evolve", "--manifest", str(tmp_path / "manifest.json"), "--run-dir", str(run)]
@@ -166,6 +170,7 @@ def test_cli_prints_modes_and_bind_hits_on_start_and_resume_including_process_lo
             ("verbatim_answer_unmatched", "shadow"),
             ("secret_oracle_path_unmatched", "shadow"),
             ("seal_oracle_leak", "off"),
+            ("repeated_read_without_progress", "off"),
         ]:
             assert f"note: check {check} is {mode}: {CONSEQUENCES[check]}" in result.output
         logs = list((run / "logs").glob("evolve-*.log"))

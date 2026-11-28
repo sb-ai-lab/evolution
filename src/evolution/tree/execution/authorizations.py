@@ -23,6 +23,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
 
+from evolution.lineage.state_io import sync_file
 from evolution.tree.execution.journal_identity import canonical_json
 
 SCHEMA = "evolution-v2-authorization/1"
@@ -50,6 +51,8 @@ AUTHORIZABLE_CODES = frozenset(
         "run_dir_unsafe_entry",
         "lineage_not_finished",
         "baseline_import_unavailable",
+        "baseline_import_incompatible",
+        "baseline_import_held_out",
     }
 )
 
@@ -62,10 +65,22 @@ AUTHORIZABLE_CODES = frozenset(
 #: in-place effects a family-7 `run_identity_changed` finding may offer beside
 #: `close`, printed the same way as the effects above.
 Effect = Literal[
-    "rebase", "hygiene", "close", "terminal", "link", "fresh_baseline", "continue", "rebaseline"
+    "rebase",
+    "hygiene",
+    "close",
+    "terminal",
+    "link",
+    "fresh_baseline",
+    "continue",
+    "rebaseline",
+    "import",
 ]
 
 EFFECT_SENTENCES: Mapping[str, tuple[str, ...]] = {
+    "import": (
+        "accepting imports the source's scored rows although they were measured with another scorer, metric plan or tree;",
+        "the decision is recorded with the campaign and reported with the imported rows",
+    ),
     "close": (
         "accepting closes this campaign as stopped(condition_changed);",
         "continue it with a linked run that declares the new condition",
@@ -91,6 +106,12 @@ EFFECT_SENTENCES: Mapping[str, tuple[str, ...]] = {
         "from a fresh baseline under the new condition",
     ),
 }
+
+
+def effect_sentence(effect: str) -> tuple[str, ...]:
+    """Return the CLI explanation lines for an effect; missing explanations raise KeyError."""
+    return EFFECT_SENTENCES[effect]
+
 
 #: I2 spec §4.1: the lead line before each command of a finding that offers
 #: several effects. The default's command carries no `--effect`, whichever
@@ -172,6 +193,11 @@ HARD_CODES = frozenset(
         "lineage_mode_unsupported",
         "lineage_champion_unverified",
         "baseline_source_unavailable",
+        #: ADR-0065 (amended 2026-11-16): the seed tree, scorer or metric plan
+        #: moved between the import comparison and the recorded identity. No
+        #: decision can stand for values nobody compared; a new start compares
+        #: again.
+        "baseline_import_inputs_changed",
         "authorizations_invalid",
         "authorization_invalid",
         "invalid_family_value",
@@ -209,6 +235,24 @@ GUARD_CLASSES = ("symlinked", "foreign owner", "not owner-only")
 
 #: The sentence the CLI prints after `class: hard` (§3, §4).
 HARD_REASONS: Mapping[str, str] = {
+    "run_identity_changed_baseline_import": (
+        "A campaign keeps the baseline source it was created with; baseline_import cannot be added "
+        "to or removed from a campaign that exists. Use a new run directory."
+    ),
+    "baseline_source_unavailable_import": (
+        "the baseline source cannot be read; remove baseline_import to measure the baseline in full"
+    ),
+    "baseline_import_held_out": (
+        "the source measured held-out test cases of this campaign's corpus; "
+        "test evidence enters a campaign only by a recorded decision"
+    ),
+    #: ADR-0065 (amended 2026-11-16): refused after preflight and before any
+    #: write, so the run directory holds at most the decisions already there.
+    "baseline_import_inputs_changed": (
+        "the seed tree, scorer or metric plan changed while the campaign was starting "
+        "(the differs: lines name which); nothing was written, so rerun the same command "
+        "once they are stable"
+    ),
     #: Comparable-links spec §5.1: a comparable change on an unfinished
     #: family-6 campaign is authorizable (it closes the campaign), so the only
     #: hard comparable case the producer can meet is a finished campaign; the
@@ -782,6 +826,37 @@ def baseline_import_instance_digest(run_id: str, pairs_digest: str) -> str:
     ).hexdigest()
 
 
+def baseline_import_incompatible_digest(
+    source_identity_digest: str, observed: Mapping[str, Any]
+) -> str:
+    """Pin the source identity and the campaign values of incompatible fields."""
+    return hashlib.sha256(
+        canonical_json(
+            {
+                "code": "baseline_import_incompatible",
+                "source_identity_digest": source_identity_digest,
+                "fields": sorted(observed),
+                "observed": dict(observed),
+            }
+        )
+    ).hexdigest()
+
+
+def baseline_import_held_out_digest(
+    source_identity_digest: str, held_out: Mapping[str, Any]
+) -> str:
+    """A held-out decision is distinct from an accepted scorer/tree difference."""
+    return hashlib.sha256(
+        canonical_json(
+            {
+                "code": "baseline_import_held_out",
+                "source_identity_digest": source_identity_digest,
+                "held_out": dict(held_out),
+            }
+        )
+    ).hexdigest()
+
+
 def match(
     authorizations: Iterable[Authorization],
     code: str,
@@ -1010,7 +1085,7 @@ def write_decision(run_dir: Path, authorization: Authorization) -> Path:
                 with os.fdopen(fd, "wb") as handle:
                     handle.write(canonical_json(authorization.to_payload()) + b"\n")
                     handle.flush()
-                    os.fsync(handle.fileno())
+                    sync_file(handle.fileno())
                 os.replace(temporary, name, src_dir_fd=directory_fd, dst_dir_fd=directory_fd)
             except BaseException:
                 try:
@@ -1018,7 +1093,7 @@ def write_decision(run_dir: Path, authorization: Authorization) -> Path:
                 except OSError:
                     pass
                 raise
-            os.fsync(directory_fd)
+            sync_file(directory_fd)
         finally:
             os.close(directory_fd)
     finally:

@@ -536,3 +536,6 @@ async def test_product_evolve_ends_faulted_sessions_while_the_binding_is_retaine
     assert completed.terminal == "finished"
     assert all(not scorer._writers for scorer in bindings)
     assert any((run / "scorer-traces").glob("*.pack"))
+
+
+pytestmark = pytest.mark.usefixtures("strict_durability")

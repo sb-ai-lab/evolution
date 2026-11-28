@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "restructure-port-spec/2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "task", "stages", "rules", "requirements", "evolvable", "bounds", "notes"],
+  "properties": {
+    "schema": {"const": "restructure-port-spec/2"},
+    "task": {"type": "object", "additionalProperties": false, "required": ["text"],
+             "properties": {"text": {"$ref": "#/$defs/text"}}},
+    "stages": {"type": "array", "items": {"$ref": "#/$defs/stage"}},
+    "rules": {"type": "array", "items": {"$ref": "#/$defs/rule"}},
+    "requirements": {"type": "array", "items": {"$ref": "#/$defs/requirement"}},
+    "evolvable": {"type": "array", "items": {"$ref": "#/$defs/evolvable"}},
+    "bounds": {"type": "object", "additionalProperties": false, "required": ["items", "claims_check"],
+               "properties": {"items": {"type": "array", "items": {"$ref": "#/$defs/item"}},
+                              "claims_check": {"$ref": "#/$defs/text"}}},
+    "notes": {"type": "array", "items": {"$ref": "#/$defs/note"}}
+  },
+  "$defs": {
+    "id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}(?![\\s\\S])"},
+    "text": {"type": "string", "minLength": 1},
+    "sources": {"type": "array", "minItems": 1,
+                "items": {"type": "string", "pattern": "^(?!/)(?!#)(?!(?:[^#]*/)?\\.\\.(?:[/#]|$))[^#\\n]+(?:#.+)?(?![\\s\\S])"}},
+    "relpath": {"type": "string", "pattern": "^(?!/)(?!(?:.*/)?\\.\\.(?:/|$)).+(?![\\s\\S])"},
+    "digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}(?![\\s\\S])"},
+    "item": {"type": "object", "additionalProperties": false, "required": ["id", "text"],
+             "properties": {"id": {"$ref": "#/$defs/id"}, "text": {"$ref": "#/$defs/text"}}},
+    "question": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "text", "options", "recommended", "answer"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"}, "text": {"$ref": "#/$defs/text"}, "why": {"type": ["string", "null"]},
+        "options": {"type": "array", "maxItems": 6, "items": {
+          "type": "object", "additionalProperties": false, "required": ["id", "text"],
+          "properties": {"id": {"$ref": "#/$defs/id"}, "text": {"$ref": "#/$defs/text"},
+                         "consequence": {"type": ["string", "null"]}}}},
+        "recommended": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/id"}]},
+        "answer": {"oneOf": [
+          {"type": "null"},
+          {"type": "object", "additionalProperties": false, "required": ["option", "for"],
+           "properties": {"option": {"$ref": "#/$defs/id"}, "for": {"$ref": "#/$defs/digest"}}},
+          {"type": "object", "additionalProperties": false, "required": ["text", "for"],
+           "properties": {"text": {"type": "string", "minLength": 1, "maxLength": 2000},
+                          "for": {"$ref": "#/$defs/digest"}}}]}
+      }
+    },
+    "questions": {"type": "array", "maxItems": 5, "items": {"$ref": "#/$defs/question"}},
+    "cell": {"enum": ["prompt", "skills", "tools", "texts", "handler", "deps", "modes", "seam"]},
+    "stage": {
+      "type": "object", "additionalProperties": false, "required": ["id", "title", "what", "done_when", "cells"],
+      "properties": {"id": {"$ref": "#/$defs/id"}, "title": {"$ref": "#/$defs/text"}, "what": {"$ref": "#/$defs/text"},
+                     "done_when": {"$ref": "#/$defs/text"},
+                     "cells": {"type": "array", "items": {"$ref": "#/$defs/cell"}}}
+    },
+    "rule": {
+      "type": "object", "additionalProperties": false, "required": ["id", "text", "why"],
+      "properties": {"id": {"$ref": "#/$defs/id"}, "text": {"$ref": "#/$defs/text"}, "why": {"$ref": "#/$defs/text"}}
+    },
+    "requirement": {
+      "type": "object", "additionalProperties": false, "required": ["id", "text", "cell", "test"],
+      "properties": {"id": {"$ref": "#/$defs/id"}, "text": {"$ref": "#/$defs/text"}, "cell": {"$ref": "#/$defs/cell"},
+                     "test": {"$ref": "#/$defs/text"}}
+    },
+    "evolvable": {
+      "type": "object", "additionalProperties": false, "required": ["id", "path", "why"],
+      "properties": {"id": {"$ref": "#/$defs/id"}, "path": {"$ref": "#/$defs/relpath"}, "why": {"$ref": "#/$defs/text"}}
+    },
+    "note": {
+      "type": "object", "additionalProperties": false, "required": ["id", "section", "text"],
+      "properties": {"id": {"$ref": "#/$defs/id"},
+                     "section": {"enum": ["task", "sees", "stages", "rules", "requirements", "evolvable", "bounds"]},
+                     "text": {"$ref": "#/$defs/text"}}
+    }
+  }
+}

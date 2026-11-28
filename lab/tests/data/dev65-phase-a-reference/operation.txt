@@ -1,0 +1,2 @@
+lab-operation-status/7 operation-reference finished process=exit:0 cleanup=confirmed
+progress: phase=finished round=-/2 attempts=0+0/1 scored=-/-

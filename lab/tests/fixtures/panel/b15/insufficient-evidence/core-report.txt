@@ -1,0 +1,7 @@
+independent · point · 2 train cases × 1 repeats · reuse verification
+noise · assumed_negligible · allowance 0 (approx) · None / None
+initial baseline scenario: 2 scenario slots · 0 admitted imports · preflight/probes/retries separate
+conditional Champion: 0 slots per reached_finalist · noise extra measurements: 0
+committed measurement · 7 scenario slots · 7 Target turns · 0 transport retries · 5 Scorer executions · 3 role requests · 0 imports
+separate committed preflight · 1 scenario slots · 1 Target turns · 1 Scorer executions
+conditional remaining · baseline 0 · Candidate gate 0 · Parent gate 0 · Candidate final if gates pass 0 · Champion 0 scenario slots

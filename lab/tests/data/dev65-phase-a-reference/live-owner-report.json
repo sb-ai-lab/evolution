@@ -1,0 +1,1672 @@
+{
+  "schema": "lab-owner-report/11",
+  "operation_id": "operation-reference",
+  "state": "available",
+  "report": {
+    "campaign_journal_integrity": "complete",
+    "comparison_scope": "unspecified",
+    "core": {
+      "alpha": null,
+      "campaign_outcome": {
+        "champion_path": "artifacts/champions/v1",
+        "continuation": {
+          "kind": "linked_run",
+          "reason": "rounds_exhausted"
+        },
+        "outcome": "completed",
+        "reason": "rounds_exhausted"
+      },
+      "caveats": [
+        {
+          "attempt_id": null,
+          "kind": "champion_not_contemporaneous",
+          "round": null
+        },
+        {
+          "attempt_id": "r01-a01",
+          "kind": "focus_selection_bias",
+          "round": 1
+        }
+      ],
+      "claim_scope": "campaign",
+      "complete": true,
+      "condition_changes": [],
+      "connection": {
+        "attempts": 1,
+        "binding_digest": "4a6537f8884de6c5ef57d18980d186aa7359e508e83d5eb1fe09a16c6e77cfd8",
+        "detail": null,
+        "operation_id": "15d373a2314c4777a0505c743e63d8a0",
+        "outcome": "compatible",
+        "state": "compatible"
+      },
+      "consistency": "durable",
+      "corpus_split": {
+        "mode": "implicit_train",
+        "partition_digest": "7b790d091190b5271f203b39ec9119cbb055f74f372f76ce8f32797d800769d4",
+        "scope": "train",
+        "test_cases": 0,
+        "train_cases": 2
+      },
+      "family_version": 15,
+      "final_champion": {
+        "baseline_origin": "promoted_attempt",
+        "digest": "03d1b9c4095e94609c8613313abb6695448d1e36767280f0a7e1362d520cd2dc",
+        "measurement_complete": true,
+        "measurement_id": "m-r01-a01-completion",
+        "version": "v1"
+      },
+      "identity_digest": "b6abf6da2f7feae0483495a84ec231db3155740630fe4e4c3ed6b39240d33ef8",
+      "independent": {
+        "attempts": [
+          {
+            "attempt_id": "r01-a01",
+            "comparison": {
+              "confidence_scope": null,
+              "coverage": {
+                "candidate": {
+                  "admissible": 2,
+                  "required": 2,
+                  "settled": 2
+                },
+                "reference": {
+                  "admissible": 2,
+                  "required": 2,
+                  "settled": 2
+                }
+              },
+              "deciding_layer": "global",
+              "eligible": true,
+              "excluded_reference_slots": 0,
+              "method": "bounded-weighted-mean/1",
+              "mode": "confidence",
+              "noise": {
+                "allowance": {
+                  "denominator": "1",
+                  "format": "rational-hex/1",
+                  "numerator": "0"
+                },
+                "diagnostic": "candidate_primary_score_repeat_variance",
+                "extra_measurements": 0,
+                "kind": "negligible",
+                "observed_cases": 0,
+                "source": null,
+                "source_kind": "assumed_negligible",
+                "units": "score_squared",
+                "variation": "not_requested"
+              },
+              "outcome": "passed",
+              "reason": "passed",
+              "reference": "stored_non_contemporaneous",
+              "reference_measurement_id": "m-r00-champion",
+              "scopes": [
+                {
+                  "confidence": null,
+                  "declared_count": 2,
+                  "enclosure": null,
+                  "excluded_mass": {
+                    "denominator": "1",
+                    "format": "rational-hex/1",
+                    "numerator": "0"
+                  },
+                  "mass": {
+                    "denominator": "1",
+                    "format": "rational-hex/1",
+                    "numerator": "1"
+                  },
+                  "name": "global",
+                  "point": {
+                    "denominator": "1",
+                    "format": "rational-hex/1",
+                    "numerator": "1"
+                  },
+                  "rule": "point",
+                  "status": "available",
+                  "strict": true,
+                  "threshold": {
+                    "denominator": "1",
+                    "format": "rational-hex/1",
+                    "numerator": "0"
+                  },
+                  "unavailable": null,
+                  "unit_count": 2
+                }
+              ],
+              "selection_bias_possible": [
+                "stored_reference",
+                "reuse",
+                "candidate_selection"
+              ],
+              "unit": "case",
+              "verification": "reused_evidence"
+            },
+            "conditional_cost": {
+              "baseline_slots": 2,
+              "basis": "full_scenario_complete_scoring_without_retries",
+              "candidate_final_slots": 0,
+              "candidate_gate_slots": 2,
+              "candidate_total_slots": 2,
+              "champion_basis": "per_reached_finalist",
+              "champion_slots": 0,
+              "connection_preflight_slots": 1,
+              "noise_diagnostic_slots": 0,
+              "parent_slots": 0,
+              "probes_and_retries": "separate",
+              "simplest_passing_path_slots": 5,
+              "slots_per_refresh": 2
+            },
+            "eligible_final_score": {
+              "denominator": "1",
+              "format": "rational-hex/1",
+              "numerator": "1"
+            },
+            "gate_comparison": {
+              "confidence_scope": "conditional_fixed_scope_independent_bounded_units",
+              "coverage": {
+                "candidate": {
+                  "admissible": 2,
+                  "required": 2,
+                  "settled": 2
+                },
+                "reference": {
+                  "admissible": 2,
+                  "required": 2,
+                  "settled": 2
+                }
+              },
+              "deciding_layer": "focus",
+              "eligible": true,
+              "excluded_reference_slots": 0,
+              "method": "bounded-weighted-mean/1",
+              "mode": "confidence",
+              "noise": {
+                "allowance": {
+                  "denominator": "1",
+                  "format": "rational-hex/1",
+                  "numerator": "0"
+                },
+                "diagnostic": "candidate_primary_score_repeat_variance",
+                "extra_measurements": 0,
+                "kind": "negligible",
+                "observed_cases": 0,
+                "source": null,
+                "source_kind": "assumed_negligible",
+                "units": "score_squared",
+                "variation": "not_requested"
+              },
+              "outcome": "passed",
+              "reason": "passed",
+              "reference": "stored_non_contemporaneous",
+              "reference_measurement_id": "m-r00-champion",
+              "scopes": [
+                {
+                  "confidence": {
+                    "denominator": "80000000000000",
+                    "format": "rational-hex/1",
+                    "numerator": "ccccccccccccd"
+                  },
+                  "declared_count": 2,
+                  "enclosure": {
+                    "lower": {
+                      "denominator": "4000000000000000",
+                      "format": "rational-hex/1",
+                      "numerator": "37f5fd90fa7caa41"
+                    },
+                    "steps": 64,
+                    "upper": {
+                      "denominator": "8000000000000000",
+                      "format": "rational-hex/1",
+                      "numerator": "6febfb21f4f95483"
+                    }
+                  },
+                  "excluded_mass": {
+                    "denominator": "1",
+                    "format": "rational-hex/1",
+                    "numerator": "0"
+                  },
+                  "mass": {
+                    "denominator": "1",
+                    "format": "rational-hex/1",
+                    "numerator": "1"
+                  },
+                  "name": "focus",
+                  "point": {
+                    "denominator": "1",
+                    "format": "rational-hex/1",
+                    "numerator": "1"
+                  },
+                  "rule": "bound",
+                  "status": "available",
+                  "strict": true,
+                  "threshold": {
+                    "denominator": "20000000000000",
+                    "format": "rational-hex/1",
+                    "numerator": "-1ccccccccccccd"
+                  },
+                  "unavailable": null,
+                  "unit_count": 2
+                },
+                {
+                  "confidence": {
+                    "denominator": "80000000000000",
+                    "format": "rational-hex/1",
+                    "numerator": "ccccccccccccd"
+                  },
+                  "declared_count": 0,
+                  "enclosure": null,
+                  "excluded_mass": {
+                    "denominator": "1",
+                    "format": "rational-hex/1",
+                    "numerator": "0"
+                  },
+                  "mass": {
+                    "denominator": "1",
+                    "format": "rational-hex/1",
+                    "numerator": "0"
+                  },
+                  "name": "causal",
+                  "point": null,
+                  "rule": "bound",
+                  "status": "skipped",
+                  "strict": false,
+                  "threshold": {
+                    "denominator": "1",
+                    "format": "rational-hex/1",
+                    "numerator": "-1"
+                  },
+                  "unavailable": null,
+                  "unit_count": 0
+                }
+              ],
+              "selection_bias_possible": [
+                "focus_selection",
+                "stored_reference"
+              ],
+              "unit": "case",
+              "verification": null
+            },
+            "global_comparison": {
+              "confidence_scope": null,
+              "coverage": {
+                "candidate": {
+                  "admissible": 2,
+                  "required": 2,
+                  "settled": 2
+                },
+                "reference": {
+                  "admissible": 2,
+                  "required": 2,
+                  "settled": 2
+                }
+              },
+              "deciding_layer": "global",
+              "eligible": true,
+              "excluded_reference_slots": 0,
+              "method": "bounded-weighted-mean/1",
+              "mode": "confidence",
+              "noise": {
+                "allowance": {
+                  "denominator": "1",
+                  "format": "rational-hex/1",
+                  "numerator": "0"
+                },
+                "diagnostic": "candidate_primary_score_repeat_variance",
+                "extra_measurements": 0,
+                "kind": "negligible",
+                "observed_cases": 0,
+                "source": null,
+                "source_kind": "assumed_negligible",
+                "units": "score_squared",
+                "variation": "not_requested"
+              },
+              "outcome": "passed",
+              "reason": "passed",
+              "reference": "stored_non_contemporaneous",
+              "reference_measurement_id": "m-r00-champion",
+              "scopes": [
+                {
+                  "confidence": null,
+                  "declared_count": 2,
+                  "enclosure": null,
+                  "excluded_mass": {
+                    "denominator": "1",
+                    "format": "rational-hex/1",
+                    "numerator": "0"
+                  },
+                  "mass": {
+                    "denominator": "1",
+                    "format": "rational-hex/1",
+                    "numerator": "1"
+                  },
+                  "name": "global",
+                  "point": {
+                    "denominator": "1",
+                    "format": "rational-hex/1",
+                    "numerator": "1"
+                  },
+                  "rule": "point",
+                  "status": "available",
+                  "strict": true,
+                  "threshold": {
+                    "denominator": "1",
+                    "format": "rational-hex/1",
+                    "numerator": "0"
+                  },
+                  "unavailable": null,
+                  "unit_count": 2
+                }
+              ],
+              "selection_bias_possible": [
+                "stored_reference",
+                "reuse",
+                "candidate_selection"
+              ],
+              "unit": "case",
+              "verification": "reused_evidence"
+            },
+            "outcome": "finalist",
+            "preflight": null,
+            "reason": "passed",
+            "round": 1
+          },
+          {
+            "attempt_id": "r02-a01",
+            "comparison": null,
+            "conditional_cost": null,
+            "eligible_final_score": null,
+            "gate_comparison": null,
+            "global_comparison": null,
+            "outcome": "rejected",
+            "preflight": {
+              "basis": "stored_reference",
+              "interpretation": "score_range_ceiling_not_a_success_or_power_prediction",
+              "profile_digest": null,
+              "scopes": [
+                {
+                  "delta_max": {
+                    "denominator": "1",
+                    "format": "rational-hex/1",
+                    "numerator": "0"
+                  },
+                  "name": "global",
+                  "passes": false,
+                  "rule": "point",
+                  "status": "calculated",
+                  "strict": true,
+                  "threshold": {
+                    "denominator": "1",
+                    "format": "rational-hex/1",
+                    "numerator": "0"
+                  },
+                  "unit_count": 2
+                }
+              ],
+              "status": "impossible"
+            },
+            "reason": "structurally_unattainable",
+            "round": 2
+          }
+        ],
+        "committed_work": {
+          "connection_preflight": {
+            "imported_slots": 0,
+            "scenario_slots": 1,
+            "scorer_executions": 1,
+            "target_turns": 1,
+            "transport_retries": 0
+          },
+          "interpretation": "journaled_work_not_tokens_currency_or_provider_call_estimates",
+          "measurement": {
+            "imported_slots": 2,
+            "scenario_slots": 4,
+            "scorer_executions": 4,
+            "target_turns": 4,
+            "transport_retries": 0
+          },
+          "reflector_probe_requests": 0,
+          "role_requests": 3
+        },
+        "diagnostics": [],
+        "evidence": "authenticated_publications",
+        "local_guidance": {
+          "assumptions": [
+            "equal_independent_unit_weights",
+            "zero_threshold",
+            "all_ones_contrast_envelope"
+          ],
+          "interpretation": "not_an_admission_or_power_claim",
+          "minimum_units": 1,
+          "status": "conditional_guidance"
+        },
+        "next_action": "finished",
+        "planned_work": {
+          "admitted_baseline_imports": 0,
+          "affected_cases": null,
+          "baseline_slots": 2,
+          "basis": "full_initial_baseline_and_conditional_future_stage_scenarios",
+          "candidate_final_slots_if_gate_passes": null,
+          "champion_scope": "reached_finalist",
+          "champion_slots_per_scope": 0,
+          "connection_preflight": "separate_no_measurement_credit",
+          "noise_diagnostic_slots": 0,
+          "parent_gate_slots": 0,
+          "probes_and_retries": "separate",
+          "slots_per_refresh": 2
+        },
+        "preflight": [],
+        "remaining_work": {
+          "baseline_slots": 0,
+          "basis": "conditional_same_bound_conditions_complete_scoring_without_retries",
+          "candidate_final_slots_if_gates_pass": 0,
+          "candidate_gate_slots": 0,
+          "champion_slots_for_reached_finalists": 0,
+          "noise_diagnostic_slots": 0,
+          "parent_gate_slots": 0,
+          "probes_and_retries": "separate",
+          "refresh_scenario_slots": 0,
+          "remaining_refreshes": 0,
+          "scope": "current_baseline_and_opened_attempts_only"
+        },
+        "settings": {
+          "allowance": {
+            "denominator": "1",
+            "format": "rational-hex/1",
+            "numerator": "0"
+          },
+          "allowance_source": null,
+          "allowance_source_kind": "assumed_negligible",
+          "execution_noise": "negligible",
+          "fresh_parent": false,
+          "global_rule": "point",
+          "method": "bounded-weighted-mean/1",
+          "mode": "confidence",
+          "repeats": 1,
+          "stability": "stable",
+          "train_cases": 2,
+          "train_slots": 2,
+          "unit": "case",
+          "verification": "reuse"
+        }
+      },
+      "indeterminate": {
+        "counts": {
+          "environment": 0,
+          "rollout": 0,
+          "scorer": 0,
+          "target": 0
+        },
+        "denominator": 4,
+        "lineage": null,
+        "threshold_reached": null,
+        "window": {
+          "counts": {
+            "environment": 0,
+            "rollout": 0,
+            "scorer": 0,
+            "target": 0
+          },
+          "denominator": 4,
+          "start": null
+        }
+      },
+      "initial_champion": {
+        "digest": "fbd7fa5cd7695fbda3cd44d6052a66419e46395644eabfaf65a0dabc0dabc8c4",
+        "measurement_id": "m-r00-champion",
+        "version": "v0"
+      },
+      "kind": "campaign_result",
+      "linked_from": null,
+      "measurements": [
+        {
+          "call_failures_by_code": {},
+          "call_retries": 0,
+          "candidate_digest": "fbd7fa5cd7695fbda3cd44d6052a66419e46395644eabfaf65a0dabc0dabc8c4",
+          "condition_epoch": 0,
+          "excluded_pairs": null,
+          "imported": 0,
+          "locator": "measurements/m-r00-champion/events.jsonl",
+          "measurement_id": "m-r00-champion",
+          "repair_tries": 0,
+          "repairs_scored": 0,
+          "tries": 2
+        },
+        {
+          "call_failures_by_code": {},
+          "call_retries": 0,
+          "candidate_digest": "03d1b9c4095e94609c8613313abb6695448d1e36767280f0a7e1362d520cd2dc",
+          "condition_epoch": 0,
+          "excluded_pairs": null,
+          "imported": 0,
+          "locator": "measurements/m-r01-a01/events.jsonl",
+          "measurement_id": "m-r01-a01",
+          "repair_tries": 0,
+          "repairs_scored": 0,
+          "tries": 2
+        },
+        {
+          "call_failures_by_code": {},
+          "call_retries": 0,
+          "candidate_digest": "03d1b9c4095e94609c8613313abb6695448d1e36767280f0a7e1362d520cd2dc",
+          "condition_epoch": 0,
+          "excluded_pairs": null,
+          "imported": 2,
+          "locator": "measurements/m-r01-a01-completion/events.jsonl",
+          "measurement_id": "m-r01-a01-completion",
+          "repair_tries": 0,
+          "repairs_scored": 0,
+          "tries": 0
+        }
+      ],
+      "rebases": [],
+      "resilience": {
+        "attempts_saved": 0,
+        "continuation_turns": 0,
+        "rounds_skipped": 0
+      },
+      "roles": {
+        "editor": {
+          "kind": "subprocess"
+        },
+        "grouper": {
+          "kind": "fields"
+        },
+        "reflector": {
+          "kind": "subprocess"
+        }
+      },
+      "rounds": [
+        {
+          "attempts": [
+            {
+              "affected": {
+                "alpha_statement": null,
+                "fallback_reason": null,
+                "fresh_parent": false,
+                "layer_one": 2,
+                "layer_two": 0,
+                "mode": "path",
+                "source": "reported"
+              },
+              "alpha_total": null,
+              "artifact_locator": "artifacts/candidates/r01-a01",
+              "attempt_id": "r01-a01",
+              "confidence": null,
+              "continued": false,
+              "index": 1,
+              "look": null,
+              "looks": [],
+              "measurement_id": "m-r01-a01",
+              "outcome": "finalist",
+              "reason": "passed"
+            }
+          ],
+          "baseline_complete": true,
+          "baseline_measurement_id": "m-r00-champion",
+          "champion_complete": true,
+          "final": [],
+          "gate_scope": {
+            "cases": [
+              "q1",
+              "q2"
+            ],
+            "claimed_cases": [
+              "q1",
+              "q2"
+            ],
+            "selected_cases": [
+              "q1",
+              "q2"
+            ],
+            "source": "claim",
+            "unevaluable_cases": []
+          },
+          "outcome": "promoted",
+          "reason": null,
+          "round": 1,
+          "visitation": null
+        },
+        {
+          "attempts": [
+            {
+              "affected": null,
+              "alpha_total": null,
+              "artifact_locator": null,
+              "attempt_id": "r02-a01",
+              "confidence": null,
+              "continued": false,
+              "index": 1,
+              "look": null,
+              "looks": [],
+              "measurement_id": null,
+              "outcome": "rejected",
+              "reason": "structurally_unattainable"
+            }
+          ],
+          "baseline_complete": true,
+          "baseline_measurement_id": "m-r01-a01-completion",
+          "champion_complete": true,
+          "final": [],
+          "gate_scope": null,
+          "outcome": "retained",
+          "reason": null,
+          "round": 2,
+          "visitation": null
+        }
+      ],
+      "run_id": "c-operation-reference",
+      "schema_version": 1,
+      "selection": [
+        {
+          "attempt_id": "r01-a01",
+          "data": {
+            "declaration": {
+              "content_digest": "de048d647fb8874417ad3e67873256a4b28a98550d59c752f658a85b85210c3d",
+              "declaration_ref": {
+                "content_digest": "f923b0fd60b7b9ec8a48c41670ebda228f8b7a8db37bf717a855785ca2827305",
+                "kind": "journal_record",
+                "locator": "campaign.jsonl#bytes=39537:40013",
+                "run_id": "c-operation-reference",
+                "version": 1
+              },
+              "family_version": 15,
+              "files": [
+                {
+                  "byte_count": 1014,
+                  "digest": "de048d647fb8874417ad3e67873256a4b28a98550d59c752f658a85b85210c3d",
+                  "name": "payload.json"
+                }
+              ],
+              "format": "comparison-data/1",
+              "purpose": "comparison"
+            },
+            "publication_ref": {
+              "content_digest": "d5241af4f29ef93e37e2b717a1be7fe0e03a9a6c23780da4bc14ccd1da61cd31",
+              "kind": "ledger_record",
+              "locator": "artifacts.jsonl#bytes=9598:9906",
+              "run_id": "ced0b391c3864371a5d2d6cd788e0437",
+              "version": 1
+            }
+          },
+          "outcome": "promoted",
+          "round": 1
+        },
+        {
+          "attempt_id": null,
+          "data": {
+            "declaration": {
+              "content_digest": "cffc37d3028f1d0170f2a6479d666bc853f209a8afadf093a1288239e22e7c07",
+              "declaration_ref": {
+                "content_digest": "c6fb48bcb6396632c9c9f029c0242dfc92207157e4301080468b28a84a162810",
+                "kind": "journal_record",
+                "locator": "campaign.jsonl#bytes=46443:46918",
+                "run_id": "c-operation-reference",
+                "version": 1
+              },
+              "family_version": 15,
+              "files": [
+                {
+                  "byte_count": 114,
+                  "digest": "cffc37d3028f1d0170f2a6479d666bc853f209a8afadf093a1288239e22e7c07",
+                  "name": "payload.json"
+                }
+              ],
+              "format": "comparison-data/1",
+              "purpose": "comparison"
+            },
+            "publication_ref": {
+              "content_digest": "f7e92802f82081d35d21f4f09fa7f3a58c1c5d8fa0370ce151599d15deda67aa",
+              "kind": "ledger_record",
+              "locator": "artifacts.jsonl#bytes=13458:13766",
+              "run_id": "ced0b391c3864371a5d2d6cd788e0437",
+              "version": 1
+            }
+          },
+          "outcome": "retained",
+          "round": 2
+        }
+      ],
+      "settings": {
+        "baseline_refresh": {
+          "count": 1,
+          "every_rounds": 3,
+          "performed": []
+        },
+        "round_stop": "first_accepted",
+        "stability": "stable"
+      },
+      "suspended": false,
+      "suspensions": []
+    },
+    "cost": null,
+    "distributions": [],
+    "lab_checks": null,
+    "lab_checks_reason": null,
+    "lab_checks_state": "present",
+    "lab_independent": {
+      "attainability": {
+        "local_guidance": {
+          "assumptions": [
+            "equal_independent_unit_weights",
+            "zero_threshold",
+            "all_ones_contrast_envelope"
+          ],
+          "interpretation": "not_an_admission_or_power_claim",
+          "minimum_units": 1,
+          "status": "conditional_guidance"
+        },
+        "preflight": []
+      },
+      "attempts": [
+        {
+          "attempt_id": "r01-a01",
+          "comparison": {
+            "bound_fallback": null,
+            "calibration": null,
+            "caveats": null,
+            "confidence_scope": null,
+            "coverage": {
+              "candidate": {
+                "admissible": 2,
+                "required": 2,
+                "settled": 2
+              },
+              "reference": {
+                "admissible": 2,
+                "required": 2,
+                "settled": 2
+              }
+            },
+            "deciding_layer": "global",
+            "eligible": true,
+            "excluded_reference_slots": 0,
+            "layer": "global",
+            "method": "bounded-weighted-mean/1",
+            "mode": "confidence",
+            "noise": {
+              "allowance": {
+                "exact": {
+                  "denominator": "1",
+                  "format": "rational-hex/1",
+                  "numerator": "0"
+                },
+                "value": 0.0
+              },
+              "extra_measurements": 0,
+              "kind": "negligible",
+              "observed_cases": 0,
+              "source": null,
+              "source_kind": "assumed_negligible",
+              "units": "score_squared",
+              "variation": "not_requested"
+            },
+            "outcome": "passed",
+            "reason": "passed",
+            "reference": "stored",
+            "reference_kind": "stored_non_contemporaneous",
+            "reference_measurement_id": "m-r00-champion",
+            "scopes": [
+              {
+                "confidence": null,
+                "declared_count": 2,
+                "display": "point",
+                "enclosure": null,
+                "exact": null,
+                "excluded_mass": {
+                  "exact": {
+                    "denominator": "1",
+                    "format": "rational-hex/1",
+                    "numerator": "0"
+                  },
+                  "value": 0.0
+                },
+                "fallback": null,
+                "lower": null,
+                "mass": {
+                  "exact": {
+                    "denominator": "1",
+                    "format": "rational-hex/1",
+                    "numerator": "1"
+                  },
+                  "value": 1.0
+                },
+                "name": "global",
+                "pairing": null,
+                "point": {
+                  "exact": {
+                    "denominator": "1",
+                    "format": "rational-hex/1",
+                    "numerator": "1"
+                  },
+                  "value": 1.0
+                },
+                "rule": "point",
+                "status": "available",
+                "strict": true,
+                "threshold": {
+                  "exact": {
+                    "denominator": "1",
+                    "format": "rational-hex/1",
+                    "numerator": "0"
+                  },
+                  "value": 0.0
+                },
+                "unavailable": null,
+                "unit_count": 2
+              }
+            ],
+            "selection_bias_possible": [
+              "stored_reference",
+              "reuse",
+              "candidate_selection"
+            ],
+            "unit": "case",
+            "verification": "reused_evidence"
+          },
+          "conditional_cost": {
+            "baseline_slots": 2,
+            "basis": "full_scenario_complete_scoring_without_retries",
+            "candidate_final_slots": 0,
+            "candidate_gate_slots": 2,
+            "candidate_total_slots": 2,
+            "champion_basis": "per_reached_finalist",
+            "champion_slots": 0,
+            "connection_preflight_slots": 1,
+            "noise_diagnostic_slots": 0,
+            "parent_slots": 0,
+            "probes_and_retries": "separate",
+            "simplest_passing_path_slots": 5,
+            "slots_per_refresh": 2
+          },
+          "eligible_final_score": {
+            "exact": {
+              "denominator": "1",
+              "format": "rational-hex/1",
+              "numerator": "1"
+            },
+            "value": 1.0
+          },
+          "gate_binding": {
+            "scopes": [
+              {
+                "name": "focus",
+                "rule": "bound"
+              },
+              {
+                "name": "causal",
+                "rule": "bound"
+              }
+            ],
+            "source": "core_raw"
+          },
+          "gate_comparison": {
+            "bound_fallback": null,
+            "calibration": null,
+            "caveats": null,
+            "confidence_scope": "conditional_fixed_scope_independent_bounded_units",
+            "coverage": {
+              "candidate": {
+                "admissible": 2,
+                "required": 2,
+                "settled": 2
+              },
+              "reference": {
+                "admissible": 2,
+                "required": 2,
+                "settled": 2
+              }
+            },
+            "deciding_layer": "focus",
+            "eligible": true,
+            "excluded_reference_slots": 0,
+            "layer": "gate",
+            "method": "bounded-weighted-mean/1",
+            "mode": "confidence",
+            "noise": {
+              "allowance": {
+                "exact": {
+                  "denominator": "1",
+                  "format": "rational-hex/1",
+                  "numerator": "0"
+                },
+                "value": 0.0
+              },
+              "extra_measurements": 0,
+              "kind": "negligible",
+              "observed_cases": 0,
+              "source": null,
+              "source_kind": "assumed_negligible",
+              "units": "score_squared",
+              "variation": "not_requested"
+            },
+            "outcome": "passed",
+            "reason": "passed",
+            "reference": "stored",
+            "reference_kind": "stored_non_contemporaneous",
+            "reference_measurement_id": "m-r00-champion",
+            "scopes": [
+              {
+                "confidence": {
+                  "exact": {
+                    "denominator": "80000000000000",
+                    "format": "rational-hex/1",
+                    "numerator": "ccccccccccccd"
+                  },
+                  "value": 0.1
+                },
+                "declared_count": 2,
+                "display": "bound",
+                "enclosure": {
+                  "lower": {
+                    "exact": {
+                      "denominator": "4000000000000000",
+                      "format": "rational-hex/1",
+                      "numerator": "37f5fd90fa7caa41"
+                    },
+                    "value": 0.874389
+                  },
+                  "steps": 64,
+                  "upper": {
+                    "exact": {
+                      "denominator": "8000000000000000",
+                      "format": "rational-hex/1",
+                      "numerator": "6febfb21f4f95483"
+                    },
+                    "value": 0.874389
+                  }
+                },
+                "exact": null,
+                "excluded_mass": {
+                  "exact": {
+                    "denominator": "1",
+                    "format": "rational-hex/1",
+                    "numerator": "0"
+                  },
+                  "value": 0.0
+                },
+                "fallback": null,
+                "lower": null,
+                "mass": {
+                  "exact": {
+                    "denominator": "1",
+                    "format": "rational-hex/1",
+                    "numerator": "1"
+                  },
+                  "value": 1.0
+                },
+                "name": "focus",
+                "pairing": null,
+                "point": {
+                  "exact": {
+                    "denominator": "1",
+                    "format": "rational-hex/1",
+                    "numerator": "1"
+                  },
+                  "value": 1.0
+                },
+                "rule": "bound",
+                "status": "available",
+                "strict": true,
+                "threshold": {
+                  "exact": {
+                    "denominator": "20000000000000",
+                    "format": "rational-hex/1",
+                    "numerator": "-1ccccccccccccd"
+                  },
+                  "value": -0.9
+                },
+                "unavailable": null,
+                "unit_count": 2
+              },
+              {
+                "confidence": {
+                  "exact": {
+                    "denominator": "80000000000000",
+                    "format": "rational-hex/1",
+                    "numerator": "ccccccccccccd"
+                  },
+                  "value": 0.1
+                },
+                "declared_count": 0,
+                "display": "status",
+                "enclosure": null,
+                "exact": null,
+                "excluded_mass": {
+                  "exact": {
+                    "denominator": "1",
+                    "format": "rational-hex/1",
+                    "numerator": "0"
+                  },
+                  "value": 0.0
+                },
+                "fallback": null,
+                "lower": null,
+                "mass": {
+                  "exact": {
+                    "denominator": "1",
+                    "format": "rational-hex/1",
+                    "numerator": "0"
+                  },
+                  "value": 0.0
+                },
+                "name": "causal",
+                "pairing": null,
+                "point": null,
+                "rule": "bound",
+                "status": "skipped",
+                "strict": false,
+                "threshold": {
+                  "exact": {
+                    "denominator": "1",
+                    "format": "rational-hex/1",
+                    "numerator": "-1"
+                  },
+                  "value": -1.0
+                },
+                "unavailable": null,
+                "unit_count": 0
+              }
+            ],
+            "selection_bias_possible": [
+              "focus_selection",
+              "stored_reference"
+            ],
+            "unit": "case",
+            "verification": null
+          },
+          "global_binding": {
+            "scopes": [
+              {
+                "name": "global",
+                "rule": "point"
+              }
+            ],
+            "source": "core_raw"
+          },
+          "global_comparison": {
+            "bound_fallback": null,
+            "calibration": null,
+            "caveats": null,
+            "confidence_scope": null,
+            "coverage": {
+              "candidate": {
+                "admissible": 2,
+                "required": 2,
+                "settled": 2
+              },
+              "reference": {
+                "admissible": 2,
+                "required": 2,
+                "settled": 2
+              }
+            },
+            "deciding_layer": "global",
+            "eligible": true,
+            "excluded_reference_slots": 0,
+            "layer": "global",
+            "method": "bounded-weighted-mean/1",
+            "mode": "confidence",
+            "noise": {
+              "allowance": {
+                "exact": {
+                  "denominator": "1",
+                  "format": "rational-hex/1",
+                  "numerator": "0"
+                },
+                "value": 0.0
+              },
+              "extra_measurements": 0,
+              "kind": "negligible",
+              "observed_cases": 0,
+              "source": null,
+              "source_kind": "assumed_negligible",
+              "units": "score_squared",
+              "variation": "not_requested"
+            },
+            "outcome": "passed",
+            "reason": "passed",
+            "reference": "stored",
+            "reference_kind": "stored_non_contemporaneous",
+            "reference_measurement_id": "m-r00-champion",
+            "scopes": [
+              {
+                "confidence": null,
+                "declared_count": 2,
+                "display": "point",
+                "enclosure": null,
+                "exact": null,
+                "excluded_mass": {
+                  "exact": {
+                    "denominator": "1",
+                    "format": "rational-hex/1",
+                    "numerator": "0"
+                  },
+                  "value": 0.0
+                },
+                "fallback": null,
+                "lower": null,
+                "mass": {
+                  "exact": {
+                    "denominator": "1",
+                    "format": "rational-hex/1",
+                    "numerator": "1"
+                  },
+                  "value": 1.0
+                },
+                "name": "global",
+                "pairing": null,
+                "point": {
+                  "exact": {
+                    "denominator": "1",
+                    "format": "rational-hex/1",
+                    "numerator": "1"
+                  },
+                  "value": 1.0
+                },
+                "rule": "point",
+                "status": "available",
+                "strict": true,
+                "threshold": {
+                  "exact": {
+                    "denominator": "1",
+                    "format": "rational-hex/1",
+                    "numerator": "0"
+                  },
+                  "value": 0.0
+                },
+                "unavailable": null,
+                "unit_count": 2
+              }
+            ],
+            "selection_bias_possible": [
+              "stored_reference",
+              "reuse",
+              "candidate_selection"
+            ],
+            "unit": "case",
+            "verification": "reused_evidence"
+          },
+          "group": "accepted",
+          "outcome": "finalist",
+          "preflight": null,
+          "reason": "passed",
+          "round": 1
+        },
+        {
+          "attempt_id": "r02-a01",
+          "comparison": null,
+          "conditional_cost": null,
+          "eligible_final_score": null,
+          "gate_binding": null,
+          "gate_comparison": null,
+          "global_binding": null,
+          "global_comparison": null,
+          "group": "not_enough_data",
+          "outcome": "rejected",
+          "preflight": {
+            "basis": "stored_reference",
+            "bound_fallback": null,
+            "interpretation": "score_range_ceiling_not_a_success_or_power_prediction",
+            "profile_digest": null,
+            "scopes": [
+              {
+                "c_max": null,
+                "confidence": null,
+                "delta_max": {
+                  "exact": {
+                    "denominator": "1",
+                    "format": "rational-hex/1",
+                    "numerator": "0"
+                  },
+                  "value": 0.0
+                },
+                "e_max": null,
+                "fallback": null,
+                "name": "global",
+                "passes": false,
+                "rule": "point",
+                "status": "calculated",
+                "strict": true,
+                "threshold": {
+                  "exact": {
+                    "denominator": "1",
+                    "format": "rational-hex/1",
+                    "numerator": "0"
+                  },
+                  "value": 0.0
+                },
+                "unit_count": 2
+              }
+            ],
+            "status": "impossible"
+          },
+          "reason": "structurally_unattainable",
+          "round": 2
+        }
+      ],
+      "evidence": "authenticated_publications",
+      "next_action": "finished",
+      "settings": {
+        "bound_fallback": null,
+        "execution_noise": {
+          "allowance": {
+            "exact": {
+              "denominator": "1",
+              "format": "rational-hex/1",
+              "numerator": "0"
+            },
+            "value": 0.0
+          },
+          "kind": "negligible",
+          "source": null,
+          "source_kind": "assumed_negligible"
+        },
+        "fresh_parent": false,
+        "global_rule": "point",
+        "mode": "confidence",
+        "repeats": 1,
+        "stability": "stable",
+        "statistics": {
+          "method": "bounded-weighted-mean/1",
+          "unit": "case"
+        },
+        "train_cases": 2,
+        "train_slots": 2,
+        "verification": "reuse"
+      },
+      "work": {
+        "committed": {
+          "connection_preflight": {
+            "imported_slots": 0,
+            "scenario_slots": 1,
+            "scorer_executions": 1,
+            "target_turns": 1,
+            "transport_retries": 0
+          },
+          "interpretation": "journaled_work_not_tokens_currency_or_provider_call_estimates",
+          "measurement": {
+            "imported_slots": 2,
+            "scenario_slots": 4,
+            "scorer_executions": 4,
+            "target_turns": 4,
+            "transport_retries": 0
+          },
+          "reflector_probe_requests": 0,
+          "role_requests": 3
+        },
+        "planned": {
+          "admitted_baseline_imports": 0,
+          "affected_cases": null,
+          "baseline_slots": 2,
+          "basis": "full_initial_baseline_and_conditional_future_stage_scenarios",
+          "candidate_final_slots_if_gate_passes": null,
+          "champion_scope": "reached_finalist",
+          "champion_slots_per_scope": 0,
+          "connection_preflight": "separate_no_measurement_credit",
+          "noise_diagnostic_slots": 0,
+          "parent_gate_slots": 0,
+          "probes_and_retries": "separate",
+          "slots_per_refresh": 2
+        },
+        "remaining": {
+          "baseline_slots": 0,
+          "basis": "conditional_same_bound_conditions_complete_scoring_without_retries",
+          "candidate_final_slots_if_gates_pass": 0,
+          "candidate_gate_slots": 0,
+          "champion_slots_for_reached_finalists": 0,
+          "noise_diagnostic_slots": 0,
+          "parent_gate_slots": 0,
+          "probes_and_retries": "separate",
+          "refresh_scenario_slots": 0,
+          "remaining_refreshes": 0,
+          "scope": "current_baseline_and_opened_attempts_only"
+        }
+      }
+    },
+    "lab_independent_reason": null,
+    "lab_independent_state": "present",
+    "lab_notices": [],
+    "lab_result": null,
+    "lab_rounds": [
+      {
+        "reflection": {
+          "error_class": null,
+          "reason": null,
+          "state": "present"
+        },
+        "round": 1,
+        "source": "core_raw"
+      },
+      {
+        "reflection": {
+          "error_class": null,
+          "reason": null,
+          "state": "absent"
+        },
+        "round": 2,
+        "source": "core_raw"
+      }
+    ],
+    "lab_rounds_reason": null,
+    "lab_rounds_state": "present",
+    "lab_starts": [],
+    "legacy_run": false,
+    "measurements": [
+      {
+        "call_failures_by_code": {},
+        "call_retries": 0,
+        "candidate_digest": "fbd7fa5cd7695fbda3cd44d6052a66419e46395644eabfaf65a0dabc0dabc8c4",
+        "coverage": {
+          "expected": 2,
+          "scored": 2,
+          "state": "complete"
+        },
+        "excluded_pairs": null,
+        "journal_integrity": "complete",
+        "metrics": {
+          "score": {
+            "count": 2,
+            "mean": 0.0
+          }
+        },
+        "references": [
+          {
+            "content_digest": "ce7af3ae105d055d56ce440d79cba01d72175111de57685460fa3fbe766fb3c2",
+            "kind": "journal_record",
+            "locator": "events.jsonl#bytes=0:22253",
+            "run_id": "m-r00-champion",
+            "version": 1
+          }
+        ],
+        "run_id": "m-r00-champion",
+        "samples": [
+          {
+            "candidate_digest": "fbd7fa5cd7695fbda3cd44d6052a66419e46395644eabfaf65a0dabc0dabc8c4",
+            "case_id": "q1",
+            "critical_pass": true,
+            "evaluation": {
+              "kind": "score",
+              "outcome": "completed",
+              "owner": null,
+              "reason": null
+            },
+            "execution": {
+              "kind": "score",
+              "outcome": "completed",
+              "owner": null,
+              "reason": null
+            },
+            "execution_state": "finished",
+            "metrics": {
+              "score": 0.0
+            },
+            "sample_id": "01",
+            "scoring_state": "finished",
+            "tries": 1
+          },
+          {
+            "candidate_digest": "fbd7fa5cd7695fbda3cd44d6052a66419e46395644eabfaf65a0dabc0dabc8c4",
+            "case_id": "q2",
+            "critical_pass": true,
+            "evaluation": {
+              "kind": "score",
+              "outcome": "completed",
+              "owner": null,
+              "reason": null
+            },
+            "execution": {
+              "kind": "score",
+              "outcome": "completed",
+              "owner": null,
+              "reason": null
+            },
+            "execution_state": "finished",
+            "metrics": {
+              "score": 0.0
+            },
+            "sample_id": "01",
+            "scoring_state": "finished",
+            "tries": 1
+          }
+        ],
+        "tries": 2
+      },
+      {
+        "call_failures_by_code": {},
+        "call_retries": 0,
+        "candidate_digest": "03d1b9c4095e94609c8613313abb6695448d1e36767280f0a7e1362d520cd2dc",
+        "coverage": {
+          "expected": 2,
+          "scored": 2,
+          "state": "complete"
+        },
+        "excluded_pairs": null,
+        "journal_integrity": "complete",
+        "metrics": {
+          "score": {
+            "count": 2,
+            "mean": 1.0
+          }
+        },
+        "references": [
+          {
+            "content_digest": "224ff23e328ecfdb503fdae76a13e3444aea3e23a7ce767b17d77dab50baaeef",
+            "kind": "journal_record",
+            "locator": "events.jsonl#bytes=0:21918",
+            "run_id": "m-r01-a01",
+            "version": 1
+          }
+        ],
+        "run_id": "m-r01-a01",
+        "samples": [
+          {
+            "candidate_digest": "03d1b9c4095e94609c8613313abb6695448d1e36767280f0a7e1362d520cd2dc",
+            "case_id": "q1",
+            "critical_pass": true,
+            "evaluation": {
+              "kind": "score",
+              "outcome": "completed",
+              "owner": null,
+              "reason": null
+            },
+            "execution": {
+              "kind": "score",
+              "outcome": "completed",
+              "owner": null,
+              "reason": null
+            },
+            "execution_state": "finished",
+            "metrics": {
+              "score": 1.0
+            },
+            "sample_id": "01",
+            "scoring_state": "finished",
+            "tries": 1
+          },
+          {
+            "candidate_digest": "03d1b9c4095e94609c8613313abb6695448d1e36767280f0a7e1362d520cd2dc",
+            "case_id": "q2",
+            "critical_pass": true,
+            "evaluation": {
+              "kind": "score",
+              "outcome": "completed",
+              "owner": null,
+              "reason": null
+            },
+            "execution": {
+              "kind": "score",
+              "outcome": "completed",
+              "owner": null,
+              "reason": null
+            },
+            "execution_state": "finished",
+            "metrics": {
+              "score": 1.0
+            },
+            "sample_id": "01",
+            "scoring_state": "finished",
+            "tries": 1
+          }
+        ],
+        "tries": 2
+      },
+      {
+        "call_failures_by_code": {},
+        "call_retries": 0,
+        "candidate_digest": "03d1b9c4095e94609c8613313abb6695448d1e36767280f0a7e1362d520cd2dc",
+        "coverage": {
+          "expected": 2,
+          "scored": 2,
+          "state": "complete"
+        },
+        "excluded_pairs": null,
+        "journal_integrity": "complete",
+        "metrics": {
+          "score": {
+            "count": 2,
+            "mean": 1.0
+          }
+        },
+        "references": [
+          {
+            "content_digest": "3754d3d2b46a095e0366ae111130946655b607759e9647f4a3da8def2d448048",
+            "kind": "journal_record",
+            "locator": "events.jsonl#bytes=0:3525",
+            "run_id": "m-r01-a01-completion",
+            "version": 1
+          }
+        ],
+        "run_id": "m-r01-a01-completion",
+        "samples": [
+          {
+            "candidate_digest": "03d1b9c4095e94609c8613313abb6695448d1e36767280f0a7e1362d520cd2dc",
+            "case_id": "q1",
+            "critical_pass": true,
+            "evaluation": {
+              "kind": "score",
+              "outcome": "completed",
+              "owner": null,
+              "reason": null
+            },
+            "execution": {
+              "kind": "score",
+              "outcome": "completed",
+              "owner": null,
+              "reason": null
+            },
+            "execution_state": "imported",
+            "metrics": {
+              "score": 1.0
+            },
+            "sample_id": "01",
+            "scoring_state": "finished",
+            "tries": 0
+          },
+          {
+            "candidate_digest": "03d1b9c4095e94609c8613313abb6695448d1e36767280f0a7e1362d520cd2dc",
+            "case_id": "q2",
+            "critical_pass": true,
+            "evaluation": {
+              "kind": "score",
+              "outcome": "completed",
+              "owner": null,
+              "reason": null
+            },
+            "execution": {
+              "kind": "score",
+              "outcome": "completed",
+              "owner": null,
+              "reason": null
+            },
+            "execution_state": "imported",
+            "metrics": {
+              "score": 1.0
+            },
+            "sample_id": "01",
+            "scoring_state": "finished",
+            "tries": 0
+          }
+        ],
+        "tries": 0
+      }
+    ],
+    "operation": "campaign",
+    "owner_run": true,
+    "producing_version": "2.0.0b15",
+    "reflector_probe": {
+      "last_exit": null,
+      "launched_by": null,
+      "restarts": 0,
+      "state": "not_declared"
+    },
+    "reflector_probe_reason": null,
+    "reflector_probe_state": "present",
+    "unavailable_measurements": []
+  },
+  "reason": null,
+  "reflector_probe": {
+    "launched_by": null,
+    "state": "not_declared",
+    "restarts": 0,
+    "last_exit": null
+  },
+  "reflector_probe_state": "present",
+  "reflector_probe_reason": null,
+  "starts": [
+    {
+      "start": 1,
+      "scope_id": "fc7df06d01c34d23ad03c817600a5cb9",
+      "owner_generation": "owner-reference",
+      "target_ref": {
+        "schema": "lab-target-ref/1",
+        "id": "target-reference",
+        "owner_generation": "owner-reference"
+      },
+      "process": {
+        "launched": true,
+        "exit_code": 0,
+        "cleanup_complete": true,
+        "forced": false
+      },
+      "target_cleanup": {
+        "state": "confirmed",
+        "complete": true
+      },
+      "failure": null,
+      "settlement": "positive",
+      "refusal": null,
+      "core_terminal": null
+    }
+  ],
+  "usage": [
+    {
+      "measurement_id": "m-r00-champion",
+      "usage": {
+        "input_tokens": 24,
+        "output_tokens": 108,
+        "unknown_calls": 0,
+        "coverage": "target_calls_only"
+      },
+      "usage_state": "present"
+    },
+    {
+      "measurement_id": "m-r01-a01",
+      "usage": {
+        "input_tokens": 24,
+        "output_tokens": 80,
+        "unknown_calls": 0,
+        "coverage": "target_calls_only"
+      },
+      "usage_state": "present"
+    },
+    {
+      "measurement_id": "m-r01-a01-completion",
+      "usage": {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "unknown_calls": 0,
+        "coverage": "target_calls_only"
+      },
+      "usage_state": "present"
+    }
+  ],
+  "core_terminal": null
+}

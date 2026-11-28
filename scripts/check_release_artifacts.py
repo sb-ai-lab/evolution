@@ -68,27 +68,28 @@ def _matches(name: str, patterns: list[str]) -> bool:
     )
 
 
-def check_archive(path: Path) -> list[str]:
+def check_archive(path: Path, *, source_root: Path | None = None) -> list[str]:
     """Return members outside the declared package or different from their source."""
-    config = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    root = ROOT if source_root is None else source_root
+    config = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))
     project = config["project"]
     targets = config["tool"]["hatch"]["build"]["targets"]
     wheel = path.suffix == ".whl"
     target = targets["wheel" if wheel else "sdist"]
     tracked: set[str] | None = None
-    if (ROOT / ".git").exists():
+    if (root / ".git").exists() or (source_root is not None and (ROOT / ".git").exists()):
         tracked = {
             p.decode()
-            for p in subprocess.check_output(["git", "-C", str(ROOT), "ls-files", "-z"]).split(
+            for p in subprocess.check_output(["git", "-C", str(root), "ls-files", "-z"]).split(
                 b"\0"
             )
             if p
         }
     distribution = re.sub(r"[-_.]+", "_", project["name"]).lower()
     license_paths = {
-        p.relative_to(ROOT).as_posix()
+        p.relative_to(root).as_posix()
         for pattern in project.get("license-files", ["LICENSE"])
-        for p in ROOT.glob(pattern)
+        for p in root.glob(pattern)
         if p.is_file()
     }
     violations = []
@@ -125,7 +126,7 @@ def check_archive(path: Path) -> list[str]:
                 source = relative
         valid = metadata
         if source is not None and not _matches(source, target.get("exclude", [])):
-            original = ROOT / source
+            original = root / source
             if is_dir:
                 valid = original.is_dir() and (
                     tracked is None or any(p.startswith(source + "/") for p in tracked)

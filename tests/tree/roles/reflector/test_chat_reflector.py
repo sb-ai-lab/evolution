@@ -733,7 +733,10 @@ async def test_chat_reflector_reader_error_detail_is_family_gated(
     assert result.status == "declined", result.note
     outputs = [json.loads(m["content"]) for m in client.calls[2]["messages"] if m["role"] == "tool"]
     assert outputs[0]["error"] == (
-        "invalid_offset: offset must be between 0 and 17." if family15 else "invalid_offset."
+        "invalid_offset: offset must be between 0 and 17. "
+        "Omit offset to continue, or use a valid page position."
+        if family15
+        else "invalid_offset."
     )
 
 
@@ -894,7 +897,9 @@ async def test_v16_reflector_role_log_keeps_original_arguments_only_in_model_res
 
 
 @pytest.mark.parametrize("family15", [False, True])
-async def test_v16_read_evidence_at_record_end_returns_empty(tmp_path, reflect_request, family15):
+async def test_read_evidence_at_record_end_before_reading_the_page(
+    tmp_path, reflect_request, family15
+):
     from dataclasses import replace
 
     from tests.test_tree_chat_role_retry import RETRY
@@ -920,6 +925,88 @@ async def test_v16_read_evidence_at_record_end_returns_empty(tmp_path, reflect_r
         [m["content"] for m in client.calls[2]["messages"] if m["role"] == "tool"][-1]
     )
     if family15:
-        assert output["content"] == "" and output["next_offset"] is None
+        assert output["status"] == "gap" and output["next_offset"] == 0
+        assert output["source"] == record.evidence_id
+        assert {"content", "offset", "end_offset"}.isdisjoint(output)
     else:
         assert "record boundary" in output["error"]
+
+
+@pytest.mark.parametrize("repairs,invalid_first", [(0, False), (1, False), (1, True)])
+async def test_repeated_read_spends_only_the_reflector_protocol_budget(
+    tmp_path, reflect_request, repairs, invalid_first
+):
+    from dataclasses import replace
+
+    from tests.test_tree_chat_role_retry import RETRY
+
+    page = _response("read_file", {"path": "skills/SKILL.md", "start_line": 1, "end_line": 1})
+    prefix = [_response("unknown")] if invalid_first else []
+    reflector, client = _reflector(
+        tmp_path,
+        [_response("list_files"), *prefix, *([page] * 7)],
+        max_turns=8,
+        max_protocol_repairs=repairs,
+        retry=RETRY,
+    )
+    reflector = replace(reflector, family15=True, role_resilience=True)
+    result = await reflector.reflect(reflect_request)
+
+    assert result.status == "failed" and result.note.startswith("protocol ")
+    assert "repeated_read_without_progress" in result.note
+    assert len(client.calls) == 4 + repairs
+    corrections = [
+        r for r in _log_lines(reflector) if r.get("phase") == "protocol_repair_requested"
+    ]
+    assert len(corrections) == repairs
+    if invalid_first:
+        assert "unknown tool" in corrections[0]["error"]
+    elif repairs:
+        assert "finish_reflection" in corrections[0]["error"]
+
+
+@pytest.mark.parametrize("pattern", ["identical EOF", "alternating EOF", "gapped EOF", "quote"])
+async def test_reader_correction_allows_reflector_to_finish(tmp_path, reflect_request, pattern):
+    from dataclasses import replace
+
+    from tests.test_tree_chat_role_retry import RETRY
+
+    first, second = render_reflect_catalog(reflect_request.evidence)[:2]
+
+    def read(record, **arguments):
+        return _response("read_evidence", {"evidence_id": record.evidence_id, **arguments})
+
+    first_eof = read(first, offset=len(first.content))
+    second_eof = read(second, offset=len(second.content))
+    quote = read(first, offset=0, reread=True)
+    if pattern == "quote":
+        reads = [read(first), quote, _response("list_evidence"), quote]
+    elif pattern == "gapped EOF":
+        reads = [first_eof, second_eof, first_eof]
+    elif pattern == "identical EOF":
+        reads = [read(first), first_eof, first_eof]
+    else:
+        reads = [read(first), read(second), first_eof, second_eof, first_eof]
+    reflector, client = _reflector(
+        tmp_path,
+        [
+            _response("list_files"),
+            *reads,
+            _response("finish_reflection", {"groups": [_group(_obs_id(reflect_request))]}),
+        ],
+        max_protocol_repairs=1,
+        retry=RETRY,
+    )
+    reflector = replace(reflector, family15=True, role_resilience=True)
+    result = await reflector.reflect(reflect_request)
+
+    assert result.status == "reflected", result.note
+    (correction,) = [r for r in _log_lines(reflector) if r["phase"] == "protocol_repair_requested"]
+    assert "repeated_read_without_progress" in correction["error"]
+    messages = client.calls[-1]["messages"]
+    index = next(
+        i for i, m in enumerate(messages) if "Correction details: " in str(m.get("content"))
+    )
+    exchange = messages[index - 2 : index + 1]
+    assert [m["role"] for m in exchange] == ["assistant", "tool", "user"]
+    assert "finish_reflection" in json.loads(exchange[1]["content"])["error"]

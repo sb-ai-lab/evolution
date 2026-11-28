@@ -34,6 +34,7 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Any, Final, Literal, cast, get_args
 
+from evolution.lineage.state_io import sync_file
 from evolution.tree.storage.append_log import _directory, _file, _read
 from evolution.tree.storage.journal_errors import JournalCode, JournalFault
 
@@ -1047,7 +1048,7 @@ def trace_location(trace_root: Path, path: Path) -> str:
 
 #: Test seams: the raw write and fsync every `TraceStream` performs.
 _raw_write: Callable[[io.FileIO, Any], int | None] = io.FileIO.write
-_fsync: Callable[[int], None] = os.fsync
+_fsync: Callable[[int], None] = sync_file
 _raw_close: Callable[[io.FileIO], None] = io.FileIO.close
 
 

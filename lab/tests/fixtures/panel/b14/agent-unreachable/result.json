@@ -1,0 +1,12 @@
+{
+ "terminal": "finished",
+ "owner": null,
+ "code": null,
+ "event": "reflection_finished",
+ "availability": {
+  "health": "unavailable",
+  "mediator": "started",
+  "transport_failures": 0,
+  "unreachable": 2
+ }
+}

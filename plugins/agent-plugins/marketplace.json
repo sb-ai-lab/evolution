@@ -1,0 +1,20 @@
+{
+  "name": "evolution-local",
+  "interface": {
+    "displayName": "Evolution"
+  },
+  "plugins": [
+    {
+      "name": "evolution",
+      "source": {
+        "source": "local",
+        "path": "./evolution"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}

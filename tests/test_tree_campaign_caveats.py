@@ -158,6 +158,8 @@ def test_family14_caveat_registries_are_separate_tuples():
         "condition_changed",
         "predecessor_unfinished",
         "baseline_inherited",
+        "baseline_imported",
+        "imported_provenance_unknown",
         "condition_changed_in_place",
         "grouping_fallback",
         *AFFECTED_CAVEAT_KINDS14,
@@ -170,15 +172,59 @@ def test_family14_caveat_registries_are_separate_tuples():
     assert [AFFECTED_CAVEAT_KINDS14.index(kind) for kind in FINAL_CAMPAIGN_KINDS] == sorted(
         AFFECTED_CAVEAT_KINDS14.index(kind) for kind in FINAL_CAMPAIGN_KINDS
     )
-    # Family 13's registries are untouched, and no family-14 kind is a lineage kind.
+    # Family 13's registries are untouched; only the two b20 kinds join lineage.
     assert len(AFFECTED_CAVEAT_KINDS) == 11
-    assert CAVEAT_KINDS == CAVEAT_KINDS14[:5] + AFFECTED_CAVEAT_KINDS
+    old_leading = tuple(
+        kind
+        for kind in CAVEAT_KINDS14
+        if kind not in {"baseline_imported", "imported_provenance_unknown"}
+    )[:5]
+    assert CAVEAT_KINDS == old_leading + AFFECTED_CAVEAT_KINDS
     assert LINEAGE_CAVEAT_KINDS == (
         "condition_changed",
         "predecessor_unfinished",
         "baseline_inherited",
+        "baseline_imported",
+        "imported_provenance_unknown",
         "condition_changed_in_place",
     )
     assert not set(AFFECTED_CAVEAT_KINDS14) & set(LINEAGE_CAVEAT_KINDS)
     for kind in ("champion_not_contemporaneous", "stored_pairs_excluded", "exact_contrast"):
         assert kind not in CAVEAT_KINDS
+
+
+def test_import_caveats_and_abandoned_import():
+    from tests.test_tree_campaign_identity import standalone_declaration
+
+    declaration = standalone_declaration()
+    declaration["fields"] = ["identity.budget.max_turns"]
+    declaration["provenance"] = {"reported": 0, "unknown": 1, "source_recorded": False}
+    caveats = own_caveats(None, baseline_import=declaration)
+    assert [item["kind"] for item in caveats] == [
+        "condition_changed",
+        "baseline_imported",
+        "imported_provenance_unknown",
+    ]
+    assert all(item["from_run"] == "source-owner" for item in caveats)
+    assert caveats[1]["authorization_id"] is None
+    # An abandoned import leaves no source row: none of its caveats remain.
+    assert own_caveats(None, baseline_import=declaration, baseline_abandoned=True) == []
+    linked = {"run_id": "pred", "condition_changed": ["identity.scorer"]}
+    assert own_caveats(linked, baseline_import=declaration, baseline_abandoned=True) == [
+        {"kind": "condition_changed", "from_run": "pred", "fields": ["identity.scorer"]}
+    ]
+    assert [
+        item["kind"]
+        for item in own_caveats(None, baseline_import=declaration, provenance_reported=False)
+    ] == ["condition_changed", "baseline_imported"]
+    assert "baseline_imported" in LINEAGE_CAVEAT_KINDS
+    assert "imported_provenance_unknown" in LINEAGE_CAVEAT_KINDS
+
+
+def test_import_caveats_survive_in_lineage():
+    from tests.test_tree_campaign_identity import standalone_declaration
+
+    carried = aggregate_lineage(
+        None, "importing-run", predecessor_baseline_import=standalone_declaration()
+    )
+    assert carried == (LineageCaveat("baseline_imported", 1, (), "importing-run"),)

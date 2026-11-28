@@ -38,8 +38,9 @@ import os
 import re
 import stat
 import time
-from collections.abc import Callable, Collection, Mapping, Sequence
+from collections.abc import Callable, Collection, Iterable, Mapping, Sequence
 from dataclasses import asdict, dataclass, field, replace
+from functools import partial
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any, Final, Literal, cast
 from urllib.parse import urlsplit
@@ -51,8 +52,10 @@ from evolution.tree.roles.chat_history import (
     CONTINUATION_FIELDS,
     ChatHistoryError,
     ReplacedCall,
+    ToolReads,
     assistant_message,
     is_object_arguments,
+    message_chars,
     message_units,
     retained_message,
     strict_json,
@@ -70,11 +73,18 @@ from evolution.tree.roles.editor.editor_brief import EvidenceRecord, render_cata
 from evolution.tree.roles.editor_contracts import (
     PROJECTION_REFUSED_NOTE,
     PUBLICATION_REFUSED_NOTE,
+    EditBrief,
     EditRequest,
     EditResult,
     outcome_class,
 )
 from evolution.tree.roles.identities import EditorIdentity
+from evolution.tree.roles.read_progress import (
+    EVIDENCE_OFFSET_GUIDANCE,
+    READ_TOOLS,
+    ReadProgress,
+    read_tool_contracts,
+)
 from evolution.tree.roles.role_call import (
     AttemptRecorder,
     AttemptTelemetry,
@@ -683,19 +693,27 @@ def _retained_response(
 def _tool_result_messages(
     call: Any, output: dict[str, Any], assistant: dict[str, Any] | None
 ) -> list[dict[str, Any]]:
-    content = json.dumps(output, ensure_ascii=False, separators=(",", ":"))
-    if not hasattr(call, "function"):
+    if hasattr(call, "function") and assistant is None:
+        raise EditFailure("protocol", "missing modern assistant message")
+    return chat_tool_results(
+        _call_name(call), output, assistant if hasattr(call, "function") else None
+    )
+
+
+def chat_tool_results(
+    name: str, output: dict[str, Any], assistant: dict[str, Any] | None
+) -> list[dict[str, Any]]:
+    if assistant is None:
+        content = json.dumps(output, ensure_ascii=False, separators=(",", ":"))
         return [
             {
                 "role": "user",
                 "content": (
-                    f"Local function {_call_name(call)} returned {content}. "
+                    f"Local function {name} returned {content}. "
                     "Continue with exactly one native function call and no prose."
                 ),
             }
         ]
-    if assistant is None:
-        raise EditFailure("protocol", "missing modern assistant message")
     return tool_exchange(assistant, output)
 
 
@@ -759,20 +777,83 @@ def _protocol_correction(
     )
 
 
-def _compact_message(message: dict[str, Any], max_chars: int) -> dict[str, Any]:
+class _DialogueSummary(dict[str, Any]):
+    """A wire user message whose dialogue can be carried forward on the next fold."""
+
+    def __init__(self, dialogue: str, pages: str) -> None:
+        self.dialogue = dialogue
+        text = "Earlier dialogue" + (f"\n{dialogue}" if dialogue else "")
+        if pages:
+            text += f"\nRead pages\n{pages}"
+        super().__init__(role="user", content=text)
+
+
+def _role_summary(
+    folded: list[list[dict[str, Any]]],
+    reads: ReadProgress,
+    results: ToolReads,
+    redactions: tuple[str, ...],
+    budget: int,
+) -> _DialogueSummary:
+    # Preserve room for the receipts, even if the last exchange alone exceeds the target.
+    pages = reads.summary(max(0, budget - len("Earlier dialogue\nRead pages\n")))
+    available = max(0, budget - len(pages) - len("Earlier dialogue\nRead pages\n"))
+    parts: list[str] = []
+    for unit in folded:
+        # message_units already verified the order of native tool call IDs.
+        legacy = results.get(unit[0])
+        tools = [legacy[0] if legacy else None]
+        tools.extend(call["function"]["name"] for call in unit[0].get("tool_calls", ()))
+        for message, tool in zip(unit, tools, strict=True):
+            if available <= 0:
+                return _DialogueSummary("\n".join(parts), pages)
+            if tool in READ_TOOLS:
+                continue
+            if isinstance(message, _DialogueSummary):
+                text = message.dialogue
+            else:
+                visible = safe_record(message.get("content"), redactions)
+                text = f"{message.get('role')}: {str(visible)[:800]}" if visible else ""
+            if text:
+                part = text[:available]
+                parts.append(part)
+                available -= len(part) + 1
+    return _DialogueSummary("\n".join(parts), pages)
+
+
+def _compact_message(
+    message: dict[str, Any],
+    max_chars: int,
+    *,
+    results: ToolReads | None = None,
+    redactions: tuple[str, ...] = (),
+) -> dict[str, Any]:
     if message.get("role") == "assistant":
         return message
-    compacted = dict(message)
-    content = compacted.get("content")
+    content = message.get("content")
     if isinstance(content, str) and len(content) > max_chars:
-        compacted["content"] = (
-            content[:max_chars] + "\n[context truncated; re-read the needed range]"
-        )
-    return compacted
+        if results is None:
+            return {
+                **message,
+                "content": content[:max_chars] + "\n[context truncated; re-read the needed range]",
+            }
+        visible = safe_record(content, redactions)
+        shortened = {**message, "content": visible[:max_chars] + "\n[context truncated]"}
+        correlation = results.get(message)
+        if correlation is not None:
+            results.add(shortened, *correlation)
+        return shortened
+    return message
 
 
 def _compact_messages(
-    messages: list[dict[str, Any]], *, trigger_chars: int, message_max_chars: int
+    messages: list[dict[str, Any]],
+    *,
+    trigger_chars: int,
+    message_max_chars: int,
+    reads: ReadProgress | None = None,
+    results: ToolReads | None = None,
+    redactions: tuple[str, ...] = (),
 ) -> None:
     """Fold the middle of a long conversation into one summary, in place.
 
@@ -785,13 +866,18 @@ def _compact_messages(
         units = message_units(messages[2:])
     except ChatHistoryError as exc:
         raise EditFailure("protocol", str(exc)) from exc
-    size = sum(len(json.dumps(message, ensure_ascii=False, default=str)) for message in messages)
+    size = message_chars(messages)
     if size <= trigger_chars or not units:
         return
     target_chars = trigger_chars // 2
     prefix = messages[:2]
     latest_exchange = next(
-        (index for index in range(len(units) - 1, -1, -1) if units[index][0].get("tool_calls")),
+        (
+            index
+            for index in range(len(units) - 1, -1, -1)
+            if units[index][0].get("tool_calls")
+            or (results is not None and results.get(units[index][0]) is not None)
+        ),
         len(units) - 1,
     )
     protected_unit = units[latest_exchange]
@@ -803,21 +889,33 @@ def _compact_messages(
             break
         tail_units.insert(0, unit)
         tail_size += len(unit)
-    previous_units = units[: len(units) - len(tail_units)]
-    previous = [message for unit in previous_units for message in unit]
-    summary_parts = [
-        "Earlier editor context was compacted. "
-        "Re-read any details you need with line-bounded tools.",
-    ]
-    for message in previous:
-        text = safe_record(message.get("content"))
-        if text:
-            summary_parts.append(f"{message.get('role')}: {str(text)[:800]}")
-    summary = {"role": "user", "content": "\n".join(summary_parts)[:8_000]}
+    folded = units[: len(units) - len(tail_units)]
+    if reads is not None:
+        assert results is not None
+        # The previous summary may have survived inside the initial tail.
+        if tail_units and isinstance(tail_units[0][0], _DialogueSummary):
+            folded.append(tail_units.pop(0))
+        summary: dict[str, Any] = _role_summary(
+            folded, reads, results, redactions, min(8000, target_chars)
+        )
+    else:
+        summary_parts = [
+            "Earlier editor context was compacted. "
+            "Re-read any details you need with line-bounded tools.",
+        ]
+        for unit in folded:
+            for message in unit:
+                text = safe_record(message.get("content"))
+                if text:
+                    summary_parts.append(f"{message.get('role')}: {str(text)[:800]}")
+        summary = {"role": "user", "content": "\n".join(summary_parts)[:8_000]}
     tail_units = [
         unit
         if unit is protected_unit
-        else [_compact_message(message, message_max_chars) for message in unit]
+        else [
+            _compact_message(m, message_max_chars, results=results, redactions=redactions)
+            for m in unit
+        ]
         for unit in tail_units
     ]
     tail = [message for unit in tail_units for message in unit]
@@ -827,9 +925,14 @@ def _compact_messages(
         and len(tail_units) > 1
         and tail_units[0] is not protected_unit
     ):
-        tail_units.pop(0)
+        folded.append(tail_units.pop(0))
+        if reads is not None:
+            assert results is not None
+            summary = _role_summary(folded, reads, results, redactions, min(8000, target_chars))
         tail = [message for unit in tail_units for message in unit]
         compacted = prefix + [summary] + tail
+    if results is not None:
+        results.retain(compacted)
     messages[:] = compacted
 
 
@@ -1214,16 +1317,56 @@ def _evidence_page(catalog: Sequence[EvidenceRecord], offset: int) -> list[dict[
     return page
 
 
+def _read_arguments(
+    reads: ReadProgress | None, name: str, arguments: dict[str, Any]
+) -> tuple[dict[str, Any], bool]:
+    if reads is None or name not in READ_TOOLS:
+        return arguments, False
+    args = dict(arguments)
+    reread = args.pop("reread", False)
+    if type(reread) is not bool:
+        raise ToolError("invalid tool arguments")
+    evidence_id = args.get("evidence_id")
+    if name == "read_evidence" and isinstance(evidence_id, str):
+        args.setdefault("offset", reads.offset(evidence_id))
+    return args, reread
+
+
+def _catalog_evidence_page(
+    catalog: Sequence[EvidenceRecord], arguments: dict[str, Any], *, family15: bool
+) -> dict[str, Any]:
+    _expect(arguments, {"evidence_id"}, optional={"offset"})
+    offset = _offset(arguments, guidance=EVIDENCE_OFFSET_GUIDANCE if family15 else "")
+    record = next((item for item in catalog if item.evidence_id == arguments["evidence_id"]), None)
+    if record is None:
+        raise ToolError("unknown evidence ID")
+    content, following_offset = _evidence_chunk(record.content, offset, family15=family15)
+    result = {
+        "id": record.evidence_id,
+        "content": content,
+        "next_offset": following_offset,
+        "total_chars": len(record.content),
+    }
+    if family15:
+        result["content_digest"] = hashlib.sha256(record.content.encode()).hexdigest()
+    return result
+
+
 def _evidence_chunk(content: str, offset: int, *, family15: bool = False) -> tuple[str, int | None]:
     if offset > len(content):
-        detail = f"; offset must be between 0 and {len(content)}" if family15 else ""
+        detail = (
+            f"; offset must be between 0 and {len(content)}. {EVIDENCE_OFFSET_GUIDANCE}"
+            if family15
+            else ""
+        )
         raise ToolError("offset is past end of evidence" + detail)
     # `/16`: the end of a record is a valid offset whether or not the text
     # ends with a newline; `/15` keeps refusing it as a boundary error.
     if family15 and offset == len(content):
         return "", None
     if offset and content[offset - 1] != "\n":
-        raise ToolError("offset must point to an evidence record boundary")
+        detail = f". {EVIDENCE_OFFSET_GUIDANCE}" if family15 else ""
+        raise ToolError("offset must point to an evidence record boundary" + detail)
     if offset == len(content):
         return "", None
     limit = min(offset + EVIDENCE_CHUNK_CHARS, len(content))
@@ -1742,6 +1885,19 @@ def _provider_attempt_record(
     )
 
 
+def chat_request_options(
+    section: ChatEditorSection, messages: list[dict[str, Any]], protocol_options: dict[str, Any]
+) -> dict[str, Any]:
+    """Arguments at the SDK boundary, including the route-specific extra body."""
+    return {
+        "model": section.model,
+        "messages": messages,
+        "max_tokens": section.max_output_tokens,
+        **protocol_options,
+        **request_options(section),
+    }
+
+
 async def provider_response(
     *,
     client: Any,
@@ -1764,13 +1920,7 @@ async def provider_response(
     """
 
     task = asyncio.ensure_future(
-        client.chat.completions.create(
-            model=section.model,
-            messages=messages,
-            max_tokens=section.max_output_tokens,
-            **protocol_options,
-            **request_options(section),
-        )
+        client.chat.completions.create(**chat_request_options(section, messages, protocol_options))
     )
     try:
         async with asyncio.timeout(remaining()):
@@ -2227,6 +2377,54 @@ async def _negotiate_style(
 # --------------------------------------------------------------------------
 
 
+def editor_tools(*, traces: bool, family15: bool) -> list[dict[str, Any]]:
+    tools = TOOLS_V16 if traces else TOOLS
+    return read_tool_contracts(tools) if family15 else tools
+
+
+def offered_editor_tools(
+    tools: list[dict[str, Any]], writable_files: Iterable[str], blocked: Collection[str] = ()
+) -> list[dict[str, Any]]:
+    dropped = set(blocked)
+    if not any(name.endswith((".yaml", ".yml")) for name in writable_files):
+        dropped.add("edit_yaml")
+    return [tool for tool in tools if tool["function"]["name"] not in dropped]
+
+
+def editor_writable(relative: str, writable_paths: Sequence[str]) -> bool:
+    candidate = PurePosixPath(relative)
+    return any(policy_matches(rule, candidate, False) for rule in writable_paths)
+
+
+def editor_first_messages(
+    prompt_text: str,
+    brief: EditBrief,
+    catalog: Sequence[EvidenceRecord],
+    writable_paths: Sequence[str],
+    section: ChatEditorSection,
+    *,
+    family15: bool,
+) -> list[dict[str, Any]]:
+    messages: list[dict[str, Any]] = [
+        {"role": "system", "content": prompt_text},
+        {
+            "role": "user",
+            "content": render_opening(
+                brief,
+                catalog,
+                writable_paths,
+                max_changed_files=section.budgets.max_changed_files,
+            ),
+        },
+    ]
+    if family15:
+        messages[1]["content"] += (
+            f"\n\nSession limits: at most {section.max_turns} model turns in this session, "
+            f"the preflight included, and {effective_protocol_repairs(section)} protocol repairs."
+        )
+    return messages
+
+
 class _Session:
     """The per-attempt state of one tool loop; nothing here outlives `edit`."""
 
@@ -2240,6 +2438,7 @@ class _Session:
         attempts: AttemptRecorder | None = None,
     ) -> None:
         self.section = editor.section
+        self.redactions = editor.secrets
         self.prompt = editor.prompt
         self.request = request
         self.projection = projection
@@ -2252,7 +2451,17 @@ class _Session:
         self.family15 = editor.family15
         self.deadline = time.monotonic() + request.deadline_seconds
         self.catalog = render_catalog(request.brief)
-        self.tools = TOOLS if request.traces is None else TOOLS_V16
+        self.tools = editor_tools(traces=request.traces is not None, family15=self.family15)
+        self.reads = (
+            ReadProgress(
+                "finish_edit",
+                max_chars=self.section.context_compact_chars,
+                message_chars=self.section.context_message_max_chars,
+                redactions=self.redactions,
+            )
+            if self.family15
+            else None
+        )
         self._turns = 0
         #: `/11` (PDR-0019, ADR-0023): true once this attempt has taken its one
         #: family-10 continuation turn after an empty-diff decline.
@@ -2300,8 +2509,7 @@ class _Session:
     def _is_writable(self, relative: str) -> bool:
         """The tools' first line, using admission's own matcher (controller R5)."""
 
-        candidate = PurePosixPath(relative)
-        return any(policy_matches(rule, candidate, False) for rule in self.request.writable_paths)
+        return editor_writable(relative, self.request.writable_paths)
 
     def _writable_path(self, value: str) -> Path:
         target = self._readable_path(value)
@@ -2375,24 +2583,26 @@ class _Session:
     # -- the tool loop ----------------------------------------------------
 
     async def _conversation(self, request_style: str) -> Outcome:
-        messages: list[dict[str, Any]] = [
-            {"role": "system", "content": self.prompt.text()},
-            {
-                "role": "user",
-                "content": render_opening(
-                    self.request.brief,
-                    self.catalog,
-                    self.request.writable_paths,
-                    max_changed_files=self.section.budgets.max_changed_files,
-                ),
-            },
-        ]
+        messages = editor_first_messages(
+            self.prompt.text(),
+            self.request.brief,
+            self.catalog,
+            self.request.writable_paths,
+            self.section,
+            family15=self.family15,
+        )
         written = 0
-        if self.family15:
-            messages[1]["content"] += (
-                f"\n\nSession limits: at most {self.section.max_turns} model turns in this session, "
-                f"the preflight included, and {effective_protocol_repairs(self.section)} protocol repairs."
+        legacy_results = ToolReads() if self.family15 else None
+        compact = (
+            _compact_messages
+            if self.reads is None
+            else partial(
+                _compact_messages,
+                reads=self.reads,
+                results=legacy_results,
+                redactions=self.redactions,
             )
+        )
         plan: Plan | None = None
         plans: list[Plan] = []
         plan_before: dict[str, bytes] | None = None
@@ -2417,7 +2627,10 @@ class _Session:
             return with_dropped_note(output, dropped) if self.family15 else output
 
         def results(call: Any, output: dict[str, Any]) -> list[dict[str, Any]]:
-            return _tool_result_messages(call, noted(output), assistant)
+            exchange = _tool_result_messages(call, noted(output), assistant)
+            if legacy_results is not None and exchange[0]["role"] == "user":
+                legacy_results.add(exchange[0], _call_name(call), None)
+            return exchange
 
         def request_repair(error: str, calls: list[Any], category: str | None = None) -> None:
             nonlocal protocol_repairs
@@ -2459,7 +2672,9 @@ class _Session:
             rewrites: dict[str, str] = {}
             self._remaining()
             turn = self._next_turn()
-            _compact_messages(
+            if self.reads is not None:
+                self.reads.begin_turn()
+            compact(
                 messages,
                 trigger_chars=self.section.context_compact_chars,
                 message_max_chars=self.section.context_message_max_chars,
@@ -2537,7 +2752,7 @@ class _Session:
                 except ToolError as exc:
                     request_repair(str(exc), calls, "invalid_arguments")
                     continue
-            if name == "read_evidence" and "offset" not in arguments:
+            if self.reads is None and name == "read_evidence" and "offset" not in arguments:
                 evidence_id = arguments.get("evidence_id")
                 if isinstance(evidence_id, str):
                     arguments = {**arguments, "offset": evidence_progress.get(evidence_id, 0)}
@@ -2613,7 +2828,15 @@ class _Session:
                     self._check_plan_budget(proposed)
                 elif name in _MUTATING_TOOLS:
                     self._check_edit_budget(name, arguments)
-                output, bytes_written = self._run_tool(name, arguments)
+                read_args, reread = _read_arguments(self.reads, name, arguments)
+                output, bytes_written = self._run_tool(name, read_args)
+                if self.reads is not None and name in READ_TOOLS:
+                    output = self.reads.deliver(
+                        name,
+                        read_args,
+                        output,
+                        reread=reread,
+                    )
             except (ToolError, OSError) as exc:
                 if isinstance(exc, ToolError) and str(exc) == "invalid tool arguments":
                     request_repair(str(exc), calls, "invalid_arguments")
@@ -2638,6 +2861,11 @@ class _Session:
                 messages.extend(results(call, {"error": f"{exc}.{guidance}".rstrip()}))
                 continue
             failing_tool, consecutive_failures = None, 0
+            if self.reads is not None and name in READ_TOOLS:
+                repair = self.reads.repair_message(self.request.check_repeated_read)
+                if repair is not None:
+                    request_repair(repair, calls, "repeated_read_without_progress")
+                    continue
             if proposed is not None:
                 if plan_before is None:
                     plan_before = self._file_bytes()
@@ -2680,7 +2908,10 @@ class _Session:
             elif name == "read_evidence":
                 evidence_id = str(arguments["evidence_id"])
                 offset = arguments.get("offset", 0)
-                if offset == evidence_progress.get(evidence_id, 0):
+                if self.reads is not None:
+                    if self.reads.completed(evidence_id):
+                        completed_evidence_ids.add(evidence_id)
+                elif offset == evidence_progress.get(evidence_id, 0):
                     next_offset = output["next_offset"]
                     evidence_progress[evidence_id] = (
                         output["total_chars"] if next_offset is None else next_offset
@@ -2757,10 +2988,7 @@ class _Session:
         """Tools the projection supports and that are not blocked this attempt."""
 
         writable = [name for name in self._all_files() if self._is_writable(name)]
-        dropped = set(blocked)
-        if not any(name.endswith((".yaml", ".yml")) for name in writable):
-            dropped.add("edit_yaml")
-        return [tool for tool in self.tools if tool["function"]["name"] not in dropped]
+        return offered_editor_tools(self.tools, writable, blocked)
 
     # -- plan discipline --------------------------------------------------
 
@@ -3002,23 +3230,7 @@ class _Session:
                 detail = f"{exc.code}: {exc.detail}" if self.family15 and exc.detail else exc.code
                 raise ToolError(detail) from exc
         if name == "read_evidence":
-            _expect(arguments, {"evidence_id"}, optional={"offset"})
-            offset = _offset(arguments)
-            record = next(
-                (item for item in self.catalog if item.evidence_id == arguments["evidence_id"]),
-                None,
-            )
-            if record is None:
-                raise ToolError("unknown evidence ID")
-            content, following_offset = _evidence_chunk(
-                record.content, offset, family15=self.family15
-            )
-            return {
-                "id": record.evidence_id,
-                "content": content,
-                "next_offset": following_offset,
-                "total_chars": len(record.content),
-            }, 0
+            return _catalog_evidence_page(self.catalog, arguments, family15=self.family15), 0
         if name == "record_plan":
             return {"recorded": arguments}, 0
         if name == "finish_edit":
@@ -3215,10 +3427,11 @@ def _expect(
         raise ToolError("invalid tool arguments")
 
 
-def _offset(arguments: dict[str, Any]) -> int:
+def _offset(arguments: dict[str, Any], *, guidance: str = "") -> int:
     offset = arguments.get("offset", 0)
     if type(offset) is not int or offset < 0:
-        raise ToolError("offset must be a non-negative integer")
+        detail = f". {guidance}" if guidance else ""
+        raise ToolError("offset must be a non-negative integer" + detail)
     return offset
 
 

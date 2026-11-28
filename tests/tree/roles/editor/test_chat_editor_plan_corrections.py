@@ -9,6 +9,7 @@ from evolution.tree.roles.editor.chat_editor import ChatCredentials, ChatEditor
 from evolution.tree.roles.seals import seal_prompt
 from tests.tree.roles.editor.test_chat_editor import (
     SECRET,
+    _brief,
     _budget,
     _CapturingClient,
     _editor,
@@ -474,3 +475,116 @@ async def test_v16_editor_object_arguments_repaired_for_schema_keep_their_string
     assert "were removed from the conversation history" not in correction
     details = json.loads(correction.split("Correction details: ", 1)[1])
     assert details["received_calls"][0]["arguments"]["preview"] == bad
+
+
+@pytest.mark.parametrize("repairs,invalid_first", [(0, False), (1, False), (1, True)])
+async def test_repeated_read_spends_only_the_editor_protocol_budget(
+    tmp_path, repairs, invalid_first
+):
+    from dataclasses import replace
+
+    from tests.test_tree_chat_role_retry import RETRY
+
+    page = _response("read_file", '{"path":"skills/SKILL.md","start_line":1,"end_line":1}')
+    prefix = [_response("unknown")] if invalid_first else []
+    editor, client = _editor16(
+        tmp_path, [*prefix, *([page] * 8)], max_turns=8, max_protocol_repairs=repairs, retry=RETRY
+    )
+    editor = replace(editor, family15=True, role_resilience=True)
+    result = await editor.edit(_request(_ws(tmp_path)))
+
+    assert result.status == "failed" and result.note.startswith("protocol ")
+    assert "repeated_read_without_progress" in result.note
+    assert len(client.calls) == 4 + repairs  # preflight, page, receipt, then violations
+    corrections = [r for r in _log_lines(editor) if r.get("phase") == "protocol_repair_requested"]
+    assert len(corrections) == repairs
+    if invalid_first:
+        assert "unknown tool" in corrections[0]["error"]
+    elif repairs:
+        assert "finish_edit" in corrections[0]["error"]
+
+
+@pytest.mark.parametrize("pattern", ["identical EOF", "alternating EOF", "gapped EOF", "quote"])
+async def test_reader_correction_allows_editor_to_finish(tmp_path, pattern):
+    from dataclasses import replace
+
+    from evolution.tree.roles.editor.editor_brief import render_catalog
+    from tests.test_tree_chat_role_retry import RETRY
+
+    brief = _brief()
+    first, second = render_catalog(brief)[:2]
+
+    def read(record, **arguments):
+        return _response(
+            "read_evidence", json.dumps({"evidence_id": record.evidence_id, **arguments})
+        )
+
+    first_eof = read(first, offset=len(first.content))
+    second_eof = read(second, offset=len(second.content))
+    quote = read(first, offset=0, reread=True)
+    if pattern == "quote":
+        reads = [read(first), quote, _response("list_evidence"), quote]
+    elif pattern == "gapped EOF":
+        reads = [first_eof, second_eof, first_eof]
+    elif pattern == "identical EOF":
+        reads = [read(first), first_eof, first_eof]
+    else:
+        reads = [read(first), read(second), first_eof, second_eof, first_eof]
+    editor, client = _editor16(
+        tmp_path,
+        [
+            *reads,
+            _plan("skills/SKILL.md"),
+            _write("skills/SKILL.md", "edited\n"),
+            _response("finish_edit", '{"summary":"done"}'),
+        ],
+        max_protocol_repairs=1,
+        retry=RETRY,
+    )
+    editor = replace(editor, family15=True, role_resilience=True)
+    result = await editor.edit(_request(_ws(tmp_path), brief=brief))
+
+    assert result.status == "edited", result.note
+    (correction,) = [r for r in _log_lines(editor) if r["phase"] == "protocol_repair_requested"]
+    assert correction["category"] == "repeated_read_without_progress"
+    messages = client.calls[-1]["messages"]
+    index = next(
+        i for i, m in enumerate(messages) if "Correction details: " in str(m.get("content"))
+    )
+    exchange = messages[index - 2 : index + 1]
+    assert [m["role"] for m in exchange] == ["assistant", "tool", "user"]
+    assert "finish_edit" in json.loads(exchange[1]["content"])["error"]
+
+
+async def test_invalid_evidence_offset_guides_editor_back_to_the_first_unread_position(tmp_path):
+    from dataclasses import replace
+
+    from tests.test_tree_chat_role_retry import RETRY
+
+    def read(**arguments):
+        return _response("read_evidence", json.dumps({"evidence_id": "summary", **arguments}))
+
+    editor, _ = _editor16(
+        tmp_path,
+        [
+            read(offset=1),
+            read(),
+            _plan("skills/SKILL.md"),
+            _write("skills/SKILL.md", "edited\n"),
+            _response("finish_edit", '{"summary":"done"}'),
+        ],
+        max_protocol_repairs=0,
+        retry=RETRY,
+    )
+    editor = replace(editor, family15=True, role_resilience=True)
+    result = await editor.edit(_request(_ws(tmp_path)))
+
+    assert result.status == "edited", result.note
+    errors = [r["error"] for r in _log_lines(editor) if r["phase"] == "tool_error"]
+    assert len(errors) == 1 and "Omit offset to continue" in errors[0]
+    (page,) = [
+        r["result"]
+        for r in _log_lines(editor)
+        if r["phase"] == "tool_call" and r["tool"] == "read_evidence"
+    ]
+    assert page["offset"] == 0 and page["content"]

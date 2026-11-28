@@ -1178,7 +1178,7 @@ async def test_a_measurement_journal_fault_names_its_own_owner(
 ) -> None:
     rig = Rig(tmp_path, campaign_policy=policy(rounds=1, attempts_per_round=1))
 
-    def broken(self: Any, imported: Any = ()) -> None:
+    def broken(self: Any, imported: Any = (), *, declared_components: Any = ()) -> None:
         raise JournalFault("storage_capacity_exhausted")
 
     monkeypatch.setattr(campaign_module.Measurement, "create", broken)

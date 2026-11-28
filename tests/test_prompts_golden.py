@@ -20,6 +20,9 @@ import hashlib
 from evolution import prompts
 
 GOLDEN = {
+    "TREE_EDITOR_SYSTEM_V4": "cb258b1c295dcb0ca1797b9396e13830a7758a8e52b9dc3646c224d1809e9c58",
+    "TREE_REFLECTOR_SYSTEM_V8": "ccca0c3027c80e03f2aaeadbc9b04092f441569343f90fd865e836347f913d97",
+    "TREE_REFLECTOR_SYSTEM_V7": "6d65de478ca59ebf237251cc83baba4cb80f2604392bdb2152d4fa347dd4432f",
     "TREE_REFLECTOR_SYSTEM_V6": "dc56c577f8d286219f63dab8fcd39f8ee341e49e4f505740f848b45d8d9f7386",
     "TREE_AGENT_REFLECTOR_SYSTEM_V4": "b366258b9e8869390fc4f79ad16d39002bd25971e315422bb779fc7e76f9339d",
     "TREE_REFLECTOR_SYSTEM_V5": "06bdc6eadc165ca86743f0b7b02b24b3399a99218ab37334f26be4e30388922c",
@@ -57,7 +60,12 @@ GOLDEN = {
 
 
 def test_new_reflector_prompts_explain_the_union_focus():
-    for prompt in (prompts.TREE_REFLECTOR_SYSTEM_V6, prompts.TREE_AGENT_REFLECTOR_SYSTEM_V4):
+    for prompt in (
+        prompts.TREE_REFLECTOR_SYSTEM_V6,
+        prompts.TREE_REFLECTOR_SYSTEM_V7,
+        prompts.TREE_REFLECTOR_SYSTEM_V8,
+        prompts.TREE_AGENT_REFLECTOR_SYSTEM_V4,
+    ):
         flattened = " ".join(prompt.split())
         assert (
             "The gate's focus is the union of affected_cases across all your hypotheses"
@@ -95,6 +103,9 @@ def test_prompt_text_matches_golden():
 
 
 GOLDEN_FILES = {
+    "tree_editor_v4.md": "ede087c2c779271ad2a8e5423f087ef1564e03ae8e55f4519a139be90b19f473",
+    "tree_reflector_v8.md": "9bc842625b9785776ea89ba6ab406330da250f1b3cf47ab96299288112594cc1",
+    "tree_reflector_v7.md": "beb09761c69ecf8ba001974177803aa0611ae0e6e50b04186c7a75ae219b6540",
     "tree_reflector_v6.md": "990734df8d71a886749b3b1ba2b9fc569ed75b211802c61b987312c12155951f",
     "tree_agent_reflector_v4.md": "36be7a631536bda7aa8e547c9d6ed8a6ab12e4f5053ffd64258b89f0a2677a7f",
     "tree_reflector_v5.md": "c7d586cbdc0e786519674ba8cf82520e5ad70e5233cab341f91a7cb70a590c85",

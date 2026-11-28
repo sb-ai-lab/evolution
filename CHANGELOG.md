@@ -2,6 +2,83 @@
 
 This beta snapshot preserves the supported workflows and stored-run contracts described below.
 
+## [2.0.0b22] — 2026-11-26
+
+This public snapshot includes Evolution Lab `0.0.3.dev81` with Core `2.0.0b22`. The [Lab quickstart](QUICKSTART.md) builds and installs both wheels from the checkout.
+
+- On manifest `/16`, the chat Editor and Reflector detect repeated reads without progress even when requests alternate between sources. An intentional reread still returns the requested page. Repeats after context compaction count toward the same repair budget. [Read progress](docs/manifest-v2.md#continuing-a-read-in-16)
+- Core campaign reports distinguish opened Attempts, sealed Candidates and Attempts with committed scores. They show safe failure reasons and summarize recorded Candidate and Parent repeat variance when available.
+- Campaign packages can use their own observations and pass role-specific feedback through existing manifest settings. The feedback contract stays the same across different agent structures.
+
+To resume an unfinished b21 campaign, review the reported producing-version change and the role-contract changes for affected direct `/16` chat roles, including roles with declared prompts. Accept them together with the printed `evo tree authorize` command, then repeat the original campaign command. The new invocation keeps the frozen inputs and starts with an empty read history.
+
+- `evo tree evolve` admits `/15` and opt-in `/16`, and the `evo-target` scaffold continues to write `/15`. `evo tree conformance` continues to refuse earlier campaign manifests, including `evolution-v2-manifest/5`, with `manifest_schema`, and run directories of families 3–13 stay refused `campaign_family_unsupported`. `package_version_mismatch` still requires explicit handling on resume. `evo gui`, the `[gui]` extra and `evo tree edit` remain absent.
+
+## [2.0.0b21] — 2026-11-25
+
+On manifest `/16`, the chat Editor and Reflector keep a record of the evidence pages they read across context compaction. Repeating a read without progress returns a short reply. The default `enforce` mode gives the role a bounded opportunity to correct the read before ending the invocation with a protocol error. Use `shadow` to observe repeats while the role continues. See [policy checks](docs/manifest-v2.md#checks-manifest-16).
+
+When resuming an unfinished `/16` campaign, review the reported role digests and producing version. To accept the rebase, run the printed `evo tree authorize` command and repeat the original campaign command. [Continuing a read](docs/manifest-v2.md#continuing-a-read-in-16)
+
+- `evo tree evolve` admits `/15` and opt-in `/16`, and the `evo-target` scaffold continues to write `/15`. `evo tree conformance` continues to refuse earlier campaign manifests, including `evolution-v2-manifest/5`, with `manifest_schema`, and run directories of families 3–13 stay refused `campaign_family_unsupported`. `package_version_mismatch` still requires explicit handling on resume. `evo gui`, the `[gui]` extra and `evo tree edit` remain absent.
+
+## [2.0.0b20] — 2026-11-19
+
+This release keeps the manifest schemas, campaign families, wire protocol, exit codes, packaged prompts and Python import paths. `/15` and `/16` gain one optional key, `baseline_import`; a document without it keeps its meaning and its identity bytes. Core no longer fsyncs by default. `/16` remains opt-in and the scaffold still writes `/15`.
+
+### Added
+
+- **A campaign can start from a finished train evaluation.** A new `/15` or `/16` manifest may declare `"baseline_import": {"source": "<SOURCE_DIR>"}`, naming a Core evaluation written by `evo tree evaluate` or a standalone `rollout_measurement` journal such as Lab's fixed evaluation. The campaign imports the source's scored rows that pair with its first-round baseline, measures only the missing pairs and prints how many source rows it did not import and why. A completed, suspended or interrupted evaluation is usable when no writer holds it. A different seed tree, scorer or primary metric plan is refused `baseline_import_incompatible`, and a source that measured a held-out case, or a Core evaluation of the `test` split, is refused `baseline_import_held_out`; each can be authorized at creation with the effect `import`, by its own decision. Other measured-condition differences are reported as caveats; concurrency and `sample_retries` are ignored. An unreadable source is `baseline_source_unavailable at baseline_import`, a bad path `bad_path at baseline_import.source`, and inputs that change while the campaign starts `baseline_import_inputs_changed at baseline_import`; all three are hard and write nothing. The key cannot be combined with `linked_from`, nor added or removed on resume. Before the imported baseline is born, a lost or changed source is `baseline_import_unavailable`, which `fresh_baseline` accepts; after birth the run needs no source. On `/16` imported rows bring the bounded diagnostic bundle from the source's scorer traces; `/15` warns that imported verdict-only failures are not diagnosed until the first baseline refresh. Results gain a `baseline_import` block and the caveats `baseline_imported` and `imported_provenance_unknown`, which change no statistic, decision, outcome or exit code. See [`baseline_import`](docs/manifest-v2.md#baseline_import), [the CLI reference](docs/cli.md#a-baseline-from-an-evaluation) and [running campaigns](docs/running-campaigns.md#start-a-campaign-from-a-finished-evaluation).
+- **Evaluations record the provenance their Target reports.** New evaluation measurements carry `"row_provenance": 1`, keep each row's provenance and component-map digest, and declare each component map once. The evaluation result gains a `provenance` object (`recorded`, `reported`, `overflow`, `not_reported`, `components_declared`), and `evo tree evaluate` prints one note on stderr when samples finished and none reported provenance. See [evaluation reports](docs/cli.md#measure-a-tree-on-train-or-test).
+- **Linked runs carry component maps.** A new `linked_from` run with `baseline: inherit` copies the component maps its imported rows name into its baseline journal, and its `linked_from.baseline` declaration gains `not_imported`, `components` and `provenance`. Earlier links keep their declarations.
+- `evolution.tree` exports `declare_instance_components`, `measurement_provenance` and `MeasurementProvenance`. `evolution.tree.__all__` grows from 140 to 143 names and keeps the order of the first 140. See [Lab-facing campaign helpers](docs/api-usage.md#lab-facing-campaign-helpers).
+- **`EVOLUTION_DURABILITY`** is `relaxed` (the default, also when unset or empty) or `strict`, read from the process environment and fixed for the process lifetime. Any other value is refused before any write: `evo` exits `2` and the library entry points raise `ValueError`. It enters no manifest, identity, journal record or wire message. See [configuration](docs/configuration.md#process-durability).
+- Development: `scripts/test-tmp` keeps test temporary files in RAM on Linux and macOS, and the offline suite stops before the first test when its temporary storage is disk-backed, unless `EVOLUTION_TEST_ALLOW_DISK=1` is set.
+
+### Changed
+
+- **Core no longer fsyncs by default.** Writes, renames and digest checks are unchanged; a run survives a crash or kill of any of its processes, and after an OS crash or a power loss it may lose recent work and its resume may refuse. `EVOLUTION_DURABILITY=strict` restores every earlier fsync. See [host crashes and durability](docs/running-campaigns.md#host-crashes-and-durability).
+- The manual workflow's workspace guard also treats `/Users`, `/Volumes` and `/private` as host roots, on every platform.
+- The packaged reference Target server listens with the system's maximum backlog, so macOS no longer resets concurrent connections.
+- Journal reads reuse an admission of the same record bytes within one process. Records, identities, audit rules and errors are unchanged.
+
+### Upgrade
+
+- Install the same version at both wire ends. An unfinished b19 run requires one `run_identity_changed` authorization with effect `rebase` that lists only `producing_version`. Accept it with `evo tree authorize`, then repeat the same command. Finished runs stay finished and remain readable with `inspect_campaign(..., verify=True)` and `evo tree watch --once`. Finish or stop every `/15` run before upgrading.
+- A document without `baseline_import` and `linked_from` keeps its identity and adaptation bytes. A new `linked_from` run with `baseline: inherit` records the three new `linked_from.baseline` keys, so its identity digest differs from the one b19 would record.
+- A b19 evaluation can be imported. It records no provenance, so under `gate.provenance.kind: reported` the campaign notes that the imported rows carry none and treats their cases as affected; its evaluation report shows `"recorded": false`.
+- Rollback to b19 needs the same one `rebase` and then continues, except for two kinds of run. b19 and earlier refuse a document that declares `baseline_import` as `unknown_key at baseline_import` and write nothing. A new inheriting `linked_from` run created by this release ends `persistence_failed` (`journal_unavailable`) under b19 before any authorization and writes nothing; install this release again to continue it. b19 reads completed evaluations written by this release, without the `provenance` object.
+- `EVOLUTION_DURABILITY` changes no stored byte; no migration step is needed.
+- `evo tree evolve` admits `/15` and opt-in `/16`, and the `evo-target` scaffold continues to write `/15`. `evo tree conformance` continues to refuse earlier campaign manifests, including `evolution-v2-manifest/5`, with `manifest_schema`, and run directories of families 3–13 stay refused `campaign_family_unsupported`. `package_version_mismatch` still requires explicit handling on resume. `evo gui`, the `[gui]` extra and `evo tree edit` remain absent.
+
+### Retained limitations
+
+- The limitations listed for `2.0.0b19` remain. Evaluations written before this release carry no provenance. A cross-version resume refusal of an evaluation still prints as `invalid_identity`. A default run may be lost to a host crash.
+
+
+## [2.0.0b19] — 2026-11-12
+
+This release keeps the manifest schemas, campaign families, manifest keys, wire protocol, journal records, run identities, refusal codes, exit codes, packaged prompts and Python import paths. `/16` remains opt-in and the scaffold still writes `/15`.
+
+### Added
+
+- `evolution.tree` exports eight more names: `scaffold`, `ScaffoldResult` and `ScaffoldError` (the `evo-target init` scaffold, loaded on first access), `export_run` and `TraceSummary` (the `evo tree trace` export), `EvolveRefused` (a campaign refusal with its findings), `safe_record` (the record redactor) and the new `effect_sentence`, which returns the CLI explanation lines of an authorization effect. `evolution.tree.__all__` grows from 132 to 140 names and keeps the order of the first 132. Existing deep import paths stay valid. See [Lab-facing campaign helpers](docs/api-usage.md#lab-facing-campaign-helpers).
+
+### Changed
+
+- `evo --help` describes Evolution Core as the campaign engine and the manual task and skill workflow. The manual workflow groups' help starts with "Manual task and skill workflow", and `evo tree --help` with "Core campaign engine". Command names, options, exit codes and all other output are unchanged.
+- The inode preflight of `evo run bench run` ends its refusal with `remove only confirmed regenerable run output or raise the threshold`. The threshold and the error type are unchanged.
+
+### Upgrade
+
+- Install the same version at both wire ends. An unfinished b18 run requires one `run_identity_changed` authorization with effect `rebase` that lists only `producing_version`; identity and adaptation stay unchanged for every family and role. Accept it with `evo tree authorize`, then repeat the same command. Finished runs stay finished and remain readable with `inspect_campaign(..., verify=True)` and `evo tree watch --once`. Finish or stop every `/15` run before upgrading.
+- Rollback to b18 needs the same one `rebase` and then continues; no run written by this release is unreadable to b18.
+- `evo tree evolve` admits `/15` and opt-in `/16`, and the `evo-target` scaffold continues to write `/15`. `evo tree conformance` continues to refuse earlier campaign manifests, including `evolution-v2-manifest/5`, with `manifest_schema`, and run directories of families 3–13 stay refused `campaign_family_unsupported`. `package_version_mismatch` still requires explicit handling on resume. `evo gui`, the `[gui]` extra and `evo tree edit` remain absent.
+
+### Retained limitations
+
+- The limitations listed for `2.0.0b18` remain.
+
 ## [2.0.0b18] — 2026-11-10
 
 This release keeps the manifest schemas, campaign families, wire protocol, exit codes and Python import paths. `/16` remains opt-in and the scaffold still writes `/15`.

@@ -1,0 +1,50 @@
+{
+ "version": "edit_brief/6",
+ "evidence": {
+  "version": "evidence/1",
+  "view": "full",
+  "turns": 8,
+  "events_per_turn": 32,
+  "text_chars": 4096,
+  "input_chars": 2048,
+  "feedback_keys": 16,
+  "feedback_value_chars": 64,
+  "cited_chars": 65536,
+  "trace_page_chars": 16000
+ },
+ "input_checks": {},
+ "cited": [],
+ "cited_omitted": 0,
+ "champion_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+ "operator_context": null,
+ "limits": {
+  "turns": 8,
+  "events_per_turn": 32,
+  "text_chars": 4096,
+  "input_chars": 2048,
+  "feedback_keys": 16,
+  "feedback_value_chars": 64,
+  "rounds": 3,
+  "attempts_per_round": 8,
+  "changed_paths": 32,
+  "groups": 8,
+  "sentence_chars": 512
+ },
+ "cases": [],
+ "history": {
+  "rounds_closed": 0,
+  "rounds_shown": [],
+  "predecessor_rounds": 0,
+  "rounds": []
+ },
+ "diagnosis": {
+  "status": "absent",
+  "reflection_id": null,
+  "focus": {
+   "reason": "selected",
+   "cases": []
+  },
+  "groups": [],
+  "error_class": null
+ }
+}

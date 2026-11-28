@@ -1,0 +1,53 @@
+{
+ "schema": "lab-offline-core-capture/1",
+ "scenario": "agent-finished",
+ "capture_id": "probe-fba58b42a9714777a57f23e0cd7b3a6f",
+ "captured_at": "2026-10-27T18:12:22.881309+00:00",
+ "core_version": "2.0.0b14",
+ "lab_version": "0.0.3.dev62",
+ "producing_wheels": {
+  "lab": {
+   "file": "evolution_lab-0.0.3.dev62-py3-none-any.whl",
+   "sha256": "bb7162194c3bf5167fefd7a83fc3a19220e5c14cd6e4b7f5fad3ef085dd4c4a5"
+  },
+  "core": {
+   "file": "evo_skills-2.0.0b14-py3-none-any.whl",
+   "sha256": "7a506e3460fa3b1a697e6e23798032cb2f7768c4adbb822e8cf42829e902e243"
+  }
+ },
+ "generators": [
+  {
+   "path": "tests/fixtures/panel/capture_b14.py",
+   "sha256": "435ef7523d243dd35f7c754cda13f28b4209c493d1a8dc89e046cdaea7e39c5c"
+  },
+  {
+   "path": "tests/b10_campaigns.py",
+   "sha256": "3de9ef45d11c66d4f0978883d18ac4aad30734d5a31c3ae14eeb75e5502725da"
+  },
+  {
+   "path": "tests/scaffold_16.py",
+   "sha256": "8db8637c0645e11b79c107864be9892f1dfad2d290dba9db9db53697fb856246"
+  }
+ ],
+ "core_functions": [
+  "evolution.tree.evolve.evolve",
+  "evolution.tree.campaign.inspect_campaign"
+ ],
+ "fault_injections": [
+  "ProbeMediator.start raises OSError"
+ ],
+ "executor": "neutral _call replacement using real sealed helper",
+ "files_sha256": {
+  "core-projection.json": "600a7738701680e88b5ef1a6378625c73eb415ad025a046ad93e5682de572698",
+  "core-report.txt": "e83966c982880238685fe06695971c3d409983626dea08629463d41120e01088",
+  "helper-answers.json": "06a7d51312be65fc9cd3dddb98c07d381f3fa69e9d16ffa8e25500d8ac696f84",
+  "lab-report.md": "8ceeaec973043228a7f6b8627e484ca0c1689ab2c1896c5e8f57abcac3a77340",
+  "result.json": "a2deeef378bab7fb65292a3a9e1acfb9355d1e411d7930cb81522c957369f964",
+  "run/campaign.jsonl": "d35a1ee001e108105724aae089f0c4e22216253f73dee2dad5bd5a429f35ee31",
+  "run/measurements/m-r00-champion/events.jsonl": "de2357032a1a6288202ba0cdf1bcb780670420e2d1baf1fa156c631514d93801",
+  "run/reflector-logs/probes/r01-x01/startup.json": "d2f925ffd6da94af29e852eb4380e4240c22a1c0d5ac702a09009fadeb21a72c",
+  "run/reflector-logs/r01-x01.jsonl": "70365555423bfdd64e31dd29c20f71ed603c194efd23fa63bd2874d3c4b3257b",
+  "run/scorer-traces/m-r00-champion.pack": "67a8e6f737c311116add4ccde89ca632e2d899f11243deff85c6bbe735b0c82a",
+  "worker-notes.txt": "429458ee6dd2dfd90d91625f5d6285207de6c4e2a81d96b2a780bb76f3edeed6"
+ }
+}

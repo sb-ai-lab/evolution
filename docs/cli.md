@@ -1,6 +1,8 @@
 # `evo` CLI Reference
 
-Use this page to look up command syntax and output. For a first tree campaign, follow the [Quickstart](../QUICKSTART.md); for day-to-day use, read [Running campaigns](running-campaigns.md). Jump to [Tree Service Commands](#tree-service-commands) for `evo tree`. The other command groups support the separate [task/skill workflow](manual-workflow.md).
+`evo` is Evolution Core. Use `lab` as the primary path for evaluating and evolving an agent. Core exposes the campaign engine through `evo tree` and the manual task and skill workflow through the other groups.
+
+Use this page to look up command syntax and output. For a first tree campaign, follow the [Quickstart](core-quickstart.md); for day-to-day use, read [Running campaigns](running-campaigns.md). Jump to [Tree Service Commands](#tree-service-commands) for `evo tree`. The other command groups support the separate [task/skill workflow](manual-workflow.md).
 
 ```bash
 evo --help
@@ -8,13 +10,13 @@ evo <group> --help
 evo <group> <command> --help
 ```
 
-Install the intended version using the [installation guide](../QUICKSTART.md#1-install-the-beta). `evo <group> --help` and `evo <group> <command> --help` are authoritative for the installed version.
+Install the intended version using the [installation guide](core-quickstart.md#1-install-the-beta). `evo <group> --help` and `evo <group> <command> --help` are authoritative for the installed version.
 
 ## Edit Brake Controls
 
-These controls apply to the task/skill rewrite command, not the tree campaign editor.
+These controls apply to the task/skill rewrite command, not the tree campaign Editor.
 
-Use `evo evolve rewrite <skill> --version-decay --max-rewrite-attempts 1` for the default policy. The `--version-decay` flag enables promotion-count decay. Use `--no-version-decay` for a constant budget. The attempt value is the total editor-call count. Evolution retries only after `candidate_edit_budget_exceeded`.
+Use `evo evolve rewrite <skill> --version-decay --max-rewrite-attempts 1` for the default policy. The `--version-decay` flag enables promotion-count decay. Use `--no-version-decay` for a constant budget. The attempt value is the total Editor-call count. Evolution retries only after `candidate_edit_budget_exceeded`.
 
 ## Command Tree
 
@@ -119,7 +121,7 @@ evo skill history NAME
 evo skill lineage NAME
 ```
 
-`commit` snapshots the full managed skill tree and normally makes the new version active. `--no-promote` records a saved candidate version without switching active content. `promote` atomically restores the selected full tree. `discard` restores the active tree over the working copy.
+`commit` snapshots the full managed skill tree and normally makes the new version active. `--no-promote` records a saved Candidate version without switching active content. `promote` atomically restores the selected full tree. `discard` restores the active tree over the working copy.
 
 Maintenance and import commands:
 
@@ -199,7 +201,7 @@ evo evolve rewrite SKILL [-m MODEL] [--task TASK] \
   [--rewrite-audit-out PATH] [--rewrite-row-id ID]
 ```
 
-Reflection reads eligible failing traces. Rewrite produces a checked candidate; an eligible candidate updates only the working tree. Run `evo skill diff`, then commit before the default solver can inject it. `agentic-session` requires one `--task` and is not supported by the multi-task optimizer.
+Reflection reads eligible failing traces. Rewrite produces a checked Candidate; an eligible Candidate updates only the working tree. Run `evo skill diff`, then commit before the default solver can inject it. `agentic-session` requires one `--task` and is not supported by the multi-task optimizer.
 
 ## Tree Service Commands
 
@@ -210,7 +212,7 @@ evo tree conformance --manifest ./demo/manifest.json
 evo tree evolve --manifest ./demo/manifest.json --run-dir /tmp/evolution-runs/run-1
 ```
 
-The manifest is the whole configuration surface. It declares the target binding, the seed root, the artifact policy, the campaign policy, the Environment, the scorer command, the editor command and the corpus; there is no command-line override of anything it declares. See [Manifest v2](manifest-v2.md) for the document, its sections, the corpus row format and the two program contracts.
+The manifest is the whole configuration surface. It declares the target binding, the seed root, the artifact policy, the campaign policy, the Environment, the scorer command, the Editor command and the corpus; there is no command-line override of anything it declares. See [Manifest v2](manifest-v2.md) for the document, its sections, the corpus row format and the two program contracts.
 
 ### `evo tree evolve`
 
@@ -285,7 +287,7 @@ The final-measurement fields below describe current provenance caveats; none is 
 
 None of them changes a statistic, a decision or an exit code.
 
-They never reach the editor's or the Reflector's inputs.
+They never reach the Editor's or the Reflector's inputs.
 
 #### Confidence and cohort reports (family 13)
 
@@ -596,7 +598,7 @@ evo tree evolve: continue: set linked_from to <absolute run dir> and seed_root t
 
 The successor starts after the predecessor's highest opened round and measures its own baseline unless it declares `baseline: inherit`. It counts only its own indeterminate tries against thresholds; lineage counts remain reported separately. New `/15` links admit only finished family 14; `/16` links admit finished families 14 and 15. Removed predecessors get `lineage_family_unsupported`, unfinished current ones get hard `lineage_not_finished`, and an unverified Champion gets `lineage_champion_unverified`. A `/15` or `/16` `statistical` successor cannot link a family-14 predecessor that ran `observe` at creation or a rebase (`lineage_mode_unsupported`); a `/15` `observe` successor can follow either mode. See [the full link contract](manifest-v2.md#linkedfrom), including existing recorded family-13 predecessors and owed-import recovery.
 
-A successor may differ from its predecessor in any comparable field — the target, the scorer, the environment, the corpus, the policy, the metric plan, the materialization, the artifact store policy, or a seed that does not scan to the predecessor's final champion. The link is not refused. Before the run starts, stderr carries one note and one `differs:` line per changed field, in the refusal's format — the predecessor's digest as `journaled`, the successor's as `observed`, digests and identifiers only:
+A successor may differ from its predecessor in any comparable field — the target, the scorer, the environment, the corpus, the policy, the metric plan, the materialization, the artifact store policy, or a seed that does not scan to the predecessor's final Champion. The link is not refused. Before the run starts, stderr carries one note and one `differs:` line per changed field, in the refusal's format — the predecessor's digest as `journaled`, the successor's as `observed`, digests and identifiers only:
 
 ```text
 evo tree evolve: note: condition changed across the link
@@ -625,7 +627,7 @@ evo tree evolve: note: carried rows were measured on another seed tree
 
 When no row is admissible — for example after an exact seed/dependency mismatch, or with no scored source row — the note is `nothing to inherit from the predecessor's baseline` and the baseline is measured in full, not refused. A nonempty carry reports `baseline_inherited` (`from_run`, `source_measurement_id`, `imported`, `scheduled`, `fields`, `origin_runs`) after condition-change caveats. `linked_from.baseline` reports `{mode, imported, scheduled, abandoned}` (null for `fresh`); measurements report `imported` beside `tries` and `excluded_pairs`. A caveat changes no statistic, decision, outcome or exit code. Both current schemas require an explicit `baseline` value when `linked_from` is declared; neither supplies a default.
 
-If the predecessor's champion measurement cannot be read when the successor is created, the refusal is hard and names its own door, because nothing is declared yet:
+If the predecessor's Champion measurement cannot be read when the successor is created, the refusal is hard and names its own door, because nothing is declared yet:
 
 ```text
 evo tree evolve: refused: baseline_source_unavailable at linked_from
@@ -653,6 +655,102 @@ evo tree evolve: class: hard
 evo tree evolve: A successor needs a new run directory; the manifest must declare the baseline mode the campaign was created with, so it cannot change on a campaign that exists.
 ```
 
+#### A baseline from an evaluation
+
+To reuse a train evaluation in a new `/15` or `/16` campaign, add this top-level manifest section and choose a new run directory:
+
+```json
+"baseline_import": {"source": "<SOURCE_DIR>"}
+```
+
+`source` names either a Core evaluation directory (`evaluation.jsonl` and `measurements/evaluation/events.jsonl`) or a standalone measurement directory (`events.jsonl`, profile `rollout_measurement`). Relative paths start at the manifest directory. The directory itself must not be a symlink and must not overlap the new run directory. A campaign measurement directory is not a standalone source. `baseline_import` and `linked_from` are mutually exclusive: a linked campaign carries its predecessor's rows with `linked_from.baseline: inherit`.
+
+A released, complete journal prefix is usable even when the evaluation was suspended or has no terminal record. A held owner or child lease, torn tail, missing child, mismatched owner binding, connection-probe journal or source containing `sample_imported` is unavailable. Core reads the source without repairing or writing it.
+
+The campaign imports the source's admissible latest tries by `(case_id, repeat)` and measures the remaining baseline pairs. The [carried-baseline rules](#a-carried-baseline) still apply: seeds must match, scores must contain the primary metric, and an exact-seed pair must have the same dependency digest. The campaign uses its own sample ids. Operational differences in concurrency and sample retries do not make scores incompatible.
+
+Core checks held-out separation and compares the seed tree, scorer and primary metric plan before Target preflight. A difference in one of those three measured inputs requires an explicit decision. A source that measured a campaign test case, or a Core evaluation with `split: test`, needs a separate held-out decision. Accepting a scorer difference does not accept held-out evidence. Cases outside the campaign's train schedule remain unpaired even after acceptance. Target, environment, budget, materialization, corpus and schedule differences are reported as condition caveats.
+
+Creation prints the applicable lines below; the source kind is `measurement` for a standalone journal. The condition lines appear only for changed conditions, and the last line only for `/15`:
+
+```text
+evo tree evolve: note: condition changed between the baseline source and this campaign
+evo tree evolve: differs: <field>  journaled <source digest>  observed <campaign digest>
+evo tree evolve: note: baseline imported from evaluation <run_id>: <imported> pairs carried, <remaining> to measure
+evo tree evolve: note: source rows not imported: <n> not_scheduled, <n> seed_differs, <n> not_scored, <n> primary_missing, <n> out_of_range, <n> dependency_differs
+evo tree evolve: note: /15 cannot diagnose imported verdict-only failures until the first baseline refresh (#208); prefer /16
+```
+
+Each source latest try is counted under its first failed rule in that order. Target-only missing pairs increase the work to measure, rather than a source counter. Component maps referenced by admitted rows are copied after those rows at atomic birth. Missing maps and maps containing a campaign secret are skipped, with `note: <n> component maps not carried`; their rows remain imported. Under `gate.provenance.kind: reported`, missing provenance prints `note: <unknown> of <imported> imported rows carry no provenance; with gate.provenance.kind reported every Attempt treats their cases as affected`.
+
+On `/16`, imported scorer requests and stdout form a bounded diagnostic bundle. This lets verdict-only failures select a focus without new Champion baseline calls. Missing traces or a changed environment/scorer produce explicit gaps and do not refuse the scalar import. A changed scorer first needs the incompatibility decision. `/15` has no such import bundle.
+
+| Refusal | Class | Action |
+|---|---|---|
+| `bad_path at baseline_import.source` | Hard | Correct the directory or its overlap before a new campaign. |
+| `baseline_source_unavailable at baseline_import` | Hard | Repair the source, or remove `baseline_import` before creation to measure the baseline in full. |
+| `baseline_import_incompatible at baseline_import` | Authorizable, effect `import` | Read the `differs:` fields and accept only the displayed instance if importing that evidence is intended. |
+| `baseline_import_held_out at baseline_import` | Authorizable, effect `import` | Accept separately only if using this source is intended; the later test report is no longer independent for those cases. |
+| `baseline_import_inputs_changed at baseline_import` | Hard | The seed tree, scorer or primary metric plan changed while the campaign was starting. Nothing was written; rerun the same command once those inputs are stable. |
+| `baseline_import_unavailable` | Authorizable, effect `fresh_baseline` | Before birth, restore the pinned source or accept measuring a fresh baseline in full. |
+
+For an incompatibility, the refusal includes the differing fields and a decision digest:
+
+```text
+evo tree evolve: refused: baseline_import_incompatible at baseline_import
+evo tree evolve: differs: identity.scorer.digest  journaled <source digest>  observed <campaign digest>
+evo tree evolve: class: authorizable
+evo tree evolve: accepting imports the source's scored rows although they were measured with another scorer, metric plan or tree;
+evo tree evolve: the decision is recorded with the campaign and reported with the imported rows
+```
+
+Accept the displayed instance, then repeat the same evolve command:
+
+```bash
+evo tree authorize <RUN_DIR> --accept baseline_import_incompatible:<digest> --reason "<why>"
+```
+
+A held-out refusal is distinct:
+
+```text
+evo tree evolve: refused: baseline_import_held_out at baseline_import
+evo tree evolve: the source measured held-out test cases of this campaign's corpus; test evidence enters a campaign only by a recorded decision
+evo tree evolve: the later test report is no longer independent of the campaign for those cases
+evo tree evolve: class: authorizable
+```
+
+```bash
+evo tree authorize <RUN_DIR> --accept baseline_import_held_out:<digest> --reason "<why>"
+```
+
+Core compares the seed tree, scorer and primary metric plan before Target preflight, then builds the campaign identity from them again. If one of them changed in between, for example because the seed was edited during preflight, the refusal is hard. `journaled` is the value the comparison used and `observed` the value the identity would record:
+
+```text
+evo tree evolve: refused: baseline_import_inputs_changed at baseline_import
+evo tree evolve: differs: identity.candidate_digest  journaled <digest>  observed <digest>
+evo tree evolve: class: hard
+evo tree evolve: the seed tree, scorer or metric plan changed while the campaign was starting (the differs: lines name which); nothing was written, so rerun the same command once they are stable
+```
+
+A scorer change prints `identity.scorer.<key>` and a metric plan change `identity.metric_plan_digest`. No campaign file is written and no decision is consumed, so the rerun compares the source again and reports any real difference as `baseline_import_incompatible`.
+
+Both decisions are recorded in `identity.baseline_import` and list as `consumed` after creation. Pending hygiene findings print first; the printed combined `--accept` command can name all findings. These decisions do not take `--effect import`: the effect follows from their codes.
+
+The status/result block `baseline_import` is `null` without an import. Otherwise it reports the source kind and run, counts, condition fields, skipped-source reasons, carried-map count, provenance, decisions, held-out finding and whether the import was abandoned. `baseline_imported` and, under reported provenance, `imported_provenance_unknown` caveats describe the copied evidence. They change no statistic, gate decision, outcome or exit code.
+
+Before birth, resume re-reads the pinned source identity, evaluation configuration and journal prefix. A lost, changed or busy source is `baseline_import_unavailable`. Accepting its printed `fresh_baseline` decision abandons the copy, measures the baseline in full and reports `abandoned: true`. After birth the copied rows, maps and diagnostic bundle are self-contained; audit checks their declarations and decisions without re-proving the source rows. A pre-round-1 `rebaseline` also abandons the import.
+
+The key's presence is fixed at creation. Adding or removing it on resume is hard, exit `2`:
+
+```text
+evo tree evolve: refused: run_identity_changed
+evo tree evolve: differs: identity.baseline_import  journaled present  observed absent
+evo tree evolve: class: hard
+evo tree evolve: A campaign keeps the baseline source it was created with; baseline_import cannot be added to or removed from a campaign that exists. Use a new run directory.
+```
+
+The reverse change prints `journaled absent  observed present`. The path spelling is not the identity: before birth another spelling must resolve to the same pinned source; after birth the source journal is no longer needed.
+
 #### A changed condition on an unfinished campaign
 
 A comparable change on an unfinished campaign is refused `run_identity_changed` with `differs:` lines. Accept only an offered effect. When only `close` is offered, the refusal says:
@@ -669,7 +767,7 @@ evo tree evolve: to accept this difference, run:
 
 When the accepted effect is `close`, the same `evolve` applies any hygiene decision, writes `authorization_applied` with `effect: close`, then `campaign_finished(stopped, condition_changed)`. It dispatches no new work and leaves measurements under their original identities. Stdout is the closed report, exit `3`; continue with a linked run declaring the new condition. An already owed terminal is completed rather than replaced. A finished run is hard-refused on identity drift. On unfinished current-family runs the offered effects may instead include `continue` or `rebaseline`, below.
 
-A crash between the two records leaves a journal that owes its terminal. The next `evo tree evolve` on that run directory writes it before anything else is bound: after the manifest's schema check, the run directory's path safety and the journal lock, it replays the journal and, on a prefix ending in the applied close or terminal decision, appends the owed `campaign_finished` and returns the closed report. It builds no binding, runs no target preflight, compares no identity and needs no new decision, so a manifest whose target is down, or whose editor credentials are absent, still finishes it. A second writer holding the lock refuses `journal_busy` (exit `2`); a journal fault after the lock is a `persistence_failed` or `storage_capacity_exhausted` result (exit `1`).
+A crash between the two records leaves a journal that owes its terminal. The next `evo tree evolve` on that run directory writes it before anything else is bound: after the manifest's schema check, the run directory's path safety and the journal lock, it replays the journal and, on a prefix ending in the applied close or terminal decision, appends the owed `campaign_finished` and returns the closed report. It builds no binding, runs no target preflight, compares no identity and needs no new decision, so a manifest whose target is down, or whose Editor credentials are absent, still finishes it. A second writer holding the lock refuses `journal_busy` (exit `2`); a journal fault after the lock is a `persistence_failed` or `storage_capacity_exhausted` result (exit `1`).
 
 #### In-place effects on family 7
 
@@ -712,7 +810,7 @@ When only `close` is left — no round remaining after a scale change, a policy 
 What an accepted decision writes, after an owed `alpha_consumed` and after any hygiene decision accepted in the same invocation, is one contiguous block:
 
 - `continue`: `authorization_applied` with `effect: continue`, `identity_rebased` whose `changed_fields` include the comparable fields, then one `measurement_rebound` for every unfinished measurement the planner will still append to. Each re-bound measurement gets the old id with the suffix `@e<k>` (for example `m-r01-a01@e1`), is born with the old measurement's admissible scored rows as `sample_imported`, and measures only the rest. Complete measurements stay as they are and remain valid baselines. The open round goes on with its grouping, focus, diagnosis, gate scope and Candidates.
-- `rebaseline`: `authorization_applied` with `effect: rebaseline`, `identity_rebased`, then, over an open round, `attempt_closed` with `abandoned` / `condition_changed` for every Attempt without an outcome and `round_closed` with outcome `condition_changed`. The next round begins with a fresh measurement of the champion, `m-r<NN>-champion@e<k>`. A round whose selection is already durable first finishes, promotion included, under the old condition, and the block follows at that boundary. Before round 1's baseline is bound, the baseline is simply measured under the new condition (and a declared `baseline: inherit` copy is not made).
+- `rebaseline`: `authorization_applied` with `effect: rebaseline`, `identity_rebased`, then, over an open round, `attempt_closed` with `abandoned` / `condition_changed` for every Attempt without an outcome and `round_closed` with outcome `condition_changed`. The next round begins with a fresh measurement of the Champion, `m-r<NN>-champion@e<k>`. A round whose selection is already durable first finishes, promotion included, under the old condition, and the block follows at that boundary. Before round 1's baseline is bound, the baseline is simply measured under the new condition (and a declared `baseline: inherit` copy is not made).
 - `close`: the close effect described above, ending this campaign without new work.
 
 The same `evolve` then continues in the same process and reports its ordinary outcome. Closed rounds are not remeasured. Reports carry `condition_changes` (`seq`, `effect`, `fields`, `round`, `authorization_id`, `identity_digest`), an in-place caveat per change and `condition_epoch` per measurement. Only a changed owner's threshold window restarts: target for target/materialization changes, environment or scorer; never rollout. Without changes the list is empty and epoch is zero. Stdout redacts authorization ids; `inspect_campaign` shows them.
@@ -866,7 +964,7 @@ There are as many `differs:` lines as fields changed and none for a code that re
 
 `authorize` writes one file, `<run_dir>/authorizations/<id>.json`, and nothing else; it starts nothing, needs no manifest, and prints the decision id on stdout. The run directory need not exist yet: accepting a `run_dir_unsafe_entry` finding before the first campaign is the supported order, `evolve` refuses, `authorize` writes, `evolve` runs, and the decision directory is not counted as a foreign entry when the run directory is otherwise empty. `--list` prints one JSON object per decision (`id`, `code`, `digest`, `reason`, `issued_at`, `status` — `consumed` once a run in *this* run directory journaled it, `pending` otherwise), reports only, and is refused with `authorization_invalid at --list` if a code is given beside it. A decision belongs to the run directory it was written into: one consumed by a campaign elsewhere still lists as `pending` here. The run directory itself may be a symlink — that is a difference `evolve` admits under a decision — but `authorizations/` beneath it must be a real directory this user owns, or `authorize` refuses `authorization_invalid at authorizations` and writes nothing.
 
-A decision matches one refusal instance by a digest of both sides: A→B never matches C→B. Its id is the SHA-256 of canonical JSON over `code`, `digest`, `reason`, `issued_at` and `effect` only when present. Journaled decisions are standing authority for that instance. Current campaigns offer identity changes, eligible hygiene findings and owed-import `baseline_import_unavailable` (`fresh_baseline`), not old-family admission or unfinished-predecessor links. Follow the printed effects; an authorization accepts differences and never introduces them.
+A decision matches one refusal instance by a digest of both sides: A→B never matches C→B. Its id is the SHA-256 of canonical JSON over `code`, `digest`, `reason`, `issued_at` and `effect` only when present. Journaled decisions are standing authority for that instance. Current campaigns offer identity changes, eligible hygiene findings, baseline-source `baseline_import_incompatible` and `baseline_import_held_out` (effect `import`), and owed-import `baseline_import_unavailable` (`fresh_baseline`), not old-family admission or unfinished-predecessor links. Follow the printed effects; an authorization accepts differences and never introduces them.
 
 Core reads `<run_dir>/authorizations/` through the canonical run root and one `O_DIRECTORY|O_NOFOLLOW` descriptor, not through CLI path enumeration. Directory/file authorizations are journaled with `source: file`; direct library `authorizations=` values use `source: caller`, which wins for a duplicate instance. Decision files are owner-only and keep the operator's reason as typed. A reason containing a forwarded secret is refused `record_matches_secret at authorizations/<id>` before journaling; malformed files cause `authorizations_invalid at <name>` until removed. `authorize` and `authorize --list` refuse removed-family run directories before writing any decision.
 
@@ -877,6 +975,18 @@ Core reads `<run_dir>/authorizations/` through the canonical run root and one `O
 ```bash
 evo tree evaluate --manifest evaluation.json --run-dir runs/before-test
 ```
+
+New evaluation measurements declare `"row_provenance": 1`. Their `rollout_finished` records retain the Target's reported provenance and component-map digest; each distinct component map is declared once. An oversized provenance union is recorded as `provenance_overflow: true` and is never truncated.
+
+The `evolution-v2-evaluation-result/1` report includes a `provenance` object: `recorded`, `reported`, `overflow`, `not_reported` and `components_declared`. The three sample counts cover each scheduled sample's latest try that reached `rollout_finished`, whether or not it scored. `components_declared` counts map declarations. An older measurement without the marker has `recorded: false` and `null` counts. Before measurement birth, the counts are also `null`; `recorded` reflects the bound identity, or is false if none is bound.
+
+When at least one sample finished, the marker is present and `reported` is zero, the CLI prints this note once on stderr, before the JSON report:
+
+```text
+evo tree evaluate: note: no sample carried provenance; a campaign with gate.provenance.kind reported treats every case as affected
+```
+
+The note changes no evidence or exit code. The existing artifact-store version check runs first: a mismatch prints `evo tree evaluate: journal unavailable` and exits 1. After that admission passes, an owner bound to an identity without the marker refuses as `refused: run_identity_changed`, including when its child journal was not yet created. If the owner binding matches but the child was produced by another Core version, the later version check refuses as `refused: invalid_identity`. These two identity refusals exit 2; existing completed or partial results remain usable as they stand.
 
 Add `--progress` to `evo tree evaluate` to print the same live status lines as [`evo tree watch`](#evo-tree-watch) on stderr. It is off by default, has no manifest field and changes no evaluation evidence, role input or exit code. Progress drains before the final report; diagnostic notes print immediately on stderr, including before progress starts.
 
@@ -927,7 +1037,7 @@ report = inspect_evaluation(Path("runs/before-test"), verify=True)
 print(report["state"], report["completed_samples"], report["metrics"])
 ```
 
-For asynchronous callers, import `evaluate` from `evolution.tree` and call `await evaluate(manifest_path, run_dir)` for the same operation. Evolution does not depend on Lab. Reports expose identities and equal-group scalar means, without a test promotion verdict or an automatic baseline import. Keep evaluation outputs outside role inputs; repeatedly inspecting test results can influence future authoring.
+For asynchronous callers, import `evaluate` from `evolution.tree` and call `await evaluate(manifest_path, run_dir)` for the same operation. Evolution does not depend on Lab. Reports expose identities and equal-group scalar means, without a test promotion verdict. Baseline import is explicit on the campaign side through [`baseline_import`](#a-baseline-from-an-evaluation). Keep evaluation outputs outside role inputs; repeatedly inspecting test results can influence future authoring.
 
 ### `evo tree trace`
 
@@ -1078,16 +1188,16 @@ For each round, the optimizer:
 
 1. runs a parent-only saturation preflight on validation with its own seeds;
 2. collects and reflects only the current round's training traces;
-3. creates a finalized candidate body;
-4. reruns the candidate on training with the original collect seeds for diagnostic-only scalar measurements;
-5. evaluates parent and candidate on validation with new shared seeds and counterbalanced arm order;
+3. creates a finalized Candidate body;
+4. reruns the Candidate on training with the original collect seeds for diagnostic-only scalar measurements;
+5. evaluates parent and Candidate on validation with new shared seeds and counterbalanced arm order;
 6. promotes only after at least four pairs, no per-task mean regression, and a conservative paired sign-flip gate.
 
-Plans with fewer than four validation pairs fail before any model call. A fully saturated parent ends with `status=inconclusive` and asks for a validation task with headroom. A positive gain that the gate marks `underpowered` also ends `inconclusive`, keeps the parent active, preserves candidate evidence for inspection, and recommends increasing `--trials`.
+Plans with fewer than four validation pairs fail before any model call. A fully saturated parent ends with `status=inconclusive` and asks for a validation task with headroom. A positive gain that the gate marks `underpowered` also ends `inconclusive`, keeps the parent active, preserves Candidate evidence for inspection, and recommends increasing `--trials`.
 
-Saturation, candidate-train diagnostics, and promotion validation do not create ordinary traces. Durable `run.json` state stores only scalar `seed`, `passed`, `total`, and `pass_rate` measurements plus decisions. Their prompts, responses, generated code, outputs, and evaluator feedback are neither persisted nor made available to reflection.
+Saturation, Candidate-train diagnostics, and promotion validation do not create ordinary traces. Durable `run.json` state stores only scalar `seed`, `passed`, `total`, and `pass_rate` measurements plus decisions. Their prompts, responses, generated code, outputs, and evaluator feedback are neither persisted nor made available to reflection.
 
-`--version-decay` is the default. It uses retained promotion count, not the numeric version label. `--no-version-decay` keeps the base budget constant. `--max-rewrite-attempts N` is the total editor-call count. Only `candidate_edit_budget_exceeded` starts another editor call.
+`--version-decay` is the default. It uses retained promotion count, not the numeric version label. `--no-version-decay` keeps the base budget constant. `--max-rewrite-attempts N` is the total Editor-call count. Only `candidate_edit_budget_exceeded` starts another Editor call.
 
 `--dry-run` performs preflight and prints the call plan without model calls or writes. A real run checkpoints every phase under `.agents/skills/<skill>/.evolution/runs/<run-id>/run.json`. `--resume RUN_ID` continues interrupted work and rejects logical-run mismatches. A completed or inconclusive run returns its saved result. It checks task content, skill trees, bindings, model IDs, run settings, and rewrite policy. It also checks tokens, permissions, manifests, and passed environment names. Old partial runs without edit-brake identity require a fresh run. Dry-run output, checkpoints, and status expose sanitized endpoints only. They retain scheme, host, port, and path. They remove user information, queries, and fragments.
 

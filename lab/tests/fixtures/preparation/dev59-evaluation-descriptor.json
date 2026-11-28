@@ -1,0 +1,52 @@
+{
+  "producer_commit": "0d9672813b99ec26176a913f09cd61aa82bc6478",
+  "prepared_digest": "42e4e1a67449e000814e10ce3ec01cb210267cd9e51e0b941e79c6c0b62ded7a",
+  "descriptor": {
+    "schema": "lab-prepared-execution/2",
+    "bundle_digest": "37192517fed3c5d496190148c46d6b847e55837955c385c99aba87bd18cfdd48",
+    "kind": "evaluation",
+    "entrypoint": "inputs/project/evaluation-input.json",
+    "target_binding": {
+      "launch_digest": "2d674e0c5a4264925cb01bfaa664702009b9c1677f166317f4478c4d21dbabfa",
+      "environment_digest": "e894e5503ec24fd0f7f44eaf75cdd2e67686d6804a0a162dcdc68c8f61e9266c",
+      "base_url": "http://127.0.0.1:8765",
+      "policy_digest": "384604dcc63fb6815da879606f2a66f7d310a285cafcb79e6e68feb711985937",
+      "target_id": "neutral-target",
+      "contract_digest": null,
+      "settings_hash": null,
+      "runtime_ref_digest": null,
+      "seed_mode": "exact"
+    },
+    "execution_environment": "e894e5503ec24fd0f7f44eaf75cdd2e67686d6804a0a162dcdc68c8f61e9266c",
+    "secret_names": [
+      "SCORER_TOKEN"
+    ],
+    "runtime_policy": {
+      "stop_grace_seconds": 419.0,
+      "cleanup_wait_seconds": 30.0
+    },
+    "evaluation": {
+      "case_ids": [
+        "c-2"
+      ],
+      "repeat_seeds": [
+        17,
+        17
+      ],
+      "evaluation_set_id": "fixed-set",
+      "max_turns": 4,
+      "timeout_seconds": 9,
+      "metric_plan": {
+        "primary": "score",
+        "weights": [
+          1,
+          0.5
+        ]
+      },
+      "max_failed_turns": 1,
+      "call_retries": null,
+      "concurrency": 1
+    }
+  },
+  "canonical_descriptor": "{\"bundle_digest\":\"37192517fed3c5d496190148c46d6b847e55837955c385c99aba87bd18cfdd48\",\"entrypoint\":\"inputs/project/evaluation-input.json\",\"evaluation\":{\"call_retries\":null,\"case_ids\":[\"c-2\"],\"concurrency\":1,\"evaluation_set_id\":\"fixed-set\",\"max_failed_turns\":1,\"max_turns\":4,\"metric_plan\":{\"primary\":\"score\",\"weights\":[1,0.5]},\"repeat_seeds\":[17,17],\"timeout_seconds\":9},\"execution_environment\":\"e894e5503ec24fd0f7f44eaf75cdd2e67686d6804a0a162dcdc68c8f61e9266c\",\"kind\":\"evaluation\",\"runtime_policy\":{\"cleanup_wait_seconds\":30.0,\"stop_grace_seconds\":419.0},\"schema\":\"lab-prepared-execution/2\",\"secret_names\":[\"SCORER_TOKEN\"],\"target_binding\":{\"base_url\":\"http://127.0.0.1:8765\",\"contract_digest\":null,\"environment_digest\":\"e894e5503ec24fd0f7f44eaf75cdd2e67686d6804a0a162dcdc68c8f61e9266c\",\"launch_digest\":\"2d674e0c5a4264925cb01bfaa664702009b9c1677f166317f4478c4d21dbabfa\",\"policy_digest\":\"384604dcc63fb6815da879606f2a66f7d310a285cafcb79e6e68feb711985937\",\"runtime_ref_digest\":null,\"seed_mode\":\"exact\",\"settings_hash\":null,\"target_id\":\"neutral-target\"}}"
+}

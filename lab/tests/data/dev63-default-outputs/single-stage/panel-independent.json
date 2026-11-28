@@ -1,0 +1,255 @@
+{
+  "tag": "div",
+  "attrs": {
+    "class": "panel"
+  },
+  "children": [
+    {
+      "tag": "div",
+      "attrs": {
+        "class": "pad small"
+      },
+      "children": [
+        {
+          "tag": "span",
+          "attrs": {
+            "class": "setup-field"
+          },
+          "children": [
+            {
+              "tag": "span",
+              "attrs": {
+                "class": "k"
+              },
+              "children": "R (repeats)"
+            },
+            " ",
+            {
+              "tag": "span",
+              "attrs": {
+                "class": "mono"
+              },
+              "children": "1"
+            },
+            " "
+          ]
+        },
+        {
+          "tag": "span",
+          "attrs": {
+            "class": "setup-field"
+          },
+          "children": [
+            {
+              "tag": "span",
+              "attrs": {
+                "class": "k"
+              },
+              "children": "Mode"
+            },
+            " ",
+            {
+              "tag": "span",
+              "attrs": {
+                "class": "mono"
+              },
+              "children": "Point"
+            },
+            " "
+          ]
+        },
+        {
+          "tag": "span",
+          "attrs": {
+            "class": "setup-field"
+          },
+          "children": [
+            {
+              "tag": "span",
+              "attrs": {
+                "class": "k"
+              },
+              "children": "Execution noise"
+            },
+            " ",
+            {
+              "tag": "span",
+              "attrs": {
+                "class": "mono"
+              },
+              "children": "negligible · allowance 0.00 · assumed_negligible"
+            },
+            " "
+          ]
+        },
+        {
+          "tag": "span",
+          "attrs": {
+            "class": "setup-field"
+          },
+          "children": [
+            {
+              "tag": "span",
+              "attrs": {
+                "class": "k"
+              },
+              "children": "Verification"
+            },
+            " ",
+            {
+              "tag": "span",
+              "attrs": {
+                "class": "mono"
+              },
+              "children": "reuse"
+            },
+            " "
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "div",
+      "attrs": {
+        "class": "pad",
+        "data-attempt": "r01-a01"
+      },
+      "children": [
+        {
+          "tag": "div",
+          "attrs": {
+            "class": "small"
+          },
+          "children": [
+            {
+              "tag": "span",
+              "attrs": {
+                "class": "mono strong"
+              },
+              "children": "r01-a01"
+            },
+            " ",
+            {
+              "tag": "span",
+              "attrs": {
+                "class": "faint"
+              },
+              "children": [
+                "round ",
+                "1"
+              ]
+            },
+            " ",
+            {
+              "tag": "span",
+              "attrs": {
+                "class": "pill tone-violet"
+              },
+              "children": [
+                {
+                  "tag": "i",
+                  "attrs": {
+                    "class": "dot"
+                  },
+                  "children": null
+                },
+                "Infrastructure"
+              ]
+            },
+            " ",
+            {
+              "tag": "span",
+              "attrs": {
+                "class": "text-2"
+              },
+              "children": "Insufficient evidence"
+            },
+            " ",
+            {
+              "tag": "span",
+              "attrs": {
+                "class": "code"
+              },
+              "children": "incomplete_sample"
+            },
+            " ",
+            {
+              "tag": "a",
+              "attrs": {
+                "class": "link",
+                "href": "#/operations/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/measurements/m-r01-a01"
+              },
+              "children": "measurement"
+            }
+          ]
+        },
+        {
+          "tag": "div",
+          "attrs": {
+            "class": "small mono"
+          },
+          "children": [
+            "gate",
+            " binding ",
+            "(core_raw): focus=point, causal=point"
+          ]
+        },
+        {
+          "tag": "div",
+          "attrs": {
+            "class": "small mono"
+          },
+          "children": [
+            "global",
+            " binding ",
+            "unavailable"
+          ]
+        },
+        {
+          "tag": "div",
+          "attrs": {
+            "class": "small"
+          },
+          "children": [
+            {
+              "tag": "span",
+              "attrs": {
+                "class": "muted"
+              },
+              "children": "No comparison"
+            },
+            " ",
+            {
+              "tag": "span",
+              "attrs": {
+                "class": "code"
+              },
+              "children": "incomplete_sample"
+            },
+            {
+              "tag": "div",
+              "attrs": {
+                "class": "mono"
+              },
+              "children": [
+                "preflight ",
+                "not_ruled_out",
+                ": focus maximal gain 1.00 vs threshold > 0.00 (can pass); causal maximal gain 1.00 vs threshold ≥ 0.00 (can pass)"
+              ]
+            }
+          ]
+        },
+        {
+          "tag": "div",
+          "attrs": {
+            "class": "tiny muted"
+          },
+          "children": [
+            "Conditional cost: ",
+            "2 measurement slots (gate 2 · final 0 · simplest passing path 5)"
+          ]
+        }
+      ]
+    }
+  ]
+}

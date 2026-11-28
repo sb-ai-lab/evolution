@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 import typer
+from rich.text import Text
 from typer.testing import CliRunner
 
 from evolution.tree import run_watch
@@ -25,6 +26,15 @@ EVOLVE_IDENTITY_REFUSAL = [
     "evo tree evolve: the campaign is finished and there is nothing left to continue; "
     "start a linked run that declares the new condition",
 ]
+
+
+EVALUATION_PROVENANCE = {
+    "recorded": False,
+    "reported": None,
+    "overflow": None,
+    "not_reported": None,
+    "components_declared": None,
+}
 
 
 @pytest.fixture(scope="module")
@@ -67,7 +77,11 @@ def fake_engine(monkeypatch, kind, source, target, *, result=None, action=None, 
         return (
             result
             if result is not None
-            else (CASES["completed"][0] if kind == "evolve" else {"state": "completed"})
+            else (
+                CASES["completed"][0]
+                if kind == "evolve"
+                else {"state": "completed", "provenance": EVALUATION_PROVENANCE}
+            )
         )
 
     monkeypatch.setattr(
@@ -95,7 +109,10 @@ def test_default_off_keeps_original_bytes(kind, campaign, evaluation, tmp_path, 
             '"status": {\n"run_id": "c-run",\n"state": "finished"\n}\n}\n'
         )
     else:
-        assert result.stdout == '{"state": "completed"}\n'
+        assert result.stdout == (
+            '{"provenance": {"components_declared": null, "not_reported": null, '
+            '"overflow": null, "recorded": false, "reported": null}, "state": "completed"}\n'
+        )
 
 
 @pytest.mark.parametrize("kind", ["evolve", "evaluate"])
@@ -113,7 +130,7 @@ def test_new_run_drains_before_document_and_thread_stops(
     assert created in result.stderr.splitlines()[0]
     assert ended in result.stderr.splitlines()[-1]
     assert result.output.index(ended) < result.output.index(
-        "{\n" if kind == "evolve" else '{"state"'
+        "{\n" if kind == "evolve" else '{"provenance"'
     )
     assert set(threading.enumerate()) <= before
     assert all(line.startswith(f"evo tree {kind}: ") for line in result.stderr.splitlines())
@@ -254,7 +271,7 @@ def test_help_exposes_progress():
     for kind in ("evolve", "evaluate"):
         result = runner.invoke(tree_app, [kind, "--help"])
         assert result.exit_code == 0
-        assert "--progress" in result.stdout
+        assert "--progress" in Text.from_ansi(result.stdout).plain
 
 
 @pytest.mark.parametrize("kind", ["evolve", "evaluate"])
@@ -652,10 +669,16 @@ def test_resumed_suspension_is_one_snapshot_then_new_records(
 
 def test_evaluation_progress_preserves_suspended_exit(evaluation, tmp_path, monkeypatch):
     target = tmp_path / "run"
-    fake_engine(monkeypatch, "evaluate", evaluation, target, result={"state": "suspended"})
+    fake_engine(
+        monkeypatch,
+        "evaluate",
+        evaluation,
+        target,
+        result={"state": "suspended", "provenance": EVALUATION_PROVENANCE},
+    )
     result = invoke("evaluate", evaluation, target, "--progress")
     assert result.exit_code == 1, result.output
-    assert json.loads(result.stdout) == {"state": "suspended"}
+    assert json.loads(result.stdout) == {"state": "suspended", "provenance": EVALUATION_PROVENANCE}
     assert "evaluation completed" in result.stderr
 
 
@@ -716,12 +739,15 @@ def test_engine_notes_are_immediate_before_journal_writes_or_refusal(
         assert created in lines[2]
         assert ended in lines[-1]
         assert result.output.index(ended) < result.output.index(
-            "{\n" if kind == "evolve" else '{"state"'
+            "{\n" if kind == "evolve" else '{"provenance"'
         )
         if kind == "evolve":
             assert json.loads(result.stdout)["terminal"] == CASES["completed"][0].terminal
         else:
-            assert json.loads(result.stdout) == {"state": "completed"}
+            assert json.loads(result.stdout) == {
+                "state": "completed",
+                "provenance": EVALUATION_PROVENANCE,
+            }
         for path in [
             source / ("campaign.jsonl" if kind == "evolve" else "evaluation.jsonl"),
             *source.glob("measurements/*/events.jsonl"),

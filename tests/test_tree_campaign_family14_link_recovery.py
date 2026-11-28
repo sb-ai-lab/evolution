@@ -319,18 +319,11 @@ async def test_an_incompatible_contract_fails_the_probe_after_a_whole_import(tmp
     assert_clean(run, snapshot)
 
 
-# -- H10 choice 19: no Candidate inspection beside the probe after a whole import ----
+# -- b20: carried maps permit inspection after a wholly inherited baseline ----
 
 
-async def test_h10_choice_19_no_inspection_runs_beside_the_probe_after_a_whole_import(
-    tmp_path, monkeypatch
-):
-    """Choice 19's wait (an inspection holds while a probe holds an instance) is
-    unreachable in a wholly inherited link: every baseline row is a cross-run
-    `sample_imported` naming the predecessor's component map, which no journal
-    of this run declares, so the selection falls back `components_unavailable`
-    before any inspection. The same two parallel Attempts inspect when the
-    baseline is measured locally (the predecessor)."""
+async def test_whole_import_carries_maps_for_parallel_candidate_inspections(tmp_path, monkeypatch):
+    """ADR-0065: carried maps restore inspections; unchanged maps need no execution probe."""
 
     from tests.campaign_drivers import MAP_FILE, TWO_ATTEMPTS
 
@@ -350,13 +343,14 @@ async def test_h10_choice_19_no_inspection_runs_beside_the_probe_after_a_whole_i
     assert all(r["payload"].get("components_digest") for r in _imported(run))
     selections = payloads(run, "affected_cases_selected")
     assert sorted((p["attempt"], p["mode"], p["fallback_reason"]) for p in selections) == [
-        ("r02-a01", "component", "components_unavailable"),
-        ("r02-a02", "component", "components_unavailable"),
+        ("r02-a01", "component", None),
+        ("r02-a02", "component", None),
     ]
-    assert not payloads(run, "candidate_inspected")
-    assert not (run / "inspections").exists()
-    assert len(payloads(run, "connection_preflight_started")) == 1
-    assert len(payloads(run, "connection_preflight_finished")) == 1
+    assert len(payloads(run, "candidate_inspected")) == 2
+    assert (run / "inspections").is_dir()
+    assert all(not selection["cases"] for selection in selections)
+    assert not payloads(run, "connection_preflight_started")
+    assert not payloads(run, "connection_preflight_finished")
     assert snapshot.finished is not None
     assert_clean(run, snapshot)
 

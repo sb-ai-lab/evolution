@@ -1,0 +1,410 @@
+{
+  "schema": "lab-campaign-view/13",
+  "operation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "family": 15,
+  "caveats": [
+    {
+      "kind": "champion_not_contemporaneous",
+      "round": null,
+      "attempt_id": null
+    }
+  ],
+  "roles": {
+    "editor": {
+      "kind": "subprocess"
+    },
+    "reflector": {
+      "kind": "subprocess"
+    },
+    "grouper": {
+      "kind": "fields"
+    }
+  },
+  "settings": {
+    "stability": "stable",
+    "round_stop": "first_accepted",
+    "baseline_refresh": "off"
+  },
+  "connection": {
+    "state": "compatible",
+    "outcome": "compatible",
+    "attempts": 1,
+    "binding_digest": "7a1c0962a03677bf84aed955ab7d2892263ccdf7e7a39d30b52dfa0747fce561",
+    "operation_id": "957f5abe8a51495d853d50c1b379c072",
+    "detail": null
+  },
+  "policy": {
+    "rounds": 1,
+    "attempts_per_round": 1,
+    "metric_primary": "score"
+  },
+  "progress": {
+    "kind": "campaign",
+    "phase": "evaluation",
+    "stages": [
+      "evaluation"
+    ],
+    "rounds": {
+      "completed": 0,
+      "current": 1,
+      "planned": 1
+    },
+    "attempts": {
+      "current_round": {
+        "closed": 0,
+        "running": 1,
+        "planned": 1
+      },
+      "total": 1
+    },
+    "coverage": null,
+    "policy_state": "present",
+    "observed_at": null
+  },
+  "outcome": null,
+  "champions": [
+    {
+      "version": "v0",
+      "digest": "fbd7fa5cd7695fbda3cd44d6052a66419e46395644eabfaf65a0dabc0dabc8c4",
+      "origin": "initial",
+      "attempt_id": null,
+      "measurement_id": "m-r00-champion"
+    }
+  ],
+  "champions_state": "present",
+  "rounds": [
+    {
+      "round": 1,
+      "outcome": null,
+      "baseline_measurement_id": "m-r00-champion",
+      "baseline_version": "v0",
+      "reflection": {
+        "state": "present",
+        "reflection_id": "r01-x01",
+        "error_class": null,
+        "reason": null,
+        "hypotheses": [
+          {
+            "index": 1,
+            "root_cause": "neutral",
+            "suggested_fix": "neutral",
+            "affected_cases": [
+              "c1"
+            ],
+            "target_paths": [
+              "skills/SKILL.md"
+            ],
+            "counterevidence": "neutral",
+            "regression_risks": "neutral",
+            "why_this_layer": "neutral"
+          }
+        ]
+      },
+      "attempts": [
+        {
+          "attempt_id": "r01-a01",
+          "outcome": null,
+          "reason": null,
+          "group": "in_progress",
+          "measurement_id": "m-r01-a01",
+          "has_tree": true,
+          "failure": null
+        }
+      ]
+    }
+  ],
+  "measurements": [
+    {
+      "measurement_id": "m-r00-champion",
+      "role": "baseline",
+      "round": 1,
+      "attempt_id": null,
+      "candidate_digest": "fbd7fa5cd7695fbda3cd44d6052a66419e46395644eabfaf65a0dabc0dabc8c4",
+      "coverage": {
+        "expected": 2,
+        "scored": 2,
+        "excluded_pairs": 0
+      },
+      "metrics": {
+        "score": {
+          "mean": 0.5,
+          "count": 2
+        }
+      },
+      "baseline": null,
+      "times": null,
+      "usage": null,
+      "usage_state": "unavailable",
+      "retries": 0,
+      "call_failures_by_code": {},
+      "classification": "born",
+      "repairs": {
+        "tries": 0,
+        "pairs_scored": 0
+      }
+    },
+    {
+      "measurement_id": "m-r01-a01",
+      "role": "attempt",
+      "round": 1,
+      "attempt_id": "r01-a01",
+      "candidate_digest": "1c415578b6bc948b5bf40d41126397c1765d360cfb3a2cd9ec6d8fa124143a7d",
+      "coverage": {
+        "expected": 2,
+        "scored": 0,
+        "excluded_pairs": 0
+      },
+      "metrics": {},
+      "baseline": null,
+      "times": null,
+      "usage": null,
+      "usage_state": "unavailable",
+      "retries": 0,
+      "call_failures_by_code": {},
+      "classification": "born",
+      "repairs": {
+        "tries": 0,
+        "pairs_scored": 0
+      }
+    },
+    {
+      "measurement_id": "m-r01-a01-parent",
+      "role": "other",
+      "round": null,
+      "attempt_id": null,
+      "candidate_digest": "fbd7fa5cd7695fbda3cd44d6052a66419e46395644eabfaf65a0dabc0dabc8c4",
+      "coverage": {
+        "expected": 2,
+        "scored": 0,
+        "excluded_pairs": 0
+      },
+      "metrics": {},
+      "baseline": null,
+      "times": null,
+      "usage": null,
+      "usage_state": "unavailable",
+      "retries": 0,
+      "call_failures_by_code": {},
+      "classification": "born",
+      "repairs": {
+        "tries": 0,
+        "pairs_scored": 0
+      }
+    }
+  ],
+  "suspensions": [],
+  "details_state": "present",
+  "details_reason": null,
+  "details_source": "core_raw",
+  "lab_notices": [],
+  "independent": {
+    "evidence": "authenticated_publications",
+    "next_action": "continue_evolve",
+    "settings": {
+      "stages": "focus_first",
+      "mode": "point",
+      "repeats": 1,
+      "verification": "reuse",
+      "stability": "stable",
+      "fresh_parent": true,
+      "global_rule": "point",
+      "train_cases": 2,
+      "train_slots": 2,
+      "execution_noise": {
+        "kind": "negligible",
+        "allowance": {
+          "value": 0.0,
+          "exact": {
+            "denominator": "1",
+            "format": "rational-hex/1",
+            "numerator": "0"
+          }
+        },
+        "source": null,
+        "source_kind": "assumed_negligible"
+      },
+      "statistics": {
+        "method": null,
+        "unit": null
+      },
+      "bound_fallback": null
+    },
+    "attempts": [
+      {
+        "round": 1,
+        "attempt_id": "r01-a01",
+        "outcome": null,
+        "reason": null,
+        "group": "in_progress",
+        "eligible_final_score": null,
+        "gate_binding": {
+          "source": "core_raw",
+          "scopes": [
+            {
+              "name": "focus",
+              "rule": "point"
+            },
+            {
+              "name": "causal",
+              "rule": "point"
+            }
+          ]
+        },
+        "global_binding": null,
+        "comparison": null,
+        "gate_comparison": null,
+        "global_comparison": null,
+        "slots": {
+          "candidate": {
+            "scheduled": 2,
+            "dispatched": 0,
+            "not_owed": 1
+          },
+          "parent": {
+            "scheduled": 2,
+            "dispatched": 0,
+            "not_owed": 1
+          }
+        },
+        "preflight": {
+          "status": "not_ruled_out",
+          "basis": "unknown_fresh_reference_envelope",
+          "profile_digest": "36d2c34c5dd450a44cdd43889d253b385fa6f16bf82ca3fb0d7c3b3164c3ffdd",
+          "interpretation": "score_range_ceiling_not_a_success_or_power_prediction",
+          "scopes": [
+            {
+              "name": "focus",
+              "status": "calculated",
+              "rule": "point",
+              "threshold": {
+                "value": 0.5,
+                "exact": {
+                  "denominator": "2",
+                  "format": "rational-hex/1",
+                  "numerator": "1"
+                }
+              },
+              "strict": true,
+              "unit_count": 1,
+              "passes": true,
+              "confidence": null,
+              "delta_max": {
+                "value": 1.0,
+                "exact": {
+                  "denominator": "1",
+                  "format": "rational-hex/1",
+                  "numerator": "1"
+                }
+              },
+              "c_max": null,
+              "e_max": null,
+              "fallback": null
+            },
+            {
+              "name": "causal",
+              "status": "calculated",
+              "rule": "point",
+              "threshold": {
+                "value": 0.0,
+                "exact": {
+                  "denominator": "1",
+                  "format": "rational-hex/1",
+                  "numerator": "0"
+                }
+              },
+              "strict": false,
+              "unit_count": 1,
+              "passes": true,
+              "confidence": null,
+              "delta_max": {
+                "value": 1.0,
+                "exact": {
+                  "denominator": "1",
+                  "format": "rational-hex/1",
+                  "numerator": "1"
+                }
+              },
+              "c_max": null,
+              "e_max": null,
+              "fallback": null
+            }
+          ],
+          "bound_fallback": null
+        },
+        "conditional_cost": {
+          "basis": "full_scenario_complete_scoring_without_retries",
+          "baseline_slots": 2,
+          "candidate_gate_slots": 2,
+          "candidate_final_slots": 0,
+          "candidate_total_slots": 2,
+          "parent_slots": 2,
+          "champion_slots": 0,
+          "champion_basis": "per_reached_finalist",
+          "slots_per_refresh": 2,
+          "connection_preflight_slots": 1,
+          "probes_and_retries": "separate",
+          "noise_diagnostic_slots": 0,
+          "simplest_passing_path_slots": 5
+        }
+      }
+    ],
+    "attainability": {
+      "preflight": [],
+      "local_guidance": null
+    },
+    "work": {
+      "planned": {
+        "basis": "full_initial_baseline_and_conditional_future_stage_scenarios",
+        "baseline_slots": 2,
+        "admitted_baseline_imports": 0,
+        "affected_cases": null,
+        "candidate_final_slots_if_gate_passes": null,
+        "parent_gate_slots": null,
+        "champion_slots_per_scope": 0,
+        "champion_scope": "reached_finalist",
+        "slots_per_refresh": 2,
+        "connection_preflight": "separate_no_measurement_credit",
+        "probes_and_retries": "separate",
+        "noise_diagnostic_slots": 0
+      },
+      "committed": {
+        "measurement": {
+          "scenario_slots": 2,
+          "imported_slots": 0,
+          "target_turns": 2,
+          "transport_retries": 0,
+          "scorer_executions": 2
+        },
+        "connection_preflight": {
+          "scenario_slots": 1,
+          "imported_slots": 0,
+          "target_turns": 1,
+          "transport_retries": 0,
+          "scorer_executions": 1
+        },
+        "role_requests": 3,
+        "reflector_probe_requests": 0,
+        "interpretation": "journaled_work_not_tokens_currency_or_provider_call_estimates"
+      },
+      "remaining": {
+        "basis": "conditional_same_bound_conditions_complete_scoring_without_retries",
+        "scope": "current_baseline_and_opened_attempts_only",
+        "baseline_slots": 0,
+        "candidate_gate_slots": 2,
+        "parent_gate_slots": 2,
+        "candidate_final_slots_if_gates_pass": 0,
+        "champion_slots_for_reached_finalists": 0,
+        "remaining_refreshes": 0,
+        "refresh_scenario_slots": 0,
+        "probes_and_retries": "separate",
+        "noise_diagnostic_slots": 0
+      }
+    }
+  },
+  "checks": null,
+  "checks_state": "present",
+  "checks_reason": null,
+  "reflector_probe": null,
+  "reflector_probe_state": "unavailable",
+  "reflector_probe_reason": "unreadable"
+}

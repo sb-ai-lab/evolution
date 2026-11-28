@@ -2,20 +2,20 @@
 
 Evolution runs controlled experiments on the files your agent reads. A campaign starts with a directory of those files, tests proposed changes and keeps the selected versions with their evidence. The model behind the agent does not need to be the model that edits its instructions.
 
-Start with the [Quickstart](../QUICKSTART.md) to see this happen. This page explains the v2 tree workflow. The separate task/skill commands have their own [manual workflow architecture](manual-architecture.md).
+Start with the [Quickstart](core-quickstart.md) to see this happen. This page explains the v2 tree workflow. The separate task/skill commands have their own [manual workflow architecture](manual-architecture.md).
 
 ## The pieces you provide
 
 | Piece | Responsibility | Example |
 |---|---|---|
-| Seed tree | Starting files, including the paths an editor may change | `seed/skills/SKILL.md` |
+| Seed tree | Starting files, including the paths an Editor may change | `seed/skills/SKILL.md` |
 | Target Service | Load a version of those files and run your agent | A service wrapping your agent harness |
 | Corpus | Cases on which the agent will be evaluated | Questions, task inputs and private expected answers |
 | Environment | Decide what message to send next and when the interaction ends | Send each case's `public.text` once |
 | Scorer | Turn an interaction into metrics and criterion verdicts | Score correctness and report missing required steps |
 | Grouper | Group the baseline's failing observations before reflection; `/16` can also propose cause hypotheses | Put every case that missed the same required step into one group |
 | Reflector | Investigate failing cases and propose a diagnosis | Identify an instruction that causes repeated omissions |
-| Editor | Change permitted files in a candidate workspace | Add a general checklist to a skill |
+| Editor | Change permitted files in a Candidate workspace | Add a general checklist to a skill |
 | Manifest | Connect all these pieces and set the budgets | `manifest.json` |
 
 Evolution provides scheduling, artifact copies, comparisons, promotion, journals and recovery. You start the Target Service before the campaign. The [reference target](reference-target.md) supplies an offline example of all the pieces so you can learn them before building your own.
@@ -42,7 +42,7 @@ flowchart TD
     K --> F[Next attempt or round, within budget]
 ```
 
-A **campaign** is the whole experiment stored in one run directory. It contains **rounds**. Each round starts from a fixed **Parent** and can try several **Candidates**. One **Attempt** is an editor call and the evaluation of the resulting Candidate. A **sample**, or rollout, is one agent interaction for one case and repeat. A **measurement** collects these samples for a version of the files.
+A **campaign** is the whole experiment stored in one run directory. It contains **rounds**. Each round starts from a fixed **Parent** and can try several **Candidates**. One **Attempt** is an Editor call and the evaluation of the resulting Candidate. A **sample**, or rollout, is one agent interaction for one case and repeat. A **measurement** collects these samples for a version of the files.
 
 The **Champion** is the version currently selected by the campaign. At the start it is the seed. After a successful promotion it is the selected Candidate. The original seed is never overwritten by promotion.
 
@@ -50,13 +50,13 @@ The baseline identifies failing cases. The **Grouper** groups their observations
 
 If reflection declines, finds nothing or produces unusable content, the round closes as `unplanned` without an Editor call. Provider and unexplained failures suspend the campaign (see [Failures and recovery](#failures-and-recovery)). Each Attempt starts from the same Parent; sequential feedback can share lessons from earlier closed Attempts without inheriting their files.
 
-If the baseline has no failing cases to investigate, the round can close without calling the Reflector or editor. A completed campaign therefore does not necessarily make edits or promote anything.
+If the baseline has no failing cases to investigate, the round can close without calling the Reflector or Editor. A completed campaign therefore does not necessarily make edits or promote anything.
 
 ## Who sees what
 
-The target receives the case's public inputs and the files it must load. The scorer also receives the private expected answer or evaluation data, called the **oracle**. The Reflector can inspect bounded evaluation evidence to explain failures. The editor receives a prepared brief, a diagnosis and permitted observations, not the raw oracle or target address.
+The target receives the case's public inputs and the files it must load. The scorer also receives the private expected answer or evaluation data, called the **oracle**. The Reflector can inspect bounded evaluation evidence to explain failures. The Editor receives a prepared brief, a diagnosis and permitted observations, not the raw oracle or target address.
 
-Keep expected answers in the corpus's `oracle` field, rather than embedding them in `public`. Scorer feedback that is intended for the editor must be safe to publish. Evolution checks boundaries, but a scorer that puts an answer into a public feedback code has already exposed it.
+Keep expected answers in the corpus's `oracle` field, rather than embedding them in `public`. Scorer feedback that is intended for the Editor must be safe to publish. Evolution checks boundaries, but a scorer that puts an answer into a public feedback code has already exposed it.
 
 A scorer has two distinct outputs: numeric **metrics** support quality comparisons, while criterion **verdicts** identify failures for the Reflector. A low metric with no failing verdicts does not give the Reflector the same signal as an explicit failed criterion.
 

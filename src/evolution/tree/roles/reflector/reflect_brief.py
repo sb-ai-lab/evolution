@@ -380,6 +380,7 @@ def render_reflect_opening(
     environment_docs: str | None = None,
     *,
     editor_max_changed_files: int | None = None,
+    read_progress: bool = False,
 ) -> str:
     """The Reflector's first message, `editor_brief.render_opening`'s twin.
 
@@ -394,9 +395,15 @@ def render_reflect_opening(
     """
 
     if isinstance(brief, AdaptiveReflectBrief):
+        guidance = (
+            "Omit offset on read_evidence to continue. For an exact quotation, specify the offset "
+            "or file line range with reread=true. "
+            if read_progress
+            else "Use explicit offsets to continue; omitted offsets always start at zero. "
+        )
         lines = [
             "Investigate the supplied focus and read any baseline case through list_evidence and read_evidence. "
-            "Use explicit offsets to continue; omitted offsets always start at zero. "
+            f"{guidance}"
             "Cite observations for every affected case; supporting citations do not expand a claim. "
             "Return root_cause, suggested_fix, counterevidence, regression_risks, why_this_layer, "
             "evidence_ids, affected_cases and target_paths for each hypothesis. "

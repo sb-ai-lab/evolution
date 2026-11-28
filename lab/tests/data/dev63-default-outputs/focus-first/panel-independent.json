@@ -1,0 +1,662 @@
+{
+  "tag": "div",
+  "attrs": {
+    "class": "panel"
+  },
+  "children": [
+    {
+      "tag": "div",
+      "attrs": {
+        "class": "pad small"
+      },
+      "children": [
+        {
+          "tag": "span",
+          "attrs": {
+            "class": "setup-field"
+          },
+          "children": [
+            {
+              "tag": "span",
+              "attrs": {
+                "class": "k"
+              },
+              "children": "R (repeats)"
+            },
+            " ",
+            {
+              "tag": "span",
+              "attrs": {
+                "class": "mono"
+              },
+              "children": "1"
+            },
+            " "
+          ]
+        },
+        {
+          "tag": "span",
+          "attrs": {
+            "class": "setup-field"
+          },
+          "children": [
+            {
+              "tag": "span",
+              "attrs": {
+                "class": "k"
+              },
+              "children": "Mode"
+            },
+            " ",
+            {
+              "tag": "span",
+              "attrs": {
+                "class": "mono"
+              },
+              "children": "Point"
+            },
+            " "
+          ]
+        },
+        {
+          "tag": "span",
+          "attrs": {
+            "class": "setup-field"
+          },
+          "children": [
+            {
+              "tag": "span",
+              "attrs": {
+                "class": "k"
+              },
+              "children": "Execution noise"
+            },
+            " ",
+            {
+              "tag": "span",
+              "attrs": {
+                "class": "mono"
+              },
+              "children": "negligible · allowance 0.00 · assumed_negligible"
+            },
+            " "
+          ]
+        },
+        {
+          "tag": "span",
+          "attrs": {
+            "class": "setup-field"
+          },
+          "children": [
+            {
+              "tag": "span",
+              "attrs": {
+                "class": "k"
+              },
+              "children": "Verification"
+            },
+            " ",
+            {
+              "tag": "span",
+              "attrs": {
+                "class": "mono"
+              },
+              "children": "reuse"
+            },
+            " "
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "div",
+      "attrs": {
+        "class": "pad",
+        "data-attempt": "r01-a01"
+      },
+      "children": [
+        {
+          "tag": "div",
+          "attrs": {
+            "class": "small"
+          },
+          "children": [
+            {
+              "tag": "span",
+              "attrs": {
+                "class": "mono strong"
+              },
+              "children": "r01-a01"
+            },
+            " ",
+            {
+              "tag": "span",
+              "attrs": {
+                "class": "faint"
+              },
+              "children": [
+                "round ",
+                "1"
+              ]
+            },
+            " ",
+            {
+              "tag": "span",
+              "attrs": {
+                "class": "pill tone-neutral"
+              },
+              "children": [
+                {
+                  "tag": "i",
+                  "attrs": {
+                    "class": "dot"
+                  },
+                  "children": null
+                },
+                "Not better"
+              ]
+            },
+            " ",
+            {
+              "tag": "span",
+              "attrs": {
+                "class": "text-2"
+              },
+              "children": "Rejected"
+            },
+            " ",
+            {
+              "tag": "span",
+              "attrs": {
+                "class": "code"
+              },
+              "children": "threshold_not_passed"
+            },
+            " ",
+            {
+              "tag": "a",
+              "attrs": {
+                "class": "link",
+                "href": "#/operations/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/measurements/m-r01-a01"
+              },
+              "children": "measurement"
+            }
+          ]
+        },
+        {
+          "tag": "div",
+          "attrs": {
+            "class": "small mono"
+          },
+          "children": [
+            "gate",
+            " binding ",
+            "(core_raw): focus=point, causal=point"
+          ]
+        },
+        {
+          "tag": "div",
+          "attrs": {
+            "class": "small mono"
+          },
+          "children": [
+            "global",
+            " binding ",
+            "unavailable"
+          ]
+        },
+        {
+          "tag": "div",
+          "attrs": {
+            "class": "small"
+          },
+          "children": [
+            {
+              "tag": "div",
+              "attrs": {},
+              "children": [
+                {
+                  "tag": "span",
+                  "attrs": {
+                    "class": "pill tone-neutral"
+                  },
+                  "children": [
+                    {
+                      "tag": "i",
+                      "attrs": {
+                        "class": "dot"
+                      },
+                      "children": null
+                    },
+                    "Not passed"
+                  ]
+                },
+                " ",
+                {
+                  "tag": "span",
+                  "attrs": {
+                    "class": "code"
+                  },
+                  "children": "threshold_not_passed"
+                },
+                {
+                  "tag": "span",
+                  "attrs": {
+                    "class": "text-2"
+                  },
+                  "children": [
+                    " ",
+                    "Gate comparison",
+                    " · decided by focus",
+                    " · ",
+                    {
+                      "tag": "a",
+                      "attrs": {
+                        "class": "link",
+                        "href": "#/operations/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/measurements/m-r01-a01-parent"
+                      },
+                      "children": "vs round champion · fresh measurement · m-r01-a01-parent"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "tag": "div",
+              "attrs": {
+                "class": "mono"
+              },
+              "children": [
+                {
+                  "tag": "span",
+                  "attrs": {
+                    "class": "strong"
+                  },
+                  "children": "focus"
+                },
+                ": result rule=",
+                "point",
+                " · ",
+                "gain 0.25; threshold > 0.50",
+                " → Not passed"
+              ]
+            },
+            {
+              "tag": "div",
+              "attrs": {
+                "class": "mono"
+              },
+              "children": [
+                {
+                  "tag": "span",
+                  "attrs": {
+                    "class": "strong"
+                  },
+                  "children": "causal"
+                },
+                ": result rule=",
+                "point",
+                " · ",
+                "Not measured"
+              ]
+            }
+          ]
+        },
+        {
+          "tag": "div",
+          "attrs": {
+            "class": "tiny muted"
+          },
+          "children": [
+            "candidate",
+            " slots: scheduled ",
+            "2",
+            " · dispatched ",
+            "1",
+            " · not_owed ",
+            "1"
+          ]
+        },
+        {
+          "tag": "div",
+          "attrs": {
+            "class": "tiny muted"
+          },
+          "children": [
+            "parent",
+            " slots: scheduled ",
+            "2",
+            " · dispatched ",
+            "1",
+            " · not_owed ",
+            "1"
+          ]
+        },
+        {
+          "tag": "div",
+          "attrs": {
+            "class": "tiny muted"
+          },
+          "children": [
+            "Conditional cost: ",
+            "1 measurement slots (gate 1 · final 0 · simplest passing path 4)"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "div",
+      "attrs": {
+        "class": "pad",
+        "data-attempt": "r01-a02"
+      },
+      "children": [
+        {
+          "tag": "div",
+          "attrs": {
+            "class": "small"
+          },
+          "children": [
+            {
+              "tag": "span",
+              "attrs": {
+                "class": "mono strong"
+              },
+              "children": "r01-a02"
+            },
+            " ",
+            {
+              "tag": "span",
+              "attrs": {
+                "class": "faint"
+              },
+              "children": [
+                "round ",
+                "1"
+              ]
+            },
+            " ",
+            {
+              "tag": "span",
+              "attrs": {
+                "class": "pill tone-green"
+              },
+              "children": [
+                {
+                  "tag": "i",
+                  "attrs": {
+                    "class": "dot"
+                  },
+                  "children": null
+                },
+                "Accepted"
+              ]
+            },
+            " ",
+            {
+              "tag": "span",
+              "attrs": {
+                "class": "text-2"
+              },
+              "children": "Finalist"
+            },
+            " ",
+            {
+              "tag": "span",
+              "attrs": {
+                "class": "code"
+              },
+              "children": "passed"
+            },
+            " ",
+            {
+              "tag": "a",
+              "attrs": {
+                "class": "link",
+                "href": "#/operations/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/measurements/m-r01-a02"
+              },
+              "children": "measurement"
+            }
+          ]
+        },
+        {
+          "tag": "div",
+          "attrs": {
+            "class": "small mono"
+          },
+          "children": [
+            "gate",
+            " binding ",
+            "(core_raw): focus=point, causal=point"
+          ]
+        },
+        {
+          "tag": "div",
+          "attrs": {
+            "class": "small mono"
+          },
+          "children": [
+            "global",
+            " binding ",
+            "(core_raw): global=point"
+          ]
+        },
+        {
+          "tag": "div",
+          "attrs": {
+            "class": "small"
+          },
+          "children": [
+            {
+              "tag": "div",
+              "attrs": {},
+              "children": [
+                {
+                  "tag": "span",
+                  "attrs": {
+                    "class": "pill tone-green"
+                  },
+                  "children": [
+                    {
+                      "tag": "i",
+                      "attrs": {
+                        "class": "dot"
+                      },
+                      "children": null
+                    },
+                    "Passed"
+                  ]
+                },
+                {
+                  "tag": "span",
+                  "attrs": {
+                    "class": "text-2"
+                  },
+                  "children": [
+                    " ",
+                    "Gate comparison",
+                    " · decided by focus",
+                    " · ",
+                    {
+                      "tag": "a",
+                      "attrs": {
+                        "class": "link",
+                        "href": "#/operations/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/measurements/m-r01-a02-parent"
+                      },
+                      "children": "vs round champion · fresh measurement · m-r01-a02-parent"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "tag": "div",
+              "attrs": {
+                "class": "mono"
+              },
+              "children": [
+                {
+                  "tag": "span",
+                  "attrs": {
+                    "class": "strong"
+                  },
+                  "children": "focus"
+                },
+                ": result rule=",
+                "point",
+                " · ",
+                "gain 1.00; threshold > 0.50",
+                " → Passed"
+              ]
+            },
+            {
+              "tag": "div",
+              "attrs": {
+                "class": "mono"
+              },
+              "children": [
+                {
+                  "tag": "span",
+                  "attrs": {
+                    "class": "strong"
+                  },
+                  "children": "causal"
+                },
+                ": result rule=",
+                "point",
+                " · ",
+                "gain 0.00; threshold ≥ 0.00"
+              ]
+            }
+          ]
+        },
+        {
+          "tag": "div",
+          "attrs": {
+            "class": "small"
+          },
+          "children": [
+            {
+              "tag": "div",
+              "attrs": {},
+              "children": [
+                {
+                  "tag": "span",
+                  "attrs": {
+                    "class": "pill tone-green"
+                  },
+                  "children": [
+                    {
+                      "tag": "i",
+                      "attrs": {
+                        "class": "dot"
+                      },
+                      "children": null
+                    },
+                    "Passed"
+                  ]
+                },
+                {
+                  "tag": "span",
+                  "attrs": {
+                    "class": "text-2"
+                  },
+                  "children": [
+                    " ",
+                    "Global comparison",
+                    " · decided by global",
+                    " · ",
+                    {
+                      "tag": "a",
+                      "attrs": {
+                        "class": "link",
+                        "href": "#/operations/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/measurements/m-r00-champion"
+                      },
+                      "children": "vs round champion · stored measurement · m-r00-champion"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "tag": "div",
+              "attrs": {
+                "class": "mono"
+              },
+              "children": [
+                {
+                  "tag": "span",
+                  "attrs": {
+                    "class": "strong"
+                  },
+                  "children": "global"
+                },
+                ": result rule=",
+                "point",
+                " · ",
+                "gain 0.50; threshold > 0.00",
+                " → Passed"
+              ]
+            }
+          ]
+        },
+        {
+          "tag": "div",
+          "attrs": {
+            "class": "small"
+          },
+          "children": [
+            "eligible final score ",
+            {
+              "tag": "span",
+              "attrs": {
+                "class": "mono"
+              },
+              "children": "1.00"
+            }
+          ]
+        },
+        {
+          "tag": "div",
+          "attrs": {
+            "class": "tiny muted"
+          },
+          "children": [
+            "candidate",
+            " slots: scheduled ",
+            "2",
+            " · dispatched ",
+            "2",
+            " · not_owed ",
+            "0"
+          ]
+        },
+        {
+          "tag": "div",
+          "attrs": {
+            "class": "tiny muted"
+          },
+          "children": [
+            "parent",
+            " slots: scheduled ",
+            "2",
+            " · dispatched ",
+            "2",
+            " · not_owed ",
+            "0"
+          ]
+        },
+        {
+          "tag": "div",
+          "attrs": {
+            "class": "tiny muted"
+          },
+          "children": [
+            "Conditional cost: ",
+            "2 measurement slots (gate 2 · final 0 · simplest passing path 5)"
+          ]
+        }
+      ]
+    }
+  ]
+}

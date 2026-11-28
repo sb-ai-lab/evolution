@@ -1,0 +1,139 @@
+{
+  "schema": "lab-scenario/2",
+  "id": "connect",
+  "version": 8,
+  "title": "Connect an agent",
+  "skill": "SKILL.md",
+  "subject": "implementation",
+  "requires": [
+    "implementation.available"
+  ],
+  "produces": [
+    "connected"
+  ],
+  "repeatable": null,
+  "schemas": {
+    "spec-answers/1": "schemas/spec-answers-1.json"
+  },
+  "steps": [
+    {
+      "id": "spec",
+      "title": "Write the spec",
+      "kind": "work",
+      "human_only": false,
+      "optional": false,
+      "requires": [],
+      "outputs": [
+        {
+          "artifact": {
+            "path": "SPEC.md",
+            "check": "exists"
+          }
+        },
+        {
+          "artifact": {
+            "path": "spec.answers.json",
+            "check": "schema",
+            "schema": "spec-answers/1"
+          }
+        }
+      ],
+      "skill": "SKILL.md#spec"
+    },
+    {
+      "id": "spec-confirm",
+      "title": "Confirm the spec",
+      "kind": "confirm",
+      "human_only": false,
+      "optional": false,
+      "requires": [
+        "spec"
+      ],
+      "outputs": [
+        {
+          "attestation": {
+            "claim": "spec.confirmed",
+            "path": "SPEC.md"
+          }
+        }
+      ],
+      "skill": "SKILL.md#spec-confirm"
+    },
+    {
+      "id": "package",
+      "title": "Assemble the Lab package",
+      "kind": "work",
+      "human_only": false,
+      "optional": false,
+      "requires": [],
+      "outputs": [
+        {
+          "artifact": {
+            "path": "@package",
+            "check": "package"
+          }
+        }
+      ],
+      "skill": "SKILL.md#package"
+    },
+    {
+      "id": "check",
+      "title": "Check the connection",
+      "kind": "operation",
+      "human_only": false,
+      "optional": false,
+      "requires": [
+        "package"
+      ],
+      "outputs": [
+        {
+          "operation": {
+            "kind": "check",
+            "outcome": "passed"
+          }
+        }
+      ],
+      "skill": "SKILL.md#check"
+    },
+    {
+      "id": "conformance",
+      "title": "Run conformance",
+      "kind": "operation",
+      "human_only": false,
+      "optional": false,
+      "requires": [
+        "package"
+      ],
+      "outputs": [
+        {
+          "operation": {
+            "kind": "conformance",
+            "outcome": "passed"
+          }
+        }
+      ],
+      "skill": "SKILL.md#conformance"
+    },
+    {
+      "id": "baseline",
+      "title": "Measure a short baseline",
+      "kind": "operation",
+      "human_only": true,
+      "optional": false,
+      "requires": [
+        "check",
+        "conformance"
+      ],
+      "outputs": [
+        {
+          "operation": {
+            "kind": "evaluation",
+            "outcome": "measured"
+          }
+        }
+      ],
+      "skill": "SKILL.md#baseline"
+    }
+  ],
+  "digest": "50eb140a6f18e010ac1bdb413dd95d5d1174e117d96486126b53515121d9de52"
+}

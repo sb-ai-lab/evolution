@@ -56,13 +56,27 @@ def session(
     return ProbeSession(probe, **values)
 
 
+async def read_to_close(reader: asyncio.StreamReader, timeout: float) -> bytes:
+    """Read until the peer closes; a reset counts as a close without a response.
+
+    A listener that closes a connection with the request still unread may reset
+    it: Linux usually delivers the FIN first, macOS reports `ECONNRESET`.
+    """
+
+    try:
+        return await asyncio.wait_for(reader.read(), timeout=timeout)
+    except ConnectionResetError:
+        return b""
+
+
 async def raw_request(port: int, request: bytes) -> bytes:
     reader, writer = await asyncio.open_connection("127.0.0.1", port)
     writer.write(request)
     await writer.drain()
-    response = await asyncio.wait_for(reader.read(), timeout=3)
+    response = await read_to_close(reader, 3)
     writer.close()
-    await writer.wait_closed()
+    with contextlib.suppress(ConnectionResetError):
+        await writer.wait_closed()
     return response
 
 
@@ -345,14 +359,16 @@ async def test_handler_preallocation_limit_refuses_excess_slow_readers(tmp_path:
             for _reader, writer in peers:
                 writer.write(b"POST ")
                 await writer.drain()
-            refused = await asyncio.wait_for(peers[-1][0].read(), timeout=1)
+            refused = await read_to_close(peers[-1][0], 1)
             assert refused == b""
             assert mediator.active_handlers == MAX_ACTIVE_HANDLERS
             assert owner.budget_remaining == 4
         finally:
             for _reader, writer in peers:
                 writer.close()
-            await asyncio.gather(*(writer.wait_closed() for _, writer in peers))
+            await asyncio.gather(
+                *(writer.wait_closed() for _, writer in peers), return_exceptions=True
+            )
         assert await mediator.close()
 
 

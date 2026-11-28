@@ -28,7 +28,7 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
-from evolution.lineage.state_io import ensure_private_directory
+from evolution.lineage.state_io import ensure_private_directory, sync_file
 from evolution.tree.roles.reflection_reader import MAX_RESPONSE_BYTES
 
 ENVIRONMENT_DOCS_ROOT = "environment-docs"
@@ -427,18 +427,18 @@ def _v2_fsync_tree(root: Path) -> None:
         for name in filenames:
             fd = os.open(base / name, os.O_RDONLY | no_follow)
             try:
-                os.fsync(fd)
+                sync_file(fd)
             finally:
                 os.close(fd)
         for name in dirnames:
             fd = os.open(base / name, os.O_RDONLY | os.O_DIRECTORY | no_follow)
             try:
-                os.fsync(fd)
+                sync_file(fd)
             finally:
                 os.close(fd)
     fd = os.open(root, os.O_RDONLY | os.O_DIRECTORY | no_follow)
     try:
-        os.fsync(fd)
+        sync_file(fd)
     finally:
         os.close(fd)
 
@@ -477,7 +477,7 @@ def _v2_write_document_snapshot(snapshot: _V2DocumentSnapshot, run_dir: Path) ->
             with os.fdopen(fd, "wb") as handle:
                 handle.write(document.text.encode("utf-8"))
                 handle.flush()
-                os.fsync(handle.fileno())
+                sync_file(handle.fileno())
         _v2_fsync_tree(staging)
         if destination.exists() or destination.is_symlink():
             os.replace(destination, backup)
@@ -490,7 +490,7 @@ def _v2_write_document_snapshot(snapshot: _V2DocumentSnapshot, run_dir: Path) ->
             raise
         fd = os.open(run_dir, os.O_RDONLY | os.O_DIRECTORY | getattr(os, "O_NOFOLLOW", 0))
         try:
-            os.fsync(fd)
+            sync_file(fd)
         finally:
             os.close(fd)
         _v2_remove_tree(backup)

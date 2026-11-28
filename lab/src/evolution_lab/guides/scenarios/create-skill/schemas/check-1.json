@@ -1,0 +1,398 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "skill_path",
+    "skill_digest",
+    "target",
+    "status",
+    "reason",
+    "scenarios",
+    "previous"
+  ],
+  "properties": {
+    "schema": {
+      "const": "create-skill-check/1"
+    },
+    "skill_path": {
+      "$ref": "#/$defs/relpath"
+    },
+    "skill_digest": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/digest"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "target": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "bundle_digest",
+            "started_at"
+          ],
+          "properties": {
+            "bundle_digest": {
+              "$ref": "#/$defs/digest"
+            },
+            "started_at": {
+              "$ref": "#/$defs/text"
+            }
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "status": {
+      "enum": [
+        "checked",
+        "partial",
+        "not_run"
+      ]
+    },
+    "reason": {
+      "enum": [
+        null,
+        "interrupted",
+        "not_connected",
+        "not_in_bundle",
+        "changed_after_check",
+        "skipped_by_human"
+      ]
+    },
+    "scenarios": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "verdict",
+          "by",
+          "examples",
+          "human",
+          "closed"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/$defs/id"
+          },
+          "verdict": {
+            "enum": [
+              "passed",
+              "failed",
+              "not_checked"
+            ]
+          },
+          "by": {
+            "anyOf": [
+              {
+                "const": "reviewer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "examples": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "id",
+                "turn",
+                "verdict",
+                "note"
+              ],
+              "properties": {
+                "id": {
+                  "$ref": "#/$defs/id"
+                },
+                "turn": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "session_id",
+                        "turn_id"
+                      ],
+                      "properties": {
+                        "session_id": {
+                          "$ref": "#/$defs/text"
+                        },
+                        "turn_id": {
+                          "$ref": "#/$defs/text"
+                        }
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "verdict": {
+                  "enum": [
+                    "passed",
+                    "failed",
+                    "not_checked"
+                  ]
+                },
+                "note": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/text"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "human": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "verdict",
+                  "note"
+                ],
+                "properties": {
+                  "verdict": {
+                    "enum": [
+                      "passed",
+                      "failed"
+                    ]
+                  },
+                  "note": {
+                    "$ref": "#/$defs/text"
+                  }
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "closed": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "minItems": 1
+    },
+    "previous": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "skill_digest",
+          "status",
+          "file"
+        ],
+        "properties": {
+          "skill_digest": {
+            "$ref": "#/$defs/digest"
+          },
+          "status": {
+            "$ref": "#/$defs/text"
+          },
+          "file": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/relpath"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+    },
+    "relpath": {
+      "type": "string",
+      "pattern": "^(?!/)(?!\\.$)(?!(?:.*/)?\\.\\.(?:/|$)).+$"
+    },
+    "text": {
+      "type": "string",
+      "minLength": 1
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "checked"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "skill_digest": {
+            "$ref": "#/$defs/digest"
+          },
+          "target": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "bundle_digest",
+              "started_at"
+            ],
+            "properties": {
+              "bundle_digest": {
+                "$ref": "#/$defs/digest"
+              },
+              "started_at": {
+                "$ref": "#/$defs/text"
+              }
+            }
+          },
+          "reason": {
+            "type": "null"
+          },
+          "scenarios": {
+            "items": {
+              "properties": {
+                "examples": {
+                  "items": {
+                    "properties": {
+                      "verdict": {
+                        "enum": [
+                          "passed",
+                          "failed"
+                        ]
+                      }
+                    }
+                  },
+                  "minItems": 1
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "partial"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "skill_digest": {
+            "$ref": "#/$defs/digest"
+          },
+          "target": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "bundle_digest",
+              "started_at"
+            ],
+            "properties": {
+              "bundle_digest": {
+                "$ref": "#/$defs/digest"
+              },
+              "started_at": {
+                "$ref": "#/$defs/text"
+              }
+            }
+          },
+          "reason": {
+            "const": "interrupted"
+          },
+          "scenarios": {
+            "items": {
+              "properties": {
+                "examples": {
+                  "minItems": 1
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "not_run"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "skill_digest": {
+            "type": "null"
+          },
+          "target": {
+            "type": "null"
+          },
+          "reason": {
+            "enum": [
+              "not_connected",
+              "not_in_bundle",
+              "changed_after_check",
+              "skipped_by_human"
+            ]
+          },
+          "scenarios": {
+            "items": {
+              "properties": {
+                "examples": {
+                  "items": {
+                    "properties": {
+                      "verdict": {
+                        "const": "not_checked"
+                      }
+                    }
+                  }
+                },
+                "verdict": {
+                  "const": "not_checked"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

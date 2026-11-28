@@ -5,6 +5,7 @@ from __future__ import annotations
 import subprocess
 import sys
 import time
+from io import RawIOBase
 from os import kill
 from pathlib import Path
 from signal import SIGKILL
@@ -14,6 +15,19 @@ import pytest
 from evolution.eval.proc import run_capture
 
 pytestmark = pytest.mark.slow
+
+
+class CountingSink(RawIOBase):
+    """Count bytes from a continuously writing child without storing its output."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.bytes_written = 0
+
+    def write(self, data: bytes) -> int:
+        size = len(data)
+        self.bytes_written += size
+        return size
 
 
 def test_timeout_enforced_despite_leaked_grandchild() -> None:
@@ -98,7 +112,7 @@ def test_timeout_applies_when_child_never_reads_stdin() -> None:
 def test_timeout_sink_keeps_bytes_acknowledged_before_kill(tmp_path: Path) -> None:
     counter = tmp_path / "counter"
     counter.write_bytes(b"\0" * 8)
-    trace = tmp_path / "stdout"
+    sink = CountingSink()
     code = (
         "import os, sys\n"
         "counter = os.open(sys.argv[1], os.O_WRONLY)\n"
@@ -109,21 +123,20 @@ def test_timeout_sink_keeps_bytes_acknowledged_before_kill(tmp_path: Path) -> No
         "    os.pwrite(counter, total.to_bytes(8, 'little'), 0)\n"
     )
 
-    with trace.open("xb", buffering=0) as stdout_sink:
-        with pytest.raises(subprocess.TimeoutExpired):
-            run_capture(
-                [sys.executable, "-c", code, str(counter)],
-                timeout=1,
-                stdout_sink=stdout_sink,
-            )
+    with pytest.raises(subprocess.TimeoutExpired):
+        run_capture(
+            [sys.executable, "-c", code, str(counter)],
+            timeout=1,
+            stdout_sink=sink,
+        )
 
     acknowledged = int.from_bytes(counter.read_bytes(), "little")
-    assert len(trace.read_bytes()) >= acknowledged > 0
+    assert sink.bytes_written >= acknowledged > 0
 
 
 def test_timeout_does_not_drain_an_out_of_group_writer_forever(tmp_path: Path) -> None:
     pid_file = tmp_path / "detached-writer.pid"
-    trace = tmp_path / "stdout"
+    sink = CountingSink()
     code = (
         "import os, pathlib, sys, time\n"
         "path = pathlib.Path(sys.argv[1])\n"
@@ -139,15 +152,14 @@ def test_timeout_does_not_drain_an_out_of_group_writer_forever(tmp_path: Path) -
     started = time.monotonic()
 
     try:
-        with trace.open("xb", buffering=0) as stdout_sink:
-            with pytest.raises(subprocess.TimeoutExpired):
-                run_capture(
-                    [sys.executable, "-c", code, str(pid_file)],
-                    timeout=1,
-                    stdout_sink=stdout_sink,
-                )
+        with pytest.raises(subprocess.TimeoutExpired):
+            run_capture(
+                [sys.executable, "-c", code, str(pid_file)],
+                timeout=1,
+                stdout_sink=sink,
+            )
         assert time.monotonic() - started < 2
-        assert trace.stat().st_size > 0
+        assert sink.bytes_written > 0
     finally:
         if pid_file.exists():
             try:

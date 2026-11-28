@@ -1,0 +1,9 @@
+lab-campaign-view/13 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+outcome: completed/rounds_exhausted
+reflector probe: unavailable (unreadable)
+settings: stability=stable round_stop=first_accepted refresh=off
+connection: compatible compatible attempts=1
+no candidate was measured: reflection_declined 1
+round 1 unplanned baseline=v0 reflection=declined
+independent: mode=point R=1 verification=reuse noise=negligible allowance=0.00 (assumed_negligible) stability=stable fresh_parent=no global=point
+comparisons unavailable (unavailable)

@@ -1,0 +1,14 @@
+{
+  "derived_from": "panel/details",
+  "substitution": "Synthetic target descriptions and fault-state path. References to records in each edited journal were recomputed.",
+  "journals": {
+    "threshold": {
+      "path": "threshold/campaign.jsonl",
+      "sha256": "1b1af50edd707e86cdfb9e57bb5123fbe3bd0022f7e7ac1f090c5ff2b5427e9d"
+    },
+    "stage_record": {
+      "path": "stage_record/campaign.jsonl",
+      "sha256": "e63d31a03f643089b00d3890d73d411232c895152654c8e51e534e82c1f3f543"
+    }
+  }
+}

@@ -1,0 +1,172 @@
+{
+  "auto_resume": {
+    "blocked": null,
+    "detail": null,
+    "max": null,
+    "next_at": null,
+    "policy_digest": null,
+    "state": "off",
+    "used": 0
+  },
+  "control_state": "finished",
+  "core_terminal": null,
+  "entrypoint": "inputs/lab/manifest.json",
+  "executor": {
+    "core_wheel_sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+    "environment_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+    "kind": "lab-evaluation-worker/1",
+    "lab_wheel_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+    "module_hashes": {
+      "evolution_lab.owner._evaluation_worker": "2222222222222222222222222222222222222222222222222222222222222222"
+    }
+  },
+  "failure": null,
+  "id": "<id-2>",
+  "kind": "evaluation",
+  "owner_generation": "<id-9>",
+  "prepared_digest": "46a0b94b5f8bdc0e857126f19992d1c06e5129eaea2a19c2d52a5da3c8d074a1",
+  "process": {
+    "cleanup_complete": true,
+    "exit_code": 1,
+    "forced": false,
+    "launched": true
+  },
+  "progress": {
+    "coverage": {
+      "expected": 1,
+      "scored": 1
+    },
+    "kind": "evaluation",
+    "observed_at": "<time>"
+  },
+  "progress_state": "present",
+  "refusal": null,
+  "result": {
+    "answered_reported": 0,
+    "campaign_execution": null,
+    "core": {
+      "campaign_outcome": null,
+      "candidate_digest": "fbd7fa5cd7695fbda3cd44d6052a66419e46395644eabfaf65a0dabc0dabc8c4",
+      "claim_scope": "rollout_measurement",
+      "complete": true,
+      "consistency": "observed",
+      "diagnostics": [],
+      "final_champion": null,
+      "initial_champion": null,
+      "journal_integrity": "complete",
+      "kind": "result",
+      "last_sequence": 19,
+      "lower_bound": false,
+      "prefix_digest": "299c092a70cc8a7d368f7766dd1e58f97a96aa53349f43cb5904e804c0914df9",
+      "references": [
+        {
+          "content_digest": "299c092a70cc8a7d368f7766dd1e58f97a96aa53349f43cb5904e804c0914df9",
+          "kind": "journal_record",
+          "locator": "events.jsonl#bytes=0:10165",
+          "run_id": "c-<id-7>",
+          "version": 1
+        }
+      ],
+      "run_id": "c-<id-7>",
+      "run_identity_digest": "b5655fdc795cd6ab6c0079156c2372313427852c7e1e60ba2f54e4bbec42ef6a",
+      "samples": [
+        {
+          "candidate_digest": "fbd7fa5cd7695fbda3cd44d6052a66419e46395644eabfaf65a0dabc0dabc8c4",
+          "case_id": "q1",
+          "critical_pass": true,
+          "evaluation": {
+            "kind": "score",
+            "outcome": "completed",
+            "owner": null,
+            "reason": null
+          },
+          "execution": {
+            "kind": "score",
+            "outcome": "completed",
+            "owner": null,
+            "reason": null
+          },
+          "execution_state": "finished",
+          "metrics": {
+            "score": 0.0
+          },
+          "sample_id": "case-1-repeat-1",
+          "scoring_state": "finished"
+        }
+      ],
+      "schema_version": 1,
+      "selection": null,
+      "valid_bytes": 10165
+    },
+    "coverage": {
+      "expected": 1,
+      "scored": 1
+    },
+    "kind": "evaluation",
+    "min_coverage": 0.95,
+    "persistence": {
+      "failure": null,
+      "state": "not_attempted"
+    },
+    "prepared_digest": "46a0b94b5f8bdc0e857126f19992d1c06e5129eaea2a19c2d52a5da3c8d074a1",
+    "process": {
+      "cleanup_complete": true,
+      "exit_code": 1,
+      "forced": false,
+      "launched": true
+    },
+    "schema": "lab-operation-result/3",
+    "stopped_reason": null,
+    "unanswered": null,
+    "unanswered_state": "not_reported",
+    "unmeasured": []
+  },
+  "results_state": "present",
+  "resume": null,
+  "retained_summary": null,
+  "schema": "lab-operation-status/8",
+  "starts": [
+    {
+      "auto_resume_attempt": null,
+      "core_terminal": null,
+      "failure": null,
+      "initiated_by": "human",
+      "owner_generation": "<id-9>",
+      "process": {
+        "cleanup_complete": true,
+        "exit_code": 1,
+        "forced": false,
+        "launched": true
+      },
+      "refusal": null,
+      "scope_id": "<id-12>",
+      "settlement": "positive",
+      "start": 1,
+      "target_cleanup": {
+        "complete": true,
+        "state": "confirmed"
+      },
+      "target_ref": {
+        "id": "<id-10>",
+        "owner_generation": "<id-9>",
+        "schema": "lab-target-ref/1"
+      }
+    }
+  ],
+  "target_cleanup": {
+    "complete": true,
+    "state": "confirmed"
+  },
+  "target_ref": {
+    "id": "<id-10>",
+    "owner_generation": "<id-9>",
+    "schema": "lab-target-ref/1"
+  },
+  "times": {
+    "first_event_at": "<time>",
+    "last_event_at": "<time>"
+  },
+  "times_reason": null,
+  "times_source": "core_public",
+  "times_state": "present"
+}

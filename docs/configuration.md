@@ -2,6 +2,12 @@
 
 This page covers environment variables and options for the task/skill commands (`evo task`, `evo run`, `evo evolve`) and their optimizer. For `evo tree evolve`, campaign settings come from a JSON manifest: use the [manifest reference](manifest-v2.md) and [campaign guide](running-campaigns.md). Both workflows store their state in files and need no database.
 
+## Process durability
+
+`EVOLUTION_DURABILITY` applies to Core and Lab, including the task/skill workflow. Unset, empty or `relaxed` means no Python fsync. `strict` restores the previous fsync calls and SQLite settings. Any other value, including different case or whitespace, is refused before writes; `evo` and `lab` exit 2 and Core library entry points raise `ValueError`.
+
+Set it in the process environment before startup and leave it fixed for that process. It is not a manifest option and changes no identity or stored record. A value passed only through `evolve(..., environ=...)` does not select durability. See [host crashes and durability](running-campaigns.md#host-crashes-and-durability) for the default's limits.
+
 ## Paths
 
 | Variable | Default | Purpose |
@@ -83,10 +89,10 @@ The optimizer hashes its logical run definition into durable resume identity. It
 
 Promotion uses a fixed conservative policy in 0.2:
 
-- parent and candidate share each validation seed;
+- parent and Candidate share each validation seed;
 - arm order is deterministically counterbalanced;
 - at least four validation pairs are required;
-- any per-task mean regression rejects the candidate;
+- any per-task mean regression rejects the Candidate;
 - the paired sign-flip gate uses `alpha=0.10`.
 
 Generic research gate/selection environment variables do not reconfigure this production policy. Validation checkpoints persist scalar `seed`, `passed`, `total`, and `pass_rate` values only.
@@ -105,7 +111,7 @@ Variables beginning `EVOLUTION_WORKSPACE_GUARD_`, plus `TASK_WORKSPACE`, `WORKSP
 
 ## Repository Research Configuration
 
-The source checkout has optional `experiments/` runners with additional variables and dependencies. They are not part of the installed wheel or production optimizer contract. Use the selected experiment runbook instead of treating these variables as core settings.
+The source checkout has optional `experiments/` runners with additional variables and dependencies. They are not part of the installed wheel or production optimizer contract. Use the selected experiment runbook instead of treating these variables as Core settings.
 
 ## Campaign role environment
 

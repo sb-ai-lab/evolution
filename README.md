@@ -4,103 +4,55 @@
 
 [English](README.md) · [Russian](README.ru.md)
 
-Turn your agent’s failures into proposed changes to its skills and prompts. Evolution evaluates each change against your cases before selecting a version.
+Turn your agent’s failures into proposed changes to its skills and prompts. Evolution evaluates each change against your cases before selecting a version, and keeps the current version when no change is better.
 
-**[Try it without an API key →](#quickstart)** · [Connect your agent](docs/connecting-an-agent.md) · [How it works](docs/architecture.md)
+**[Try it without an API key →](QUICKSTART.md)** · [Connect your agent](docs/guide/connect-agent.md) · [How it works](docs/guide/concepts.md)
 
-![Illustrative workflow: investigate an ungrounded answer, edit a skill, reject one candidate, select another, then use the selected instructions to query data and answer the same task.](docs/assets/readme/evolution-film.gif)
+**Use Evolution with your coding assistant.** Ready-to-use skills help it connect the agent you want to evaluate, set up an evaluation, run a campaign and read the results. [Build and install the plugin](plugins/README.md#build-and-install).
+
+![Illustrative workflow: investigate an ungrounded answer, edit a skill, reject one Candidate, select another, then use the selected instructions to query data and answer the same task.](docs/assets/readme/evolution-film.gif)
 
 [View the static example](docs/assets/readme/evolution-film-poster.png).
 
+## One product, two packages
+
+**Evolution Lab** (`evolution-lab`, in [`lab/`](lab/README.md)) is the recommended way to run Evolution. It turns your agent project into a reproducible experiment: it freezes the inputs, runs your agent as a local service, checks that it speaks the protocol, caps LLM spending, runs an evaluation or a campaign and gives you a report, a diff and an export. Everything works from the `lab` command and the Python API; a browser panel is optional.
+
+**Evolution Core** (`evo-skills`, with the `evo` and `evo-target` commands) owns the campaign itself: the rules, measurement, journals, comparison gates and promotion. Lab runs Core for you. Use Core directly when you write the manifest and the agent service yourself, run campaigns from CI or embed them in your own tool: start at [Evolution Core](docs/core.md).
+
+## Before you start
+
+- **Linux or macOS.** On macOS, a process that leaves the group, escapes the tree between polls and hides the environment marker can survive a stop. Windows is not supported.
+- **Python 3.12 or 3.11** (3.11.4 or newer). uv downloads the interpreter if it is missing.
+- **[uv](https://docs.astral.sh/uv/)**, **[just](https://just.systems/)** and **git**.
+- Read access to this repository. The [installation guide](docs/guide/install.md) lists every requirement and the manual install.
+
+## First run
+
+About five minutes. After setup, the demo runs offline: no LLM, no network access and no API keys.
+
+```sh
+git clone https://github.com/sb-ai-lab/evolution.git
+cd evolution/lab
+just setup
+just demo
+```
+
+`just setup` builds Core and Lab wheels from this checkout and installs both into `lab/.lab/venv`. `just demo` measures a stub agent with a complete fixed evaluation and prints each question with the agent's answer and score. [The demo](docs/guide/demo.md) explains what you see and which files to open.
+
+The [Quickstart](QUICKSTART.md) continues with your own agent and your first campaign.
+
 ## A better instruction starts with a specific failure.
 
-The agent gives general retention advice without checking product data. Investigation identifies the missing query. The proposed skill now says to query the data and compare retention cohorts. Evolution tests the candidate; your checks decide whether it is selected.
+The agent gives general retention advice without checking product data. Investigation identifies the missing query. The proposed skill now says to query the data and compare retention cohorts. Evolution tests the Candidate; your checks decide whether it is selected.
 
-You supply the agent, editable files, cases and scorer. Evolution preserves the selected files and the run history. A campaign can keep the current version.
-
-Python 3.11.3+ · Beta `2.0.0b18` · [Apache 2.0](LICENSE)
-
-
-## Quickstart
-
-Run a complete example without an API key. It uses a deterministic agent and scripted roles, so it verifies the wiring rather than real-agent quality. Use Python 3.11.3+ and Bash or Zsh.
-
-### 1. Install this beta
-
-```bash
-git clone https://github.com/sb-ai-lab/evolution.git
-cd evolution
-python -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install -e ".[tree]"
-evo --version
-```
-
-Expect `evo 2.0.0b18`. Install from the documented beta checkout or a supplied wheel; a plain PyPI install may resolve to another release. If your checkout reports another version, follow that version’s documentation. [Wheel installation](QUICKSTART.md#1-install-the-beta) is covered in the full guide.
-
-### 2. Start the example service
-
-In terminal 1, from the same `evolution` directory:
-
-```bash
-evo-target init ./demo
-evo-target serve ./demo/manifest.json
-```
-
-Wait for a JSON line containing `"status": "listening"` and leave the service running. If port 8765 is busy, stop this service, change `target.base_url` in `demo/manifest.json` to an available loopback port, and restart it before the first campaign. If `demo` already exists, use a new directory name throughout these commands.
-
-### 3. Run the campaign
-
-Open terminal 2 in the same `evolution` directory and activate the same environment:
-
-```bash
-source .venv/bin/activate
-evo tree conformance --manifest ./demo/manifest.json
-evo tree evolve --manifest ./demo/manifest.json --run-dir ./demo/run-1 \
-  > ./demo/result.json
-```
-
-Conformance should report `"ok": true` and `"leaked": []`. The campaign saves its result JSON in `demo/result.json` and its records in `demo/run-1`.
-
-### 4. Inspect the selected files
-
-```bash
-python - <<'PYRESULT'
-import json
-from pathlib import Path
-
-result = json.loads(Path("demo/result.json").read_text())
-print("State:", result["terminal"])
-print("Outcome:", result["finished"])
-print("Champion:", result["status"]["final_champion"])
-print("Files:", result["status"]["campaign_outcome"]["champion_path"])
-PYRESULT
-cat ./demo/seed/skills/SKILL.md
-cat ./demo/run-1/artifacts/champions/v1/skills/SKILL.md
-```
-
-Expect a finished campaign with outcome `completed`, reason `rounds_exhausted` and **Champion `v1`**. The selected skill begins with `IMPROVED`; the original seed does not. The sample scorer rewards that marker, so this result demonstrates file flow and selection. It does not establish improvement for a real agent.
-
-Stop the service with Ctrl+C in terminal 1 when finished. A `continue:` hint after success is optional guidance for a successor campaign. To repeat the example, start the service and use a new run directory.
-
-The [full Quickstart](QUICKSTART.md) explains generated files and troubleshooting. For an unfamiliar failure, start with [diagnosis and recovery](docs/running-campaigns.md#a-run-failed-start-here).
-
-## What happens between an edit and selection?
-
-The Grouper gathers observed failures; the Reflector investigates a group; the editor changes a copy of permitted files. Preliminary checks compare the Candidate on affected training cases. A finalist then faces fresh measurement across training cases and comparison with the current Champion. A campaign can finish without a promotion. [Read the comparison rules](docs/architecture.md#how-promotion-is-decided).
-
-Evolution changes instruction files, without training model weights. Training evidence guides edits and selection; held-out cases measure the fixed selected version separately.
-
-## Bring your own agent
-
-Your agent needs a **Target Service** wrapper that loads each supplied file snapshot and returns the agent’s behavior. Its model-provider URL is a separate connection. The [integration guide](docs/connecting-an-agent.md) and [complete offline backend](docs/target-server.md#a-complete-offline-backend) show what to implement.
+You supply the agent, editable files, cases and scorer. Evolution changes instruction files without training model weights. Training evidence guides edits and selection; held-out cases measure the fixed selected version separately. An infrastructure error never counts as agent quality, and "no improvement" is a valid answer.
 
 ## Keep going
 
-- [Run and inspect campaigns](docs/running-campaigns.md), including separate [held-out evaluation](docs/running-campaigns.md#improve-on-train-and-measure-on-test).
-- [Diagnose a stopped run](docs/running-campaigns.md#a-run-failed-start-here).
-- Look up [commands](docs/cli.md#tree-service-commands), [campaign settings](docs/manifest-v2.md) or the [backend API](docs/target-server.md).
-- [Browse all guides](docs/SUMMARY.md), [contribute](CONTRIBUTING.md) or [report an issue](https://github.com/sb-ai-lab/evolution/issues).
+- [The user guide](docs/guide/README.md): connect your agent, design the evaluation, run a campaign, read the results and control spending.
+- [How Lab works](docs/guide/concepts.md): targets, Bundles, version pairs and conformance.
+- [Evolution Core](docs/core.md): Core's own commands, manifest and run files, for direct and embedded use.
+- [Browse all documentation](docs/SUMMARY.md), [contribute](CONTRIBUTING.md) or read the [release notes](CHANGELOG.md).
 
-The separate [task and skill workflow](docs/manual-workflow.md) uses saved versions and traces. Before upgrading this beta, read the [release notes](CHANGELOG.md) and [recovery guidance](docs/running-campaigns.md#resume-after-a-failure).
+Core beta `2.0.0b22` · Lab `0.0.3.dev81` · [License](LICENSE)

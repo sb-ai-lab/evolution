@@ -1,0 +1,7 @@
+lab-owner-report/11 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa available
+tokens (target calls only): unavailable
+outcome: completed/rounds_exhausted
+reflector probe: unavailable (unreadable)
+no candidate was measured: reflection_declined 1
+independent: mode=point R=1 verification=reuse noise=negligible allowance=0.00 (assumed_negligible) stability=stable fresh_parent=no global=point
+comparisons unavailable (unavailable)

@@ -23,7 +23,7 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Any
 
-from evolution.lineage.state_io import ensure_private_directory
+from evolution.lineage.state_io import ensure_private_directory, sync_file
 from evolution.tree.execution.interaction import ScoringError
 from evolution.tree.execution.scorer_traces import (
     PACK_FORMAT,
@@ -46,7 +46,7 @@ from evolution.tree.storage.journal_errors import JournalFault
 _CHUNK = 1024 * 1024
 # Storage fault injection seams; all writes make complete progress or fault.
 _write = os.write
-_fsync = os.fsync
+_fsync = sync_file
 _truncate = os.ftruncate
 
 

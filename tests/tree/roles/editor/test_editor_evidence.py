@@ -1442,12 +1442,12 @@ def test_evidence_offset_inside_a_record_is_still_refused(family15):
 
 
 @pytest.mark.parametrize("family15", [False, True])
-def test_editor_read_evidence_past_end_names_range_only_in_v16(family15):
+def test_editor_read_evidence_past_end_guides_recovery_only_in_v16(family15):
     from evolution.tree.roles.editor.chat_editor import ToolError, _evidence_chunk
 
     with pytest.raises(ToolError) as caught:
         _evidence_chunk("evidence\n", 100, family15=family15)
     expected = "offset is past end of evidence"
     if family15:
-        expected += "; offset must be between 0 and 9"
+        expected += "; offset must be between 0 and 9. Omit offset to continue, or use a valid page position"
     assert str(caught.value) == expected

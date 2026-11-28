@@ -65,6 +65,7 @@ from evolution.cli.commands.tasks import (
 )
 from evolution.cli.commands.traces import repair_traces_cmd, show_trace_cmd, traces_cmd
 from evolution.cli.onboarding import doctor, quickstart, task_new
+from evolution.lineage.state_io import DurabilityConfigError, check_durability
 from evolution.tree import cli as _tree_cli  # noqa: F401  register tree commands
 
 
@@ -85,6 +86,11 @@ def main(
     ),
 ) -> None:
     """Evolution CLI."""
+    try:
+        check_durability()
+    except DurabilityConfigError as error:
+        typer.echo(str(error), err=True)
+        raise typer.Exit(2) from None
 
 
 # ------------------------------------------------------------------

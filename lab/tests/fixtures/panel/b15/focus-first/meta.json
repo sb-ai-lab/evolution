@@ -1,0 +1,80 @@
+{
+  "schema": "lab-offline-core-capture/1",
+  "scenario": "focus-first",
+  "captured_at": "2026-10-29T07:18:34.516701+00:00",
+  "core_version": "2.0.0b15",
+  "lab_version": "0.0.3.dev63",
+  "core_commit": "30ae438c7ca899f694c8dddb5e09f301e98cffc9",
+  "preliminary": false,
+  "producing_wheels": {
+    "lab": {
+      "file": "evolution_lab-0.0.3.dev63-py3-none-any.whl",
+      "sha256": "0aaedc6f1b2db1f7b0952a3ee6ee3e29779b1b083588dffef0a3ddcc20e70bf6"
+    },
+    "core": {
+      "file": "evo_skills-2.0.0b15-py3-none-any.whl",
+      "sha256": "56855139bdac1750c28d7ec837e28d5b0c005ad2745b856de9d93c4934ef5352"
+    }
+  },
+  "generators": [
+    {
+      "path": "tests/fixtures/panel/capture_b15.py",
+      "sha256": "da407c58a4e4eebfdf7dcee667cfb393f2afd515a8774696eaf95f599bd24075"
+    },
+    {
+      "path": "tests/scaffold_16.py",
+      "sha256": "8db8637c0645e11b79c107864be9892f1dfad2d290dba9db9db53697fb856246"
+    },
+    {
+      "path": "tests/dev62_default_outputs.py",
+      "sha256": "687ca0af536753ed72131ddbf3a244007102deba3f233247b4e9efdf85c9466f"
+    }
+  ],
+  "core_functions": [
+    "evolution.tree.evolve.evolve",
+    "evolution.tree.campaign.inspect_campaign"
+  ],
+  "fault_injections": [],
+  "executor": "Core ReferenceTarget over loopback HTTP; neutral subprocess roles",
+  "files_sha256": {
+    "campaign.json": "38de1dabd5d11976705669ecedd978a61156d126cd813419eb1e6ec3ee2ef3ce",
+    "core-projection.json": "7c24454826b80fa26583e3a238acc55e5961ae77c8fca89fdb9874786a80e7b1",
+    "core-report.txt": "c3b26e129283df12c4221817f9eb40abaaea807c8e4a1f5ebec1cfdd38ee41de",
+    "owner-report.json": "df4ae055a8c4b11e2e606b2c7f41842bae81d4d2257d42a7ab0a9979a64921ae",
+    "report.md": "fbc5a17a36261bc399a269357f4bdf3ecafe8c2b0bdcdece78047090a3772b55",
+    "result.json": "56b8ea10b5ec6b6d33328337e9baedf9b333dde8d397b3827cb710d679f9fbcb",
+    "run/artifacts/auxiliary/0df4b3f1a12b48257c55c716625ae099e609392d47b65cb5d891420d8464a33c/payload.json": "0df4b3f1a12b48257c55c716625ae099e609392d47b65cb5d891420d8464a33c",
+    "run/artifacts/auxiliary/50690e252890b05f03f29ecb5678a792d576b175c3a0898e40dffc17e7159ee9/payload.json": "50690e252890b05f03f29ecb5678a792d576b175c3a0898e40dffc17e7159ee9",
+    "run/artifacts/auxiliary/8a781ed3e2dd210437aca1a59f81139761c8ae4d03620e9d39d9630fbda883cf/payload.json": "8a781ed3e2dd210437aca1a59f81139761c8ae4d03620e9d39d9630fbda883cf",
+    "run/artifacts/auxiliary/94e29e3d25b0a74b465175101a3fdef195b992b9724810a3dc774e72179d08fb/payload.json": "94e29e3d25b0a74b465175101a3fdef195b992b9724810a3dc774e72179d08fb",
+    "run/artifacts/auxiliary/9938509d4af58833cacea69c42782b2a7602a3d54f0a067dd17386c3b3660bc9/payload.json": "9938509d4af58833cacea69c42782b2a7602a3d54f0a067dd17386c3b3660bc9",
+    "run/artifacts/auxiliary/9eefbb87766dde19a3077b26db0e8cc503a8abb0aa5f5554f7e5bf8319f9aebd/payload.json": "9eefbb87766dde19a3077b26db0e8cc503a8abb0aa5f5554f7e5bf8319f9aebd",
+    "run/artifacts/auxiliary/bfc6927dbe43f6116e6058d1f503f91e72c0dc114d2d2860f962f30f1b2a1d51/payload.json": "bfc6927dbe43f6116e6058d1f503f91e72c0dc114d2d2860f962f30f1b2a1d51",
+    "run/artifacts/auxiliary/c375ebe17810ef3bf7faa24eb224bf798f1b1450258d4e9ccb7c46206004d915/payload.json": "c375ebe17810ef3bf7faa24eb224bf798f1b1450258d4e9ccb7c46206004d915",
+    "run/artifacts/auxiliary/c692e1f85638a7bfacd4beb07fc8ba1f08d7dd1f628440a6ea5257274bf067f3/payload.json": "c692e1f85638a7bfacd4beb07fc8ba1f08d7dd1f628440a6ea5257274bf067f3",
+    "run/artifacts/auxiliary/d050c43e6869bd9224be6de016d2310566caecaf28bf67f85c767af12ba02b6b/payload.json": "d050c43e6869bd9224be6de016d2310566caecaf28bf67f85c767af12ba02b6b",
+    "run/artifacts/auxiliary/dfe76c779a2cfb90e352af3c772623f8b7446fef1173d5314c0b4fdddafa5b3d/payload.json": "dfe76c779a2cfb90e352af3c772623f8b7446fef1173d5314c0b4fdddafa5b3d",
+    "run/artifacts/candidates/r01-a01/skills/SKILL.md": "264d7fb8d11aab664e3ae36cdfa89cf8f4b3bd999d1888114f772d530067a132",
+    "run/artifacts/candidates/r01-a01/uv.lock": "fdae21c35ba8ab73bee88a075fdae386e692049307adaf0af670c8bced90d349",
+    "run/artifacts/candidates/r01-a02/skills/SKILL.md": "512a781a4f990d47e0604f6dfb3ce454c0ca2d7489ffa7555bacd75233ad40fd",
+    "run/artifacts/candidates/r01-a02/uv.lock": "fdae21c35ba8ab73bee88a075fdae386e692049307adaf0af670c8bced90d349",
+    "run/artifacts/champions/v0/skills/SKILL.md": "e4d9d46200d838b940d7bb19157a1253bd7fcdfbae54a9c134cc8f2e8c972f3b",
+    "run/artifacts/champions/v0/uv.lock": "fdae21c35ba8ab73bee88a075fdae386e692049307adaf0af670c8bced90d349",
+    "run/artifacts/champions/v1/skills/SKILL.md": "512a781a4f990d47e0604f6dfb3ce454c0ca2d7489ffa7555bacd75233ad40fd",
+    "run/artifacts/champions/v1/uv.lock": "fdae21c35ba8ab73bee88a075fdae386e692049307adaf0af670c8bced90d349",
+    "run/artifacts.jsonl": "2a4dd24631f00c53deb6e180a4ca691cd5d419e3aaf7d1c52114ae85e231ec05",
+    "run/campaign.jsonl": "3b3a72cd740a7858ce597b35a1c3273868f45fb59210bcf367490e6aa815e51b",
+    "run/connection/b66ebfb314064120a6b547a520952546/events.jsonl": "d1030b472b76201211e15c95ff7630b13328044a230ca320afbd3488ce34a14d",
+    "run/measurements/m-r00-champion/events.jsonl": "f8afb43e35152f4a2b6918d4db5e5524fe395e5b72457a423126582d74fbdea8",
+    "run/measurements/m-r01-a01/events.jsonl": "e37a95779a43d2765c978320cc1b3897aeb42c4986091acaf3db1e258cf1f11d",
+    "run/measurements/m-r01-a01-parent/events.jsonl": "69805036bf76d5a83068132d897ed8b77b91acecf2b9bc47c2c474d49bfe0ce4",
+    "run/measurements/m-r01-a02/events.jsonl": "caf87b2a611bd40d64eb20f1686cf4e46edbafb7d848dee7622ca77e0892c0ec",
+    "run/measurements/m-r01-a02-completion/events.jsonl": "abe0efc12912796308659b693367cd90947c91e8d650fc178a46b77b703131e6",
+    "run/measurements/m-r01-a02-parent/events.jsonl": "7d2439c970eddbe8423e61e59e8da992f82292a8a4462dac379464296736df5a",
+    "run/scorer-traces/m-r00-champion.pack": "a25e5c0fcaa9d5717654daf00d35f4d65f1eca640bc91093662e2fcebdbb6b70",
+    "run/scorer-traces/m-r01-a01-parent.pack": "4c68bc82a9f50981aefbb7c25a9afe6f781f24665fe0a35750060627fa336133",
+    "run/scorer-traces/m-r01-a01.pack": "16fde9740e2b28f737bfa0717925089b711231aa24ec29c1e569f8ee84e0b537",
+    "run/scorer-traces/m-r01-a02-parent.pack": "ea4602cf249b267f5f232ead26648cfabe10af2df5f83bf3778e46cc407ab41b",
+    "run/scorer-traces/m-r01-a02.pack": "08c8bb0af82ffc20ecfe37eb5c5f03cfc5b0cac4afd6856846d75ebeca4c665c"
+  }
+}

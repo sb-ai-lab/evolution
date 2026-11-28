@@ -1,0 +1,15 @@
+lab-owner-report/12 operation-reference available
+tokens (target calls only): in=48 out=188 unknown_calls=0
+outcome: completed/rounds_exhausted
+independent: mode=confidence R=1 verification=reuse noise=negligible allowance=0.00 (assumed_negligible) stability=stable fresh_parent=no global=point
+r01-a01 accepted finalist/passed
+  gate binding (core_raw): focus=bound, causal=bound
+  global binding (core_raw): global=point
+  gate passed/passed (focus) · vs round champion · stored measurement · ref m-r00-champi
+  focus: result rule=bound · gain 1.00 (estimate); with 10% confidence not below 0.8744; threshold > -0.90 → passed
+  causal: result rule=bound · skipped
+  global passed/passed (global) · vs round champion · stored measurement · ref m-r00-champi
+  global: result rule=point · gain 1.00; threshold > 0.00 → passed
+  eligible final score 1.00
+r02-a01 not_enough_data rejected/structurally_unattainable · no comparison
+  preflight impossible: global maximal gain 0.00 vs threshold > 0.00 (cannot pass)

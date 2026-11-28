@@ -1,0 +1,28 @@
+{
+  "schema": "lab-target-launch/3",
+  "reflector_probe": null,
+  "turn": {"empty_answer": "target_failed"},
+  "environment_ref": "lab:auto",
+  "agent": {"module": "adapter", "attribute": "build", "import_root": "agent"},
+  "program_paths": ["agent"],
+  "env": {},
+  "secret_names": [],
+  "endpoint": {"base_url": "lab:auto"},
+  "identity": {
+    "target_id": "my-agent-target",
+    "contract_digest": "lab:auto",
+    "settings_hash": "lab:auto",
+    "runtime_ref_digest": "lab:auto",
+    "seed_mode": "none"
+  },
+  "policy": "evaluation-input.json",
+  "limits": {
+    "max_instances": 1,
+    "max_concurrent_sessions": 1,
+    "max_input_bytes": 1048576,
+    "max_output_bytes": 8192
+  },
+  "startup_timeout_seconds": 10,
+  "stop_grace_seconds": 10,
+  "conformance": {"kind": "core-session-public/1"}
+}

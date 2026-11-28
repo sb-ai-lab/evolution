@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -130,6 +131,9 @@ def test_snapshot_round_trips_and_is_owner_only(tmp_path):
     assert snapshot_state(tmp_path / "other", budget=60_000) is None
 
 
+@pytest.mark.skipif(
+    sys.platform == "darwin", reason="paths past macOS PATH_MAX (1,024) cannot be walked by name"
+)
 def test_v2_catalog_pages_deep_control_character_paths_within_reader_bound(tmp_path) -> None:
     root = tmp_path / "deep-docs"
     paths: list[str] = []

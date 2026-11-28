@@ -1,5 +1,8 @@
 """Real declared-birth and paid-slot recovery of pre-Promotion completion."""
 
+import os
+import sys
+
 import pytest
 
 from evolution.tree.campaign_projections import verify_evidence
@@ -116,6 +119,16 @@ async def test_sealed_gate_corruption_never_repairs_or_remeasures(tmp_path, monk
     assert not (run / "measurements" / "m-r01-a01-completion").exists()
 
 
+def _descriptor_path(descriptor: int) -> str:
+    """The path of an open directory: `/proc` on Linux, `F_GETPATH` on macOS."""
+
+    if sys.platform == "darwin":
+        import fcntl
+
+        return os.fsdecode(fcntl.fcntl(descriptor, fcntl.F_GETPATH, bytes(1024)).rstrip(b"\0"))
+    return os.readlink(f"/proc/self/fd/{descriptor}")
+
+
 @pytest.mark.parametrize("side", ["before", "after"])
 async def test_atomic_import_rename_has_no_partial_admission(tmp_path, monkeypatch, side):
     import os
@@ -128,9 +141,7 @@ async def test_atomic_import_rename_has_no_partial_admission(tmp_path, monkeypat
     def replace(source, destination, **kwargs):
         nonlocal fired
         directory = (
-            os.readlink(f"/proc/self/fd/{kwargs['src_dir_fd']}")
-            if kwargs.get("src_dir_fd") is not None
-            else ""
+            _descriptor_path(kwargs["src_dir_fd"]) if kwargs.get("src_dir_fd") is not None else ""
         )
         target = directory.endswith("m-r01-a01-completion") and str(destination) == "events.jsonl"
         if target and not fired:

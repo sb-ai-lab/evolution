@@ -1,0 +1,190 @@
+{
+  "schema": "lab-campaign-view/13",
+  "operation_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "family": 15,
+  "caveats": [
+    {
+      "kind": "champion_not_contemporaneous",
+      "round": null,
+      "attempt_id": null
+    }
+  ],
+  "roles": {
+    "editor": {
+      "kind": "subprocess"
+    },
+    "reflector": {
+      "kind": "agent_cli"
+    },
+    "grouper": {
+      "kind": "fields"
+    }
+  },
+  "settings": {
+    "stability": "stable",
+    "round_stop": "first_accepted",
+    "baseline_refresh": "off"
+  },
+  "connection": {
+    "state": "compatible",
+    "outcome": "compatible",
+    "attempts": 1,
+    "binding_digest": "4493cda679860f83008e0ccc3aed098a1575316275a7b935beaa1d3c6d477b16",
+    "operation_id": "44bb911570f641c0a2c4de619a185d65",
+    "detail": null
+  },
+  "policy": {
+    "rounds": 1,
+    "attempts_per_round": 1,
+    "metric_primary": "score"
+  },
+  "progress": {
+    "kind": "campaign",
+    "phase": "finished",
+    "stages": [],
+    "rounds": {
+      "completed": 1,
+      "current": null,
+      "planned": 1
+    },
+    "attempts": {
+      "current_round": {
+        "closed": 0,
+        "running": 0,
+        "planned": 1
+      },
+      "total": 0
+    },
+    "coverage": null,
+    "policy_state": "present",
+    "observed_at": null
+  },
+  "outcome": {
+    "outcome": "completed",
+    "reason": "rounds_exhausted"
+  },
+  "champions": null,
+  "champions_state": "unavailable",
+  "rounds": [
+    {
+      "round": 1,
+      "outcome": "unplanned",
+      "baseline_measurement_id": "m-r00-champion",
+      "baseline_version": "v0",
+      "reflection": {
+        "state": "declined",
+        "reflection_id": "r01-x01",
+        "error_class": null,
+        "reason": null,
+        "hypotheses": []
+      },
+      "attempts": []
+    }
+  ],
+  "measurements": [
+    {
+      "measurement_id": "m-r00-champion",
+      "role": "baseline",
+      "round": 1,
+      "attempt_id": null,
+      "candidate_digest": "fbd7fa5cd7695fbda3cd44d6052a66419e46395644eabfaf65a0dabc0dabc8c4",
+      "coverage": {
+        "expected": 2,
+        "scored": 2,
+        "excluded_pairs": 0
+      },
+      "metrics": {
+        "score": {
+          "mean": 0.5,
+          "count": 2
+        }
+      },
+      "baseline": null,
+      "times": null,
+      "usage": null,
+      "usage_state": "unavailable",
+      "retries": 0,
+      "call_failures_by_code": {},
+      "classification": "born",
+      "repairs": {
+        "tries": 0,
+        "pairs_scored": 0
+      }
+    }
+  ],
+  "suspensions": [],
+  "details_state": "present",
+  "details_reason": null,
+  "details_source": "core_raw",
+  "lab_notices": [
+    {
+      "code": "no_candidate_measured",
+      "rounds": 1,
+      "by_reason": {
+        "reflection_declined": 1
+      },
+      "reflection_errors": {}
+    }
+  ],
+  "independent": {
+    "evidence": "unavailable",
+    "next_action": "finished",
+    "settings": {
+      "mode": "point",
+      "repeats": 1,
+      "verification": "reuse",
+      "stability": "stable",
+      "fresh_parent": false,
+      "global_rule": "point",
+      "train_cases": 2,
+      "train_slots": 2,
+      "execution_noise": {
+        "kind": "negligible",
+        "allowance": {
+          "value": 0.0,
+          "exact": {
+            "denominator": "1",
+            "format": "rational-hex/1",
+            "numerator": "0"
+          }
+        },
+        "source": null,
+        "source_kind": "assumed_negligible"
+      },
+      "statistics": {
+        "method": null,
+        "unit": null
+      },
+      "bound_fallback": null
+    },
+    "attempts": [],
+    "attainability": {
+      "preflight": [],
+      "local_guidance": null
+    },
+    "work": {
+      "planned": {
+        "basis": "full_initial_baseline_and_conditional_future_stage_scenarios",
+        "baseline_slots": 2,
+        "admitted_baseline_imports": 0,
+        "affected_cases": null,
+        "candidate_final_slots_if_gate_passes": null,
+        "parent_gate_slots": 0,
+        "champion_slots_per_scope": 0,
+        "champion_scope": "reached_finalist",
+        "slots_per_refresh": 2,
+        "connection_preflight": "separate_no_measurement_credit",
+        "probes_and_retries": "separate",
+        "noise_diagnostic_slots": 0
+      },
+      "committed": null,
+      "remaining": null
+    }
+  },
+  "checks": null,
+  "checks_state": "present",
+  "checks_reason": null,
+  "reflector_probe": null,
+  "reflector_probe_state": "unavailable",
+  "reflector_probe_reason": "unreadable"
+}

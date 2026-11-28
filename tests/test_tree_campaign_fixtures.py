@@ -1518,7 +1518,7 @@ async def test_capacity(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None
         tmp_path, campaign_policy=policy(rounds=1, attempts_per_round=1), run_name="s1"
     )
 
-    def broken_measurement(self: Any, imported: Any = ()) -> None:
+    def broken_measurement(self: Any, imported: Any = (), *, declared_components: Any = ()) -> None:
         raise JournalFault("storage_capacity_exhausted")
 
     monkeypatch.setattr(campaign_module.Measurement, "create", broken_measurement)
@@ -1886,7 +1886,7 @@ async def test_persistence(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> N
         run_name="limit",
     )
 
-    def over_limit(self: Any, imported: Any = ()) -> None:
+    def over_limit(self: Any, imported: Any = (), *, declared_components: Any = ()) -> None:
         raise JournalFault("journal_limit_exceeded")
 
     monkeypatch.setattr(campaign_module.Measurement, "create", over_limit)

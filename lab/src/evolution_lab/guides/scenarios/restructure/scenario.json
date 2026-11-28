@@ -1,0 +1,187 @@
+{
+  "schema": "lab-scenario/2",
+  "id": "restructure",
+  "version": 2,
+  "title": "Port the agent onto a template",
+  "skill": "SKILL.md",
+  "subject": "implementation",
+  "requires": [
+    "implementation.ported"
+  ],
+  "produces": [
+    "restructure.port_accepted"
+  ],
+  "repeatable": null,
+  "schemas": {
+    "behavior-map/2": "schemas/behavior-map-2.json",
+    "goal/2": "schemas/goal-2.json",
+    "port-spec/2": "schemas/port-spec-2.json",
+    "scope/1": "schemas/scope-1.json",
+    "verify/2": "schemas/verify-2.json"
+  },
+  "steps": [
+    {
+      "id": "analysis",
+      "title": "Map what the agent does",
+      "kind": "decide",
+      "human_only": false,
+      "optional": false,
+      "requires": [],
+      "outputs": [
+        {
+          "artifact": {
+            "path": "restructure/{implementation}/behavior-map.json",
+            "check": "schema",
+            "schema": "behavior-map/2"
+          }
+        }
+      ],
+      "skill": "SKILL.md#analysis"
+    },
+    {
+      "id": "analysis-confirm",
+      "title": "Confirm the behaviour map",
+      "kind": "confirm",
+      "human_only": true,
+      "optional": false,
+      "requires": [
+        "analysis"
+      ],
+      "outputs": [
+        {
+          "attestation": {
+            "claim": "restructure.map_confirmed",
+            "path": "restructure/{implementation}/behavior-map.json"
+          }
+        }
+      ],
+      "skill": "SKILL.md#analysis-confirm"
+    },
+    {
+      "id": "goal",
+      "title": "Agree on the goal",
+      "kind": "decide",
+      "human_only": false,
+      "optional": false,
+      "requires": [
+        "analysis-confirm"
+      ],
+      "outputs": [
+        {
+          "artifact": {
+            "path": "restructure/{implementation}/goal.json",
+            "check": "schema",
+            "schema": "goal/2"
+          }
+        }
+      ],
+      "skill": "SKILL.md#goal"
+    },
+    {
+      "id": "brief",
+      "title": "Write the brief for the builder",
+      "kind": "decide",
+      "human_only": false,
+      "optional": false,
+      "requires": [
+        "goal"
+      ],
+      "outputs": [
+        {
+          "artifact": {
+            "path": "restructure/{implementation}/port-spec.json",
+            "check": "schema",
+            "schema": "port-spec/2"
+          }
+        },
+        {
+          "artifact": {
+            "path": "restructure/{implementation}/scope.json",
+            "check": "schema",
+            "schema": "scope/1"
+          }
+        }
+      ],
+      "skill": "SKILL.md#brief"
+    },
+    {
+      "id": "brief-confirm",
+      "title": "Confirm the brief and start the build",
+      "kind": "confirm",
+      "human_only": true,
+      "optional": false,
+      "requires": [
+        "brief"
+      ],
+      "outputs": [
+        {
+          "attestation": {
+            "claim": "restructure.brief_confirmed",
+            "path": "restructure/{implementation}/scope.json"
+          }
+        }
+      ],
+      "skill": "SKILL.md#brief-confirm"
+    },
+    {
+      "id": "build",
+      "title": "Build the port",
+      "kind": "work",
+      "human_only": false,
+      "optional": false,
+      "requires": [
+        "brief-confirm",
+        "implementation.available"
+      ],
+      "outputs": [
+        {
+          "artifact": {
+            "path": "restructure/{implementation}/BUILD_REPORT.md",
+            "check": "exists"
+          }
+        }
+      ],
+      "skill": "SKILL.md#build"
+    },
+    {
+      "id": "verify",
+      "title": "Verify the behaviour is kept",
+      "kind": "work",
+      "human_only": false,
+      "optional": false,
+      "requires": [
+        "build"
+      ],
+      "outputs": [
+        {
+          "artifact": {
+            "path": "restructure/{implementation}/verify.json",
+            "check": "schema",
+            "schema": "verify/2"
+          }
+        }
+      ],
+      "skill": "SKILL.md#verify"
+    },
+    {
+      "id": "accept",
+      "title": "Accept the port",
+      "kind": "confirm",
+      "human_only": true,
+      "optional": false,
+      "requires": [
+        "verify"
+      ],
+      "outputs": [
+        {
+          "attestation": {
+            "claim": "restructure.port_accepted",
+            "path": "restructure/{implementation}/verify.json"
+          }
+        }
+      ],
+      "skill": "SKILL.md#accept"
+    }
+  ],
+  "digest": "333666ed317f1e784bd02ccd8b4a26e82a4137f549ac249f37f530feb260f59d"
+}

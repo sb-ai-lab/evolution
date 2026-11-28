@@ -1,0 +1,27 @@
+{
+  "schema": "lab-scenario-catalogue/1",
+  "catalogue_version": 12,
+  "scenarios": [
+    {
+      "id": "connect",
+      "version": 8,
+      "digest": "50eb140a6f18e010ac1bdb413dd95d5d1174e117d96486126b53515121d9de52"
+    },
+    {
+      "id": "create-skill",
+      "version": 1,
+      "digest": "4b6f5f7bbaa76ce498553d444351033a342bf5e2a2f062bfbe31da8dd32d5b6a"
+    },
+    {
+      "id": "evolve",
+      "version": 2,
+      "digest": "5507587c2b30650197698b3a4bee72f612451fa20bc813164ec5598f2e4b7d97"
+    },
+    {
+      "id": "restructure",
+      "version": 2,
+      "digest": "333666ed317f1e784bd02ccd8b4a26e82a4137f549ac249f37f530feb260f59d"
+    }
+  ],
+  "digest": "bbb65a2b34e85002407027fffe5cba9426fa25eb2a058a6ad8350bb9239dfecf"
+}

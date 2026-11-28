@@ -166,6 +166,7 @@ def test_unavailable_bootstrap_report_does_not_present_a_lower_or_exactness_clai
     assert comparison["scopes"][0]["exact"] is None
     text = "\n".join(report_lines(report))
     assert "lower unavailable · exact contrast: unavailable" in text
+    assert "empirical one-sided repeat-bootstrap" in text and "insufficient_repeats" in text
     assert "intervals_empirical · empirical repeat intervals, not guaranteed coverage" in text
 
 
@@ -516,7 +517,8 @@ def test_confidence_endpoint_and_incomplete_candidate_have_distinct_claims():
 
 @pytest.mark.parametrize("repeats,state", [(1, "unavailable"), (3, "observed")])
 def test_repeat_variation_is_only_candidate_score_diagnostic(repeats, state):
-    from evolution.tree.family15_report import comparison_projection
+    from evolution.tree.family15_report import comparison_projection, report_lines
+    from evolution.tree.family15_schema import encode_rational
     from tests.test_tree_case_comparison import profile
 
     p = profile(noise="observed", repeats=repeats)
@@ -532,6 +534,133 @@ def test_repeat_variation_is_only_candidate_score_diagnostic(repeats, state):
     assert report["noise"]["diagnostic"] == "candidate_primary_score_repeat_variance"
     assert report["noise"]["units"] == "score_squared"
     assert report["noise"]["extra_measurements"] == 0
+    variance = None if repeats == 1 else encode_rational(Fraction(1, 16))
+    assert report["noise"]["repeat_variance"] == {
+        "minimum": variance,
+        "maximum": variance,
+        "unavailable_counts": {"insufficient_repeats": 1} if repeats == 1 else {},
+    }
+    projection = report_for(built(mode="point", repeats=repeats)[0].policy)
+    projection["attempts"] = [dict(attempt_id="a", comparison=report)]
+    text = "\n".join(report_lines(projection))
+    assert "Candidate primary-score repeat variance (score squared)" in text
+    assert ("insufficient_repeats" if repeats == 1 else "0.0625 (approx)") in text
+    assert "case_id" not in json.dumps(report)
+
+
+async def test_round_with_failed_reflection_and_no_editor_reports_stage_loss(tmp_path, monkeypatch):
+    from evolution.tree.campaign import inspect_campaign
+    from evolution.tree.family15_report import report_lines
+    from tests.test_tree_campaign_family15_delivery import public_run
+
+    run, _ = await public_run(
+        tmp_path, monkeypatch, reflector="print('private-role-log')\nraise SystemExit(1)\n"
+    )
+    report = inspect_campaign(run).to_payload()["independent"]
+    row = report["round_progress"][0]
+    assert row["attempts_opened"] == row["candidates_sealed"] == row["attempts_measured"] == 0
+    assert row["reflections"][-1] == {
+        "status": "failed",
+        "category": "unknown",
+        "reason": "program_failed",
+        "suspended": True,
+    }
+    assert report["suspension"] == {"reason": "reflector_failing", "owner": "reflector"}
+    assert "private-role-log" not in json.dumps(report)
+    assert any(
+        "Reflection failed" in line and "program_failed" in line for line in report_lines(report)
+    )
+
+
+async def test_editor_failure_before_candidate_reports_stage_loss(tmp_path, monkeypatch):
+    import importlib
+
+    from evolution.tree.campaign import inspect_campaign
+    from evolution.tree.campaign_editor import EditorOutcome
+    from evolution.tree.family15_report import report_lines
+    from tests.test_tree_campaign_family15_delivery import public_run
+
+    async def failed(*args, **kwargs):
+        return EditorOutcome(
+            "failed", None, "reported", "private-role-note", False, "turns_exhausted"
+        )
+
+    monkeypatch.setattr(importlib.import_module("evolution.tree.campaign"), "run_editor", failed)
+    run, _ = await public_run(tmp_path, monkeypatch)
+    report = inspect_campaign(run).to_payload()["independent"]
+    row = report["round_progress"][0]
+    assert (row["attempts_opened"], row["candidates_sealed"], row["attempts_measured"]) == (1, 0, 0)
+    attempt = report["attempts"][0]
+    assert attempt["reason"] == "editor_failed"
+    assert attempt["progress"] == {
+        "editor": "failed",
+        "editor_failures": [{"reason": "turns_exhausted", "category": "content"}],
+        "candidate_sealed": False,
+        "measurement": "not_bound",
+    }
+    assert "private-role-note" not in json.dumps(report)
+    assert any(
+        "Editor failed" in line and "turns_exhausted" in line for line in report_lines(report)
+    )
+
+
+async def test_opened_binding_is_distinct_from_scored_candidate(tmp_path, monkeypatch):
+    from evolution.tree.campaign import inspect_campaign
+    from evolution.tree.execution.journal import inspect_journal
+    from evolution.tree.family15_report import campaign15_projection
+    from evolution.tree.run_reader import open_run
+    from tests.test_tree_campaign_family15_gate import gate_run
+
+    run = await gate_run(tmp_path, monkeypatch, fresh=True, stop="after_comparison_bound")
+    captured = open_run(run)
+    prefixes = {
+        path.parent.name: inspect_journal(path.parent).records
+        for path in (run / "measurements").glob("*/events.jsonl")
+    }
+    report = inspect_campaign(run, verify=True).to_payload()["independent"]
+    row = report["round_progress"][0]
+    assert (row["attempts_opened"], row["candidates_sealed"], row["attempts_measured"]) == (1, 1, 0)
+    assert report["attempts"][0]["progress"]["measurement"] == "bound"
+    await gate_run(tmp_path, monkeypatch, fresh=True)
+    assert (
+        inspect_campaign(run).to_payload()["independent"]["attempts"][0]["progress"]["measurement"]
+        == "scored"
+    )
+    historical = campaign15_projection(
+        captured.snapshot,
+        run_root=run,
+        campaign_records=captured.records,
+        measurement_records=prefixes,
+    )
+    assert historical["round_progress"] == report["round_progress"]
+    assert historical["attempts"][0]["progress"] == report["attempts"][0]["progress"]
+
+
+@pytest.mark.parametrize(
+    "field,value", [("attempts_measured", 0), ("reflections", [{"reason": "raw text"}])]
+)
+def test_round_progress_rejects_inconsistent_or_private_facts(field, value):
+    from evolution.tree.family15_report import validate_campaign15_projection
+
+    report = _attempt_projection("abandoned", "editor_failed")
+    report["evidence"] = "authenticated_publications"
+    report["attempts"][0]["progress"] = dict(
+        editor="edited", editor_failures=[], candidate_sealed=True, measurement="scored"
+    )
+    row = dict(
+        round=1,
+        outcome="retained",
+        reason=None,
+        attempts_opened=1,
+        candidates_sealed=1,
+        attempts_measured=1,
+        reflections=[],
+    )
+    report["round_progress"] = [row]
+    validate_campaign15_projection(report)
+    row[field] = value
+    with pytest.raises(ValueError):
+        validate_campaign15_projection(report)
 
 
 async def test_public_status_result_and_watch_agree_on_an_unfinished_run(tmp_path, monkeypatch):
@@ -1105,6 +1234,8 @@ async def test_projection_validates_focus_rejected_attempt(tmp_path, monkeypatch
     validate_campaign15_projection(report)
     attempt = report["attempts"][0]
     assert attempt["comparison"]["scopes"][1]["status"] == "not_measured"
+    assert attempt["progress"]["measurement"] == "scored"
+    assert report["round_progress"][0]["attempts_measured"] >= 1
     expected_slots = dict(scheduled=4, dispatched=2, not_owed=2)
     assert attempt["slots"] == {
         "candidate": expected_slots,

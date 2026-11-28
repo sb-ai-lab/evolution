@@ -1,0 +1,7 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "evolution",
+  "version": "0.2.0",
+  "description": "Evolution Lab and Core skills for evaluating agents and working with campaigns.",
+  "license": "Apache-2.0"
+}

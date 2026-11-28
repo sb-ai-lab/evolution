@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "restructure-scope/1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "source", "hide"],
+  "properties": {
+    "schema": {"const": "restructure-scope/1"},
+    "source": {"$ref": "#/$defs/text"},
+    "hide": {"type": "array", "items": {"$ref": "#/$defs/hidden"}}
+  },
+  "$defs": {
+    "text": {"type": "string", "minLength": 1},
+    "relpath": {"type": "string", "pattern": "^(?!/)(?!(?:.*/)?\\.\\.(?:/|$)).+(?![\\s\\S])"},
+    "hidden": {
+      "type": "object", "additionalProperties": false, "required": ["path", "reason"],
+      "properties": {"path": {"$ref": "#/$defs/relpath"}, "reason": {"$ref": "#/$defs/text"}}
+    }
+  }
+}

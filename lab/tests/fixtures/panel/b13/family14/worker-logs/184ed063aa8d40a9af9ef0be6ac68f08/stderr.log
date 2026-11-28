@@ -1,0 +1,7 @@
+evo tree evolve: note: Corpus split: train (2 cases); held-out test (0 cases); mode implicit_train.
+evo tree evolve: note: Corpus partition_mode: implicit_train.
+evo tree evolve: note: Corpus split train: 2 cases, 1 groups.
+evo tree evolve: note: Corpus split train, stratum "s": 2 cases, 1 groups.
+evo tree evolve: note: Corpus split test: 0 cases, 0 groups.
+evo tree evolve: note: Corpus split test, stratum "s": 0 cases, 0 groups.
+evo tree evolve: note: Corpus split coverage: stratum "s" is absent from test.

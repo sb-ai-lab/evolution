@@ -25,6 +25,7 @@ import asyncio
 import time
 from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass, field
+from functools import partial
 from pathlib import Path
 from typing import Any
 
@@ -32,9 +33,11 @@ from evolution.tree.execution.private_files import WorkspaceError
 from evolution.tree.roles.chat_loop import (
     Correct,
     Done,
+    LoopHooks,
     LoopLimits,
     Repair,
     ToolOutput,
+    ToolReads,
     run_tool_loop,
 )
 from evolution.tree.roles.config import (
@@ -46,14 +49,15 @@ from evolution.tree.roles.editor.chat_editor import (  # noqa: PLC2701 - one too
     ChatCredentials,
     EditFailure,
     ToolError,
+    _catalog_evidence_page,
     _close_client,
     _compact_messages,
-    _evidence_chunk,
     _evidence_page,
     _expect,
     _file_summary,
     _new_client,
     _offset,
+    _read_arguments,
     _tool,
     negotiate_style,
     read_file_tool,
@@ -63,6 +67,12 @@ from evolution.tree.roles.editor.chat_editor import (  # noqa: PLC2701 - one too
 from evolution.tree.roles.editor.editor_brief import EvidenceRecord
 from evolution.tree.roles.identities import ReflectorIdentity
 from evolution.tree.roles.limits import adaptive_limits
+from evolution.tree.roles.read_progress import (
+    EVIDENCE_OFFSET_GUIDANCE,
+    READ_TOOLS,
+    ReadProgress,
+    read_tool_contracts,
+)
 from evolution.tree.roles.reflection_reader import ReaderArgumentError
 from evolution.tree.roles.reflection_role_helpers import probe_log_secrets, probe_opening
 from evolution.tree.roles.reflector.reflect_brief import (
@@ -291,7 +301,29 @@ def reflect_tools(
                 ["evidence_id"],
             ),
         )
-    return tools
+    return read_tool_contracts(tools) if contracts else tools
+
+
+def reflect_turn_limit(section: ChatEditorSection, probe: ProbeAccess | None) -> int:
+    return max(section.max_turns, 2 * probe.budget + 8) if probe else section.max_turns
+
+
+def reflect_brief_tools(
+    brief: Any, *, probe: bool, history: bool, result_repair: bool, contracts: bool
+) -> list[dict[str, Any]]:
+    adaptive = isinstance(brief, AdaptiveReflectBrief)
+    traces = adaptive and brief.version == "reflect_brief/6"
+    return reflect_tools(
+        trace=traces,
+        typed_body=traces,
+        probe=probe,
+        adaptive=adaptive,
+        docs=adaptive and brief.document_ids is not None,
+        history=history,
+        group_text_chars=brief.group_text_chars if adaptive else 512,
+        result_repair=result_repair,
+        contracts=contracts,
+    )
 
 
 def chat_first_messages(
@@ -316,6 +348,7 @@ def chat_first_messages(
                 editable_paths,
                 environment_docs,
                 editor_max_changed_files=editor_max_changed_files,
+                read_progress=session_limits is not None,
             )
             + probe_opening(probe, typed_body=getattr(brief, "version", None) == "reflect_brief/6"),
         },
@@ -411,23 +444,17 @@ class ChatReflector:
             editor_max_changed_files=editor_max_changed_files,
             session_limits=(
                 (
-                    max(self.section.max_turns, 2 * probe.budget + 8)
-                    if probe
-                    else self.section.max_turns,
+                    reflect_turn_limit(self.section, probe),
                     effective_protocol_repairs(self.section),
                 )
                 if self.family15
                 else None
             ),
         )
-        tools = reflect_tools(
-            trace=brief.version == "reflect_brief/6",
-            typed_body=brief.version == "reflect_brief/6",
+        tools = reflect_brief_tools(
+            brief,
             probe=probe is not None,
-            adaptive=True,
-            docs=brief.document_ids is not None,
             history=True,
-            group_text_chars=brief.group_text_chars,
             result_repair=self.result_repair,
             contracts=self.family15,
         )
@@ -549,6 +576,7 @@ class _ReflectSession:
         client: Any,
         attempts: AttemptRecorder | None = None,
     ) -> None:
+        self.redactions = (*reflector.secrets, *probe_log_secrets(request.probe))
         self.section = reflector.section
         self.prompt = reflector.prompt
         self.request = request
@@ -569,11 +597,7 @@ class _ReflectSession:
         if self.probe != (request.probe_session is not None):
             raise EditFailure("probe_unavailable")
         self.probe_context_exhausted = False
-        self.max_turns = (
-            max(self.section.max_turns, 2 * request.probe.budget + 8)
-            if request.probe
-            else self.section.max_turns
-        )
+        self.max_turns = reflect_turn_limit(self.section, request.probe)
         self.adaptive = isinstance(request.evidence, AdaptiveReflectBrief)
         if self.adaptive and request.reader is None:
             raise EditFailure("reader_unavailable")
@@ -587,20 +611,25 @@ class _ReflectSession:
         self.group_text_chars: int | None = (
             request.evidence.group_text_chars if self.adaptive else 512
         )
-        self.tools = reflect_tools(
-            trace=self.adaptive and request.evidence.version == "reflect_brief/6",
-            typed_body=self.adaptive and request.evidence.version == "reflect_brief/6",
+        self.tools = reflect_brief_tools(
+            request.evidence,
             probe=self.probe,
-            adaptive=self.adaptive,
-            docs=self.adaptive and request.evidence.document_ids is not None,
             history=self.history,
-            group_text_chars=self.group_text_chars,
             result_repair=self.result_repair,
             contracts=self.family15,
         )
         self.last_rejection: RejectionDetail | None = None
-        #: What the conversation has read, for `evidence_usage` and for a
-        #: non-adaptive `read_evidence` that continues where the last read stopped.
+        self.reads = (
+            ReadProgress(
+                "finish_reflection",
+                max_chars=self.section.context_compact_chars,
+                message_chars=self.section.context_message_max_chars,
+                redactions=self.redactions,
+            )
+            if self.family15
+            else None
+        )
+        # Earlier chat contracts keep the original cursor and audit behavior.
         self.evidence_progress: dict[str, int] = {}
         self.completed_evidence_ids: set[str] = set()
         self.listed_evidence = False
@@ -693,6 +722,7 @@ class _ReflectSession:
             editor_max_changed_files=self.request.editor_max_changed_files,
             session_limits=self._session_limits(),
         )
+        results = ToolReads() if self.family15 else None
         result = await run_tool_loop(
             client=self.client,
             section=self.section,
@@ -717,7 +747,13 @@ class _ReflectSession:
             family15=self.family15,
             # The preflight's turns count toward `max_turns`.
             first_turn=self._turns,
-            compact=_compact_messages,
+            hooks=LoopHooks(reads=results),
+            compact=_compact_messages
+            if self.reads is None
+            else partial(
+                _compact_messages, reads=self.reads, results=results, redactions=self.redactions
+            ),
+            read_progress=self.reads,
         )
         assert isinstance(result, ReflectResult)
         return result
@@ -886,25 +922,41 @@ class _ReflectSession:
 
     # -- tools ------------------------------------------------------------
 
-    async def _run_tool(self, name: str, arguments: dict[str, Any]) -> dict[str, Any] | ToolOutput:
+    async def _run_tool(
+        self, name: str, arguments: dict[str, Any]
+    ) -> dict[str, Any] | ToolOutput | Repair:
         """One non-terminal call, and what it tells the session.
 
-        A non-adaptive `read_evidence` without an offset continues from where
-        the last read stopped; the offset is added to `arguments`, which the
-        loop's record shows. Evidence progress counts only successful reads.
+        The /16 session selects an omitted offset before dispatch, then records
+        only the visible result. Earlier contracts retain their historical
+        argument and audit behavior.
         """
 
-        if not self.adaptive and name == "read_evidence" and "offset" not in arguments:
+        if (
+            self.reads is None
+            and not self.adaptive
+            and name == "read_evidence"
+            and "offset" not in arguments
+        ):
             evidence_id = arguments.get("evidence_id")
             if isinstance(evidence_id, str):
                 arguments["offset"] = self.evidence_progress.get(evidence_id, 0)
-        output = await self._dispatch(name, arguments)
+        read_args, reread = _read_arguments(self.reads, name, arguments)
+        output = await self._dispatch(name, read_args)
+        if self.reads is not None and name in READ_TOOLS:
+            output = self.reads.deliver(name, read_args, output, reread=reread)
+            repair = self.reads.repair_message(self.request.check_repeated_read)
+            if repair is not None:
+                return Repair(repair)
         if name == "list_evidence":
             self.listed_evidence = True
         elif name == "read_evidence":
             evidence_id = str(arguments["evidence_id"])
             offset = arguments.get("offset", 0)
-            if offset == self.evidence_progress.get(evidence_id, 0):
+            if self.reads is not None:
+                if self.reads.completed(evidence_id):
+                    self.completed_evidence_ids.add(evidence_id)
+            elif offset == self.evidence_progress.get(evidence_id, 0):
                 next_offset = output["next_offset"]
                 self.evidence_progress[evidence_id] = (
                     output["total_characters" if self.adaptive else "total_chars"]
@@ -943,6 +995,8 @@ class _ReflectSession:
                 return self.request.reader.dispatch(name, arguments)
             except ReaderArgumentError as exc:
                 detail = f"{exc.code}: {exc.detail}" if self.family15 and exc.detail else exc.code
+                if self.family15 and name == "read_evidence" and exc.code == "invalid_offset":
+                    detail += f". {EVIDENCE_OFFSET_GUIDANCE}"
                 raise ToolError(detail) from exc
         if name == "list_files":
             _expect(arguments, set())
@@ -975,23 +1029,7 @@ class _ReflectSession:
                 "total": len(self.catalog),
             }
         if name == "read_evidence":
-            _expect(arguments, {"evidence_id"}, optional={"offset"})
-            offset = _offset(arguments)
-            record = next(
-                (item for item in self.catalog if item.evidence_id == arguments["evidence_id"]),
-                None,
-            )
-            if record is None:
-                raise ToolError("unknown evidence ID")
-            content, following_offset = _evidence_chunk(
-                record.content, offset, family15=self.family15
-            )
-            return {
-                "id": record.evidence_id,
-                "content": content,
-                "next_offset": following_offset,
-                "total_chars": len(record.content),
-            }
+            return _catalog_evidence_page(self.catalog, arguments, family15=self.family15)
         raise AssertionError(name)  # pragma: no cover - guarded by `_TOOL_NAMES`
 
 
